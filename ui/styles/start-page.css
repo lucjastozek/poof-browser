@@ -401,7 +401,6 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 4px;
 }
 
-
 /* Automatic cleanup settings: a normal dialog section, not a nested card. */
 .cleanup-section {
   display: flex;
@@ -464,7 +463,10 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 10px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    box-shadow 0.12s;
 }
 .retention-pill:hover {
   color: var(--ink);

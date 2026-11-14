@@ -19,12 +19,19 @@ let resizingSidebar = false;
 let resizePointerId = null;
 function applySidebarWidth(width, persist = false) {
   sidebarWidth = Math.max(180, Math.min(480, width));
-  document.documentElement.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+  document.documentElement.style.setProperty(
+    "--sidebar-width",
+    `${sidebarWidth}px`,
+  );
   send({ cmd: "sidebar_width", width: sidebarWidth, persist });
 }
 resizeHandle.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0 || document.body.classList.contains("compact") ||
-      document.body.classList.contains("collapsed")) return;
+  if (
+    e.button !== 0 ||
+    document.body.classList.contains("compact") ||
+    document.body.classList.contains("collapsed")
+  )
+    return;
   e.preventDefault();
   resizingSidebar = true;
   resizePointerId = e.pointerId;
@@ -103,8 +110,15 @@ function renameFolderInline(label, folder) {
   input.select();
   let cancel = false;
   input.onkeydown = (e) => {
-    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
-    if (e.key === "Escape") { e.preventDefault(); cancel = true; input.blur(); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      input.blur();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancel = true;
+      input.blur();
+    }
   };
   input.onblur = () => {
     const name = input.value.trim();
@@ -115,8 +129,13 @@ function renameFolderInline(label, folder) {
   };
 }
 function folderNode(s, folder, pinned) {
-  const members = (pinned ? s.pinned : s.tabs).filter(t => t.folder_id === folder.id);
-  const group = el("div", "tab-folder" + (folder.collapsed ? " collapsed" : ""));
+  const members = (pinned ? s.pinned : s.tabs).filter(
+    (t) => t.folder_id === folder.id,
+  );
+  const group = el(
+    "div",
+    "tab-folder" + (folder.collapsed ? " collapsed" : ""),
+  );
   group.dataset.folderId = folder.id;
   const head = el("div", "folder-head");
   head.dataset.folderId = folder.id;
@@ -127,24 +146,35 @@ function folderNode(s, folder, pinned) {
   glyph.append(ic(folder.collapsed ? "folder" : "folder-open", 18));
   const label = el("span", "folder-name", folder.name);
   label.title = "Double-click to rename";
-  label.ondblclick = (e) => { e.stopPropagation(); renameFolderInline(label, folder); };
+  label.ondblclick = (e) => {
+    e.stopPropagation();
+    renameFolderInline(label, folder);
+  };
   const count = el("span", "folder-count", String(members.length));
   const actions = el("span", "folder-actions");
   actions.append(
     ib("pencil", "Rename folder", () => renameFolderInline(label, folder)),
-    ib("trash", "Delete folder", () => send({ cmd: "delete_folder", id: folder.id })),
+    ib("trash", "Delete folder", () =>
+      send({ cmd: "delete_folder", id: folder.id }),
+    ),
   );
   head.append(toggle, glyph, label, count, actions);
   head.setAttribute("role", "button");
   head.tabIndex = 0;
   head.setAttribute("aria-expanded", String(!folder.collapsed));
-  head.setAttribute("aria-label", (folder.collapsed ? "Expand " : "Collapse ") + folder.name);
+  head.setAttribute(
+    "aria-label",
+    (folder.collapsed ? "Expand " : "Collapse ") + folder.name,
+  );
   head.onclick = (e) => {
     if (e.target.closest(".folder-actions,.folder-rename") || noClick) return;
     send({ cmd: "toggle_folder_collapsed", id: folder.id });
   };
   head.onkeydown = (e) => {
-    if ((e.key === "Enter" || e.key === " ") && !e.target.closest(".folder-actions,.folder-rename")) {
+    if (
+      (e.key === "Enter" || e.key === " ") &&
+      !e.target.closest(".folder-actions,.folder-rename")
+    ) {
       e.preventDefault();
       send({ cmd: "toggle_folder_collapsed", id: folder.id });
     }
@@ -152,20 +182,32 @@ function folderNode(s, folder, pinned) {
   head.onpointerdown = (e) => watchFolderDrag(e, head, folder);
   group.append(head);
   const contents = el("div", "folder-contents");
-  contents.append(...members.map(t => row(t, pinned ? "pin" : "tab")));
+  contents.append(...members.map((t) => row(t, pinned ? "pin" : "tab")));
   group.append(contents);
   return group;
 }
 function folderArea(s, pinned) {
-  const folders = (s.folders || []).filter(f => !!f.pinned === pinned);
+  const folders = (s.folders || []).filter((f) => !!f.pinned === pinned);
   const allFolders = s.folders || [];
-  const loose = (pinned ? s.pinned : s.tabs).filter(t => !allFolders.some(f => f.id === t.folder_id));
-  const nodes = loose.map(t => row(t, pinned ? "pin" : "tab"));
+  const loose = (pinned ? s.pinned : s.tabs).filter(
+    (t) => !allFolders.some((f) => f.id === t.folder_id),
+  );
+  const nodes = loose.map((t) => row(t, pinned ? "pin" : "tab"));
   // Folder.order is an index in the combined tab + folder sequence, not a
   // folder-only index. This lets a folder sit between any two ordinary tabs.
-  folders.sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
+  folders.sort(
+    (a, b) =>
+      (a.order ?? Number.MAX_SAFE_INTEGER) -
+      (b.order ?? Number.MAX_SAFE_INTEGER),
+  );
   for (const folder of folders) {
-    const at = Math.max(0, Math.min(nodes.length, Number.isFinite(folder.order) ? folder.order : nodes.length));
+    const at = Math.max(
+      0,
+      Math.min(
+        nodes.length,
+        Number.isFinite(folder.order) ? folder.order : nodes.length,
+      ),
+    );
     nodes.splice(at, 0, folderNode(s, folder, pinned));
   }
   return nodes;
@@ -187,12 +229,18 @@ createFolderItem.onclick = () => {
 };
 folderContextMenu.append(createFolderItem);
 $("side").addEventListener("contextmenu", (e) => {
-  if (e.target.closest(".row,.tile,.tab-folder,.folder-actions,.folder-rename,input,button,a")) return;
+  if (
+    e.target.closest(
+      ".row,.tile,.tab-folder,.folder-actions,.folder-rename,input,button,a",
+    )
+  )
+    return;
   e.preventDefault();
   folderContextMenu.remove();
   $("side").append(folderContextMenu);
   const bounds = $("side").getBoundingClientRect();
-  folderContextMenu.style.left = Math.max(8, Math.min(e.clientX - bounds.left, bounds.width - 148)) + "px";
+  folderContextMenu.style.left =
+    Math.max(8, Math.min(e.clientX - bounds.left, bounds.width - 148)) + "px";
   folderContextMenu.style.top = Math.max(8, e.clientY - bounds.top) + "px";
 });
 document.addEventListener("pointerdown", (e) => {
@@ -239,7 +287,10 @@ window.__setState = (s) => {
   S = s;
   if (Number.isFinite(s.sidebar_width)) {
     sidebarWidth = Math.max(180, Math.min(480, s.sidebar_width));
-    document.documentElement.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+    document.documentElement.style.setProperty(
+      "--sidebar-width",
+      `${sidebarWidth}px`,
+    );
   }
   document.body.classList.toggle("has-page", !!s.active);
   document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
@@ -380,22 +431,56 @@ function watchDrag(e, row, t, kind) {
   addEventListener("pointercancel", up);
 }
 function beginDrag(row, t, kind, ox) {
-  const g = row.cloneNode(false); g.className = "dghost"; g.style.width = row.offsetWidth + "px";
-  g.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab")); document.body.append(g);
-  drag = { id:t.id,kind,row,ghost:g,ox,zone:null,idx:0 }; row.classList.add("lift"); document.body.classList.add("dragging");
+  const g = row.cloneNode(false);
+  g.className = "dghost";
+  g.style.width = row.offsetWidth + "px";
+  g.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab"));
+  document.body.append(g);
+  drag = { id: t.id, kind, row, ghost: g, ox, zone: null, idx: 0 };
+  row.classList.add("lift");
+  document.body.classList.add("dragging");
 }
 function watchFolderDrag(e, head, folder) {
-  if(e.button!==0||e.target.closest("button,.folder-actions"))return;
-  const x0=e.clientX,y0=e.clientY,ox=e.clientX-head.getBoundingClientRect().left; let on=false;
-  const mv=(ev)=>{
-    if(!on){if(Math.hypot(ev.clientX-x0,ev.clientY-y0)<5)return;on=true;
-      const ghost=el("div","dghost folder-ghost");ghost.style.width=head.offsetWidth+"px";
-      ghost.append(ic("folder",16),el("span","ttl",folder.name));document.body.append(ghost);
-      drag={id:folder.id,kind:"folder",row:head,ghost,ox,zone:null,idx:0};head.classList.add("lift");document.body.classList.add("dragging");
-    } updateDrag(ev);
+  if (e.button !== 0 || e.target.closest("button,.folder-actions")) return;
+  const x0 = e.clientX,
+    y0 = e.clientY,
+    ox = e.clientX - head.getBoundingClientRect().left;
+  let on = false;
+  const mv = (ev) => {
+    if (!on) {
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+      on = true;
+      const ghost = el("div", "dghost folder-ghost");
+      ghost.style.width = head.offsetWidth + "px";
+      ghost.append(ic("folder", 16), el("span", "ttl", folder.name));
+      document.body.append(ghost);
+      drag = {
+        id: folder.id,
+        kind: "folder",
+        row: head,
+        ghost,
+        ox,
+        zone: null,
+        idx: 0,
+      };
+      head.classList.add("lift");
+      document.body.classList.add("dragging");
+    }
+    updateDrag(ev);
   };
-  const up=(ev)=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);removeEventListener("pointercancel",up);if(on){noClick=true;setTimeout(()=>noClick=false,0);endDrag(ev.type==="pointerup");}};
-  addEventListener("pointermove",mv);addEventListener("pointerup",up);addEventListener("pointercancel",up);
+  const up = (ev) => {
+    removeEventListener("pointermove", mv);
+    removeEventListener("pointerup", up);
+    removeEventListener("pointercancel", up);
+    if (on) {
+      noClick = true;
+      setTimeout(() => (noClick = false), 0);
+      endDrag(ev.type === "pointerup");
+    }
+  };
+  addEventListener("pointermove", mv);
+  addEventListener("pointerup", up);
+  addEventListener("pointercancel", up);
 }
 function overRect(r, x, y, pad = 0) {
   return (
@@ -419,30 +504,72 @@ function updateDrag(ev) {
     lr = $("line").getBoundingClientRect();
   let zone = null;
   const sideBounds = $("side").getBoundingClientRect();
-  if (x > sideBounds.right || x < sideBounds.left || y < sideBounds.top || y > sideBounds.bottom)
+  if (
+    x > sideBounds.right ||
+    x < sideBounds.left ||
+    y < sideBounds.top ||
+    y > sideBounds.bottom
+  )
     zone = null; /* left the sidebar: cancel */
   else if (overRect(fr, x, y, 4) && y < pr.top - 4) zone = "fav";
-  else if (overRect($("pinned").getBoundingClientRect(), x, y, 8) || y < lr.top + lr.height / 2) zone = "pinned";
+  else if (
+    overRect($("pinned").getBoundingClientRect(), x, y, 8) ||
+    y < lr.top + lr.height / 2
+  )
+    zone = "pinned";
   else zone = "tab";
-  let idx = 0, box = null;
+  let idx = 0,
+    box = null;
   if (zone === "fav") {
-    const tiles=[...$("favs").children].filter((c)=>c!==d.row);
-    tiles.forEach((c)=>{const r=c.getBoundingClientRect();if(r.bottom<y||(y<=r.bottom&&y>=r.top&&r.left+r.width/2<x))idx++;});
-    const ref=tiles[idx]||tiles[tiles.length-1],after=!tiles[idx];
-    if(ref){const r=ref.getBoundingClientRect();box={left:after?r.right+2:r.left-4,top:r.top+4,width:2,height:r.height-8};}
-  } else if(zone==="pinned") {
-    const list=$("pinned");
-    const items=[...list.children].filter(c=>c!== (d.kind==="folder" ? d.row.parentElement : d.row));
-    items.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
-    const lb=list.getBoundingClientRect();box={left:lb.left+6,top:y,width:lb.width-12,height:2};
-  } else if(zone==="tab") {
-    const items=[...$("tabs").children].filter(c=>c!== (d.kind==="folder" ? d.row.parentElement : d.row));
-    items.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
-    const lb=$("tabs").getBoundingClientRect();box={left:lb.left+6,top:y,width:lb.width-12,height:2};
+    const tiles = [...$("favs").children].filter((c) => c !== d.row);
+    tiles.forEach((c) => {
+      const r = c.getBoundingClientRect();
+      if (
+        r.bottom < y ||
+        (y <= r.bottom && y >= r.top && r.left + r.width / 2 < x)
+      )
+        idx++;
+    });
+    const ref = tiles[idx] || tiles[tiles.length - 1],
+      after = !tiles[idx];
+    if (ref) {
+      const r = ref.getBoundingClientRect();
+      box = {
+        left: after ? r.right + 2 : r.left - 4,
+        top: r.top + 4,
+        width: 2,
+        height: r.height - 8,
+      };
+    }
+  } else if (zone === "pinned") {
+    const list = $("pinned");
+    const items = [...list.children].filter(
+      (c) => c !== (d.kind === "folder" ? d.row.parentElement : d.row),
+    );
+    items.forEach((c) => {
+      const r = c.getBoundingClientRect();
+      if (r.top + r.height / 2 < y) idx++;
+    });
+    const lb = list.getBoundingClientRect();
+    box = { left: lb.left + 6, top: y, width: lb.width - 12, height: 2 };
+  } else if (zone === "tab") {
+    const items = [...$("tabs").children].filter(
+      (c) => c !== (d.kind === "folder" ? d.row.parentElement : d.row),
+    );
+    items.forEach((c) => {
+      const r = c.getBoundingClientRect();
+      if (r.top + r.height / 2 < y) idx++;
+    });
+    const lb = $("tabs").getBoundingClientRect();
+    box = { left: lb.left + 6, top: y, width: lb.width - 12, height: 2 };
   }
-  const folderGroup = d.kind === "folder" ? null : document.elementFromPoint(x, y)?.closest(".tab-folder");
+  const folderGroup =
+    d.kind === "folder"
+      ? null
+      : document.elementFromPoint(x, y)?.closest(".tab-folder");
   const folderTarget = folderGroup?.querySelector(".folder-head");
-  if (folderTarget?.dataset.folderId) zone = "folder:" + folderTarget.dataset.folderId;
+  if (folderTarget?.dataset.folderId)
+    zone = "folder:" + folderTarget.dataset.folderId;
   d.zone = zone;
   d.idx = idx;
   const ind = $("ind");
@@ -458,15 +585,26 @@ function updateDrag(ev) {
   const free = (n) => ![...$(n).children].some((c) => c !== d.row);
   $("pinned").classList.toggle("hot-zone", zone === "pinned" && free("pinned"));
   $("favs").classList.toggle("hot-zone", zone === "fav" && free("favs"));
-  document.querySelectorAll(".folder-head").forEach((h) => h.classList.toggle("drop-target", zone === "folder:" + h.dataset.folderId));
+  document
+    .querySelectorAll(".folder-head")
+    .forEach((h) =>
+      h.classList.toggle(
+        "drop-target",
+        zone === "folder:" + h.dataset.folderId,
+      ),
+    );
   const changing =
     (zone === "pinned" && d.kind !== "pin") ||
     (zone === "tab" && d.kind === "pin");
   $("line").classList.toggle("hot", changing);
   $("lineLbl").textContent =
-    zone && zone.startsWith("folder:") ? "Add to folder" :
-    d.kind === "folder" ? "Move folder" :
-    zone === "pinned" ? "Release to pin" : "Release to unpin";
+    zone && zone.startsWith("folder:")
+      ? "Add to folder"
+      : d.kind === "folder"
+        ? "Move folder"
+        : zone === "pinned"
+          ? "Release to pin"
+          : "Release to unpin";
 }
 function endDrag(drop) {
   const d = drag;
@@ -478,13 +616,20 @@ function endDrag(drop) {
   $("line").classList.remove("hot");
   $("pinned").classList.remove("hot-zone");
   $("favs").classList.remove("hot-zone");
-  document.querySelectorAll(".folder-head").forEach((h) => h.classList.remove("drop-target"));
+  document
+    .querySelectorAll(".folder-head")
+    .forEach((h) => h.classList.remove("drop-target"));
   if (drop && d.zone) {
     if (d.kind === "folder") {
       if (d.zone === "pinned" || d.zone === "tab")
         send({ cmd: "move_folder", id: d.id, to: d.zone, index: d.idx });
-    } else if (d.zone.startsWith("folder:")) send({cmd:"move_tab_to_folder",id:d.id,folder_id:d.zone.slice(7)});
-    else { const to=d.zone==="pinned"?"pinned":d.zone==="fav"?"fav":"tab";send({cmd:"move_tab",id:d.id,to,index:d.idx}); }
+    } else if (d.zone.startsWith("folder:"))
+      send({ cmd: "move_tab_to_folder", id: d.id, folder_id: d.zone.slice(7) });
+    else {
+      const to =
+        d.zone === "pinned" ? "pinned" : d.zone === "fav" ? "fav" : "tab";
+      send({ cmd: "move_tab", id: d.id, to, index: d.idx });
+    }
   }
   if (pending) {
     const p = pending;
@@ -503,7 +648,6 @@ addEventListener(
   },
   true,
 );
-
 
 // Ask the native side to restore the current space only after this UI is ready
 // to receive its first state snapshot.
