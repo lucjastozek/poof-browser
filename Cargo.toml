@@ -24,7 +24,7 @@ resvg = "0.45"
 # Check with: cargo tree -i webview2-com   /   cargo tree -i windows
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
 
 [build-dependencies]
 resvg = "0.45"
