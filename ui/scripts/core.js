@@ -145,8 +145,11 @@ function icon(t, guess = true) {
     if (guess) {
       add(new URL("/favicon.ico", site).href);
       add(new URL("/apple-touch-icon.png", site).href);
-      add("https://www.google.com/s2/favicons?domain=" +
-        encodeURIComponent(site.hostname) + "&sz=64");
+      add(
+        "https://www.google.com/s2/favicons?domain=" +
+          encodeURIComponent(site.hostname) +
+          "&sz=64",
+      );
     }
   } catch (e) {}
   const showFallback = () => {

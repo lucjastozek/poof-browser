@@ -1,6 +1,6 @@
 use crate::{
     extensions, pip,
-    state::{new_id, valid_icon, Kind, Persisted, Profile, Saved, Space},
+    state::{new_id, valid_icon, Kind, Persisted, Profile, Saved, Space, TabFolder},
     store, UserEvent,
 };
 use anyhow::Result;
@@ -123,6 +123,7 @@ pub struct Tab {
     pub id: String,
     pub profile_id: String,
     pub space_id: Option<String>, // None for favorites
+    pub folder_id: Option<String>,
     pub kind: Kind,
     pub home: String, // URL a pinned/favorite resets to when closed
     pub url: String,
@@ -168,6 +169,12 @@ enum Cmd {
     EditSpace { id: String, name: String, icon: String, color: String },
     /// Drag & drop: put a tab into the pinned list, the tab list or the favorites at `index`.
     MoveTab { id: String, to: String, index: usize },
+    CreateFolder { name: String },
+    RenameFolder { id: String, name: String },
+    DeleteFolder { id: String },
+    ToggleFolderCollapsed { id: String },
+    MoveFolder { id: String, to: String, index: usize },
+    MoveTabToFolder { id: String, folder_id: Option<String> },
     SetTheme { theme: String },
     SetAutoPip { on: bool },
     UpdateProfileCleanup {
@@ -327,6 +334,7 @@ impl Browser {
                 id: s.id.clone(),
                 profile_id: s.profile_id.clone(),
                 space_id: s.space_id.clone(),
+                folder_id: s.folder_id.clone(),
                 kind: s.kind,
                 home: s.url.clone(),
                 url: s.url.clone(),
@@ -650,6 +658,75 @@ impl Browser {
             }
             Cmd::DeleteSpace { id } => self.delete_space(&id)?,
             Cmd::MoveTab { id, to, index } => self.move_tab(&id, &to, index),
+            Cmd::CreateFolder { name } => {
+                let name = clip(name.trim(), 40);
+                if !name.is_empty() {
+                    let space_id = self.cur_space().id.clone();
+                    self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: false, order: usize::MAX });
+                    self.save();
+                }
+            }
+            Cmd::RenameFolder { id, name } => {
+                let name = clip(name.trim(), 40);
+                if !name.is_empty() {
+                    if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.name = name; self.save(); }
+                }
+            }
+            Cmd::DeleteFolder { id } => {
+                if self.p.folders.iter().any(|f| f.id == id && f.space_id == self.p.current_space) {
+                    self.p.folders.retain(|f| f.id != id);
+                    for t in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())) { t.folder_id = None; }
+                    self.save();
+                }
+            }
+            Cmd::ToggleFolderCollapsed { id } => {
+                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.collapsed = !f.collapsed; self.save(); }
+            }
+            Cmd::MoveFolder { id, to, index } => {
+                let space = self.p.current_space.clone();
+                let pinned = to == "pinned";
+                if to == "pinned" || to == "tab" {
+                    if let Some(from) = self.p.folders.iter().position(|f| f.id == id && f.space_id == space) {
+                        let mut folder = self.p.folders.remove(from);
+                        let old_order = folder.order;
+                        let old_pinned = folder.pinned;
+                        // Close the gap in the source section, then make room at the exact
+                        // mixed tab/folder position selected by the pointer.
+                        for peer in self.p.folders.iter_mut().filter(|f| f.space_id == space && f.pinned == old_pinned && f.order > old_order) {
+                            peer.order = peer.order.saturating_sub(1);
+                        }
+                        for peer in self.p.folders.iter_mut().filter(|f| f.space_id == space && f.pinned == pinned && f.order >= index) {
+                            peer.order = peer.order.saturating_add(1);
+                        }
+                        folder.pinned = pinned;
+                        folder.order = index;
+                        self.p.folders.push(folder);
+                        for tab in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())
+                            && t.space_id.as_deref() == Some(space.as_str())) {
+                            let kind = if pinned { Kind::Pinned } else { Kind::Normal };
+                            if tab.kind != kind { tab.home = tab.url.clone(); tab.kind = kind; }
+                        }
+                        self.save();
+                    }
+                }
+            }
+            Cmd::MoveTabToFolder { id, folder_id } => {
+                let target_pinned = folder_id.as_ref().and_then(|fid| self.p.folders.iter()
+                    .find(|f| f.id == *fid && f.space_id == self.p.current_space))
+                    .map(|f| f.pinned);
+                let valid = folder_id.is_none() || target_pinned.is_some();
+                if valid {
+                    if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id
+                        && t.space_id.as_deref() == Some(self.p.current_space.as_str())) {
+                        if let Some(pinned) = target_pinned {
+                            let kind = if pinned { Kind::Pinned } else { Kind::Normal };
+                            if t.kind != kind { t.home = t.url.clone(); t.kind = kind; }
+                        }
+                        t.folder_id = folder_id;
+                        self.save();
+                    }
+                }
+            }
             Cmd::SetTheme { theme } => {
                 if matches!(theme.as_str(), "system" | "light" | "dark") {
                     self.p.theme = theme;
@@ -746,10 +823,12 @@ impl Browser {
             "fav" => Kind::Favorite,
             _ => Kind::Normal,
         };
+        t.folder_id = None;
         if t.kind != kind {
             t.home = t.url.clone();
         }
         t.kind = kind;
+        if kind != Kind::Normal { t.folder_id = None; }
         t.space_id = if kind == Kind::Favorite { None } else { Some(sp.id.clone()) };
         let profile = t.profile_id.clone();
         let peers: Vec<usize> = self
@@ -762,6 +841,7 @@ impl Browser {
                         x.profile_id == profile
                     } else {
                         x.space_id.as_deref() == Some(sp.id.as_str())
+                            && (kind != Kind::Pinned || x.folder_id.is_none())
                     }
             })
             .map(|(i, _)| i)
@@ -783,6 +863,7 @@ impl Browser {
             profile_id: sp.profile_id,
             space_id: Some(sp.id),
             kind: Kind::Normal,
+            folder_id: None,
             home: url.to_string(),
             url: url.to_string(),
             host: String::new(),
@@ -1154,6 +1235,7 @@ impl Browser {
                 profile_id: t.profile_id.clone(),
                 space_id: t.space_id.clone(),
                 kind: t.kind,
+                folder_id: t.folder_id.clone(),
                 url: t.home.clone(),
                 title: t.title.clone(),
                 favicon: t.favicon.clone(),
@@ -1199,7 +1281,7 @@ impl Browser {
         let row = |t: &Tab| {
             json!({
                 "id": t.id, "title": t.title, "url": t.url,
-                "favicon": t.favicon, "loaded": t.webview.is_some()
+                "favicon": t.favicon, "loaded": t.webview.is_some(), "folder_id": t.folder_id
             })
         };
         let favorites: Vec<_> = self
@@ -1227,6 +1309,7 @@ impl Browser {
             "favorites": favorites,
             "pinned": in_space(Kind::Pinned),
             "tabs": in_space(Kind::Normal),
+            "folders": self.p.folders.iter().filter(|f| f.space_id == sp.id).collect::<Vec<_>>(),
             "suggestions": self.suggestions(),
             "store_ext": self.store_ext(),
             "theme": self.p.theme,

@@ -56,6 +56,22 @@ pub struct Site {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct TabFolder {
+    pub id: String,
+    pub space_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub collapsed: bool,
+    #[serde(default)]
+    pub pinned: bool,
+    /// Position among loose tabs and folders in the sidebar section.
+    #[serde(default = "folder_order_default")]
+    pub order: usize,
+}
+
+fn folder_order_default() -> usize { usize::MAX }
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Saved {
     pub id: String,
     pub profile_id: String,
@@ -64,6 +80,8 @@ pub struct Saved {
     pub url: String,
     pub title: String,
     pub favicon: Option<String>,
+    #[serde(default)]
+    pub folder_id: Option<String>,
 }
 
 fn yes() -> bool {
@@ -101,6 +119,11 @@ pub struct Persisted {
     pub profiles: Vec<Profile>,
     pub spaces: Vec<Space>,
     pub saved: Vec<Saved>,
+    #[serde(default)]
+    pub folders: Vec<TabFolder>,
+    /// One-time migration away from the previous always-pinned folder behavior.
+    #[serde(default)]
+    pub folder_layout_version: u8,
     pub current_space: String,
     #[serde(default = "yes")]
     pub auto_pip: bool,
@@ -145,6 +168,8 @@ impl Default for Persisted {
                 color: "#6dc5e2".into(),
             }],
             saved: vec![],
+            folders: vec![],
+            folder_layout_version: 1,
             current_space: sid,
             auto_pip: true,
             theme: system(),
@@ -172,6 +197,15 @@ impl Persisted {
             .unwrap_or_default();
         if p.spaces.is_empty() || p.profiles.is_empty() {
             p = Self::default();
+        }
+        // The previous folder implementation forced every folder and its tabs into Pinned.
+        // Convert those legacy folders to ordinary tabs once, preserving membership.
+        if p.folder_layout_version < 1 {
+            for folder in p.folders.iter_mut() { folder.pinned = false; }
+            for saved in p.saved.iter_mut().filter(|s| s.folder_id.is_some()) {
+                saved.kind = Kind::Normal;
+            }
+            p.folder_layout_version = 1;
         }
         // Older versions stored an emoji as the space icon; swap those for a real icon.
         for s in p.spaces.iter_mut() {
