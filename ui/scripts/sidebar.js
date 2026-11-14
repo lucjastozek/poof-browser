@@ -124,7 +124,7 @@ function folderNode(s, folder, pinned) {
   toggle.setAttribute("aria-hidden", "true");
   toggle.append(ic(folder.collapsed ? "chevron-right" : "chevron-down", 13));
   const glyph = el("span", "folder-glyph");
-  glyph.append(ic("folder", 18));
+  glyph.append(ic(folder.collapsed ? "folder" : "folder-open", 18));
   const label = el("span", "folder-name", folder.name);
   label.title = "Double-click to rename";
   label.ondblclick = (e) => { e.stopPropagation(); renameFolderInline(label, folder); };
@@ -170,9 +170,9 @@ const newSpaceButton = ib("plus", "New space", () => openView("space:add"));
 $("foot").append(settingsButton, spaces, newSpaceButton);
 $("hdr").onclick = () => openView("space:edit");
 
-// Right-clicking the sidebar canvas creates a folder in-place.
-$("pane").addEventListener("contextmenu", (e) => {
-  if (e.target.closest(".row,.folder-actions,.folder-rename,input,button")) return;
+// Right-clicking open sidebar space creates a folder in-place.
+$("side").addEventListener("contextmenu", (e) => {
+  if (e.target.closest(".row,.tile,.folder-actions,.folder-rename,input,button,a")) return;
   e.preventDefault();
   send({ cmd: "create_folder", name: "New folder" });
 });
