@@ -117,7 +117,7 @@ const INIT_JS: &str = r#"(function(){
       var frames = Array.prototype.slice.call(document.querySelectorAll('iframe'))
         .filter(function(frame){
           var src = (frame.getAttribute('src') || '').toLowerCase();
-          return /youtube|youtu\\.be|vimeo|dailymotion|twitch/.test(src) &&
+          return /youtube|youtu\.be|vimeo|dailymotion|twitch/.test(src) &&
             frame.allowFullscreen && frame.requestFullscreen;
         });
       if (frames.length) {
