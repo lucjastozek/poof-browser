@@ -400,7 +400,8 @@ function updateDrag(ev) {
   const fr = $("favs").getBoundingClientRect(),
     lr = $("line").getBoundingClientRect();
   let zone = null;
-  if (x > 290 || x < 0 || y < 0 || y > innerHeight)
+  const sideBounds = $("side").getBoundingClientRect();
+  if (x > sideBounds.right || x < sideBounds.left || y < sideBounds.top || y > sideBounds.bottom)
     zone = null; /* left the sidebar: cancel */
   else if (overRect(fr, x, y, 4) && y < pr.top - 4) zone = "fav";
   else zone = y < lr.top + lr.height / 2 ? "pinned" : "tab";
