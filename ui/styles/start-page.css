@@ -402,27 +402,14 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 
-/* Profile cleanup controls */
-.cleanup-card {
+/* Automatic cleanup settings: a normal dialog section, not a nested card. */
+.cleanup-section {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 4px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
-.cleanup-head {
-  padding: 10px 0 12px;
-}
-.cleanup-title {
-  display: block;
-  color: var(--ink);
-  font: 600 13px var(--f-display);
-  letter-spacing: -0.01em;
-}
-.cleanup-head .note {
-  margin-top: 3px;
+.cleanup-section > .note {
+  margin: -4px 0 8px;
 }
 .retention-row {
   display: flex;
@@ -430,8 +417,11 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: space-between;
   gap: 14px;
   min-height: 58px;
-  padding: 8px 0;
-  border-top: 1px solid var(--line);
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.retention-row:last-child {
+  border-bottom: 0;
 }
 .retention-copy {
   display: flex;
@@ -450,46 +440,81 @@ input[type="range"]::-webkit-slider-thumb {
   line-height: 1.35;
 }
 .retention-control {
-  flex: 0 0 128px;
-  width: 128px;
+  flex: 0 0 132px;
+  width: 132px;
+  min-width: 0;
 }
-.retention-select.inp {
-  appearance: none;
-  -webkit-appearance: none;
+.retention-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
   height: 34px;
-  padding: 0 32px 0 11px;
+  padding: 0 10px 0 11px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-md);
-  background: var(--raised);
+  background: var(--surface);
   color: var(--ink);
   font-size: 12px;
   font-weight: 500;
-  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
-.retention-control {
-  position: relative;
-}
-.retention-control::after {
-  content: "";
-  position: absolute;
-  right: 13px;
-  top: 12px;
-  width: 7px;
-  height: 7px;
-  border-right: 1.5px solid var(--ink-2);
-  border-bottom: 1.5px solid var(--ink-2);
-  transform: rotate(45deg);
-  pointer-events: none;
-}
-.retention-select.inp:hover {
-  background: var(--surface);
-  border-color: var(--line-2);
-}
-.retention-select.inp:focus {
-  border-color: color-mix(in srgb, var(--space) 65%, var(--ink));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--space) 24%, transparent);
-}
-.retention-select option {
-  color: var(--ink);
+.retention-trigger:hover,
+.retention-trigger[aria-expanded="true"] {
   background: var(--raised);
+  border-color: color-mix(in srgb, var(--space) 42%, var(--line-2));
+}
+.retention-trigger:focus-visible {
+  outline: 0;
+  border-color: color-mix(in srgb, var(--space) 65%, var(--ink));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--space) 22%, transparent);
+}
+.retention-trigger svg {
+  color: var(--ink-3);
+  transition: transform 0.15s ease;
+}
+.retention-trigger[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.retention-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--raised);
+  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--ink) 4%, transparent);
+  animation: pop 0.12s var(--ease);
+}
+.retention-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 0 9px;
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.retention-option:hover,
+.retention-option:focus-visible {
+  outline: 0;
+  background: var(--hover);
+  color: var(--ink);
+}
+.retention-option.selected {
+  background: color-mix(in srgb, var(--space) 13%, var(--surface));
+  color: var(--ink);
+  font-weight: 600;
+}
+.retention-option.selected svg {
+  color: color-mix(in srgb, var(--space) 72%, var(--ink));
 }
