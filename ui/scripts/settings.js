@@ -176,7 +176,7 @@ function buildSettings(v) {
     field("Clear cookies after", cookieAge),
     field("Clear cache after", cacheAge),
     field("Clear browsing history after", historyAge),
-    field(null, el("div", "note", "These settings apply to the current profile and every space that shares it. Pinned tabs and favorites are never auto-closed. Cookie, cache, and history cleanup are off by default.")),
+    field(null, el("div", "note", "These settings apply to the current profile and every space that shares it. Pinned tabs and favorites are never auto-closed. Cookie, cache, and history cleanup are off by default. Clearing cookies can sign you out of websites.")),
     field("Shortcuts", keys),
   ]);
 }
