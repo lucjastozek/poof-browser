@@ -390,8 +390,8 @@
       body.compact #side { width:56px; padding:40px 6px 8px; gap:8px; }
       body.compact #side #favs,
       body.compact #side #pane,
-      body.compact #side #dots,
       body.compact #side .vsep { display:none; }
+      body.compact #side #dots { flex-direction:column; overflow-x:hidden; overflow-y:auto; width:100%; justify-content:flex-start; }
       body.compact #side .foot { flex-direction:column; justify-content:flex-start; align-items:center; flex:1; padding:0; }
       body.collapsed #side { width:0; min-width:0; padding:0; gap:0; overflow:hidden; }
       body.collapsed #side > * { visibility:hidden; }
