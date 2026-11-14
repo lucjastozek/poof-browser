@@ -93,6 +93,10 @@ $("window-drag").addEventListener("pointerdown", (e) => {
   $("newtab").append(w, el("span", "ttl", "New tab"));
 }
 $("newtab").onclick = () => openView("newtab");
+$("newfolder").onclick = () => {
+  const name = prompt("Name this tab folder");
+  if (name && name.trim()) send({ cmd: "create_folder", name: name.trim() });
+};
 const settingsButton = ib("settings", "Settings", () => openView("settings"));
 const spaces = el("div");
 spaces.id = "dots";
@@ -112,6 +116,15 @@ function row(t, kind) {
     ib(kind === "pin" ? "unpin" : "pin", kind === "pin" ? "Unpin" : "Pin", () =>
       send({ cmd: kind === "pin" ? "unpin_tab" : "pin_tab", id: t.id }),
     ),
+    ib("folder", "Move to folder", () => {
+      const folders = (S.folders || []).filter((f) => f.space_id === S.current);
+      const current = folders.find((f) => f.id === t.folder_id);
+      const choice = prompt("Enter a folder name, or leave blank to ungroup this tab:", current ? current.name : "");
+      if (choice === null) return;
+      const folder = folders.find((f) => f.name.toLowerCase() === choice.trim().toLowerCase());
+      if (choice.trim() && !folder) { window.__toast("Folder not found"); return; }
+      send({ cmd: "move_tab_to_folder", id: t.id, folder_id: folder ? folder.id : null });
+    }),
     ib("star", "Add to favorites", () => send({ cmd: "fav_tab", id: t.id })),
     ib("x", kind === "tab" ? "Close" : "Unload", () =>
       send({ cmd: "close_tab", id: t.id }),
@@ -184,7 +197,39 @@ window.__setState = (s) => {
   );
   $("favs").classList.toggle("empty", !s.favorites.length);
   $("pinned").replaceChildren(...s.pinned.map((t) => row(t, "pin")));
-  $("tabs").replaceChildren(...s.tabs.map((t) => row(t, "tab")));
+  const folders = [...(s.folders || [])].sort((a, b) => Number(b.pinned) - Number(a.pinned));
+  const folderNodes = [];
+  for (const f of folders) {
+    const members = s.tabs.filter((t) => t.folder_id === f.id);
+    const group = el("div", "tab-folder" + (f.pinned ? " is-pinned" : ""));
+    const head = el("div", "folder-head");
+    const toggle = el("button", "folder-toggle");
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", String(!f.collapsed));
+    toggle.setAttribute("aria-label", (f.collapsed ? "Expand " : "Collapse ") + f.name);
+    toggle.append(ic(f.collapsed ? "chevronRight" : "chevronDown", 14));
+    toggle.onclick = () => send({ cmd: "toggle_folder_collapsed", id: f.id });
+    const label = el("span", "folder-name", f.name);
+    label.title = f.name;
+    const count = el("span", "folder-count", String(members.length));
+    const actions = el("span", "folder-actions");
+    actions.append(
+      ib(f.pinned ? "pinOff" : "pin", f.pinned ? "Unpin folder" : "Pin folder", () => send({ cmd: "toggle_folder_pinned", id: f.id })),
+      ib("pencil", "Rename folder", () => {
+        const name = prompt("Rename folder", f.name);
+        if (name && name.trim()) send({ cmd: "rename_folder", id: f.id, name: name.trim() });
+      }),
+      ib("trash", "Delete folder (tabs stay open)", () => {
+        if (confirm("Delete this folder? Its tabs will remain open and become ungrouped.")) send({ cmd: "delete_folder", id: f.id });
+      })
+    );
+    head.append(toggle, label, count, actions);
+    group.append(head);
+    if (!f.collapsed) group.append(...members.map((t) => row(t, "tab")));
+    folderNodes.push(group);
+  }
+  const ungrouped = s.tabs.filter((t) => !folders.some((f) => f.id === t.folder_id));
+  $("tabs").replaceChildren(...folderNodes, ...ungrouped.map((t) => row(t, "tab")));
   const dots = [];
   let lastP = null;
   s.spaces.forEach((x) => {
