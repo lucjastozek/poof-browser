@@ -531,7 +531,7 @@ body.collapsed #side #toast {
 /* Sidebar folders: flat rows, no tree rails, overlays or hover cards. */
 #pinned, #tabs { display: flex; flex-direction: column; gap: 2px; }
 .tab-folder { display: flex; flex-direction: column; gap: 0; margin: 1px 0 3px; }
-.folder-head { display: flex; align-items: center; gap: 2px; min-height: 38px; width: 100%; box-sizing: border-box; padding: 0 0; border-radius: 9px; cursor: pointer; transition: background .16s ease, box-shadow .16s ease, color .16s ease; user-select: none; }
+.folder-head { display: flex; align-items: center; gap: 8px; min-height: 38px; width: 100%; box-sizing: border-box; padding: 0 0; border-radius: 9px; cursor: pointer; transition: background .16s ease, box-shadow .16s ease, color .16s ease; user-select: none; }
 .folder-head:hover, .folder-head:focus-visible { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line); outline: none; }
 .folder-head:hover .folder-chevron, .folder-head:focus-visible .folder-chevron { color: var(--ink); }
 .folder-head.lift { opacity: .35; }
