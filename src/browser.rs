@@ -23,6 +23,7 @@ use wry::{
 const SIDEBAR_W: f64 = 280.0;
 const SIDEBAR_COLLAPSED_W: f64 = 56.0;
 const INSET: f64 = 8.0;
+const TOPBAR_H: f64 = 44.0;
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 const DEFAULT_SITES: &[(&str, &str)] = &[
@@ -91,6 +92,10 @@ pub struct Tab {
 enum Cmd {
     Ready,
     SidebarCollapsed { collapsed: bool },
+    WindowMinimize,
+    WindowToggleMaximize,
+    WindowDrag,
+    WindowClose,
     /// The sidebar is showing a full-area view (new tab bar, dialogs): hide/show the page.
     Overlay { open: bool },
     NewTab { input: String },
@@ -173,7 +178,7 @@ fn content_rect(w: &Window, collapsed: bool, fullscreen: bool) -> Rect {
         return full_rect(w);
     }
     let left = if collapsed { SIDEBAR_COLLAPSED_W } else { SIDEBAR_W };
-    rect(left, INSET, ww - left - INSET, hh - 2.0 * INSET)
+    rect(left, TOPBAR_H, ww - left - INSET, hh - TOPBAR_H - INSET)
 }
 
 // ---------- input helpers ----------
@@ -482,6 +487,10 @@ impl Browser {
                 self.save();
                 self.relayout();
             }
+            Cmd::WindowMinimize => self.window.set_minimized(true),
+            Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
+            Cmd::WindowDrag => { let _ = self.window.drag_window(); }
+            Cmd::WindowClose => { let _ = self.proxy.send_event(UserEvent::CloseWindow); }
             Cmd::Overlay { open } => {
                 self.overlay = open;
                 if open {
