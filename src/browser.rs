@@ -828,7 +828,7 @@ impl Browser {
             .with_bounds(rect)
             .with_visible(false)
             .with_url(&url)
-            .with_initialization_script(INIT_JS)
+            .with_initialization_script_for_main_only(INIT_JS, false)
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page { tab: id1.clone(), body: req.into_body() });
             })
