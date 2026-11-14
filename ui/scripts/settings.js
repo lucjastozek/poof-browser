@@ -141,40 +141,87 @@ function buildSettings(v) {
   });
   const retention = S.profile_cleanup || {};
   const choices = [["24", "24 hours"], ["48", "48 hours"], ["72", "72 hours"], ["168", "1 week"], ["336", "2 weeks"]];
+  const openMenus = [];
   const makeRetention = (key, allowOff, label, description) => {
-    const select = el("select", "inp retention-select");
-    select.setAttribute("aria-label", label);
-    if (allowOff) {
-      const off = el("option", null, "Off");
-      off.value = "0";
-      select.append(off);
-    }
-    choices.forEach(([value, text]) => {
-      const option = el("option", null, text);
-      option.value = value;
-      select.append(option);
-    });
-    select.value = String(retention[key] ?? (allowOff ? 0 : 48));
+    const value = String(retention[key] ?? (allowOff ? 0 : 48));
+    const wrap = el("div", "retention-control");
+    const trigger = el("button", "retention-trigger");
+    trigger.type = "button";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+    const valueLabel = () => (allowOff && value === "0" ? "Off" : (choices.find(([v]) => v === value)?.[1] || "48 hours"));
+    const paint = () => {
+      trigger.replaceChildren(el("span", null, valueLabel()), ic("chevronDown", 14));
+      trigger.setAttribute("aria-label", label + ": " + valueLabel());
+    };
+    let current = value;
+    const menu = el("div", "retention-menu");
+    menu.setAttribute("role", "listbox");
+    menu.setAttribute("aria-label", label);
+    const opts = allowOff ? [["0", "Off"], ...choices] : choices;
+    const close = () => {
+      menu.remove();
+      trigger.setAttribute("aria-expanded", "false");
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", keys, true);
+    };
+    const outside = (e) => { if (!menu.contains(e.target) && !trigger.contains(e.target)) close(); };
+    const choose = (v) => {
+      current = v;
+      paint();
+      close();
+      saveRetention();
+    };
+    const keys = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); close(); trigger.focus(); }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const active = Math.max(0, opts.findIndex(([v]) => v === current));
+        const next = (active + (e.key === "ArrowDown" ? 1 : opts.length - 1)) % opts.length;
+        menu.children[next]?.focus();
+      }
+    };
+    const show = () => {
+      document.querySelectorAll(".retention-menu").forEach((m) => m.remove());
+      menu.replaceChildren(...opts.map(([v, text], i) => {
+        const option = el("button", "retention-option" + (v === current ? " selected" : ""));
+        option.type = "button";
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-selected", String(v === current));
+        option.append(el("span", null, text));
+        if (v === current) option.append(ic("check", 14));
+        option.onclick = () => choose(v);
+        return option;
+      }));
+      document.body.append(menu);
+      const r = trigger.getBoundingClientRect();
+      const menuHeight = Math.min(opts.length * 36 + 8, 240);
+      menu.style.left = Math.max(8, Math.min(r.right - 168, innerWidth - 176)) + "px";
+      menu.style.width = "168px";
+      menu.style.top = (r.bottom + menuHeight > innerHeight - 8 ? Math.max(8, r.top - menuHeight - 5) : r.bottom + 5) + "px";
+      trigger.setAttribute("aria-expanded", "true");
+      document.addEventListener("pointerdown", outside, true);
+      document.addEventListener("keydown", keys, true);
+      menu.querySelector(".selected")?.focus();
+      if (!menu.querySelector(".selected")) menu.firstElementChild?.focus();
+    };
+    trigger.onclick = show;
+    wrap.append(trigger);
     const copy = el("div", "retention-copy");
     copy.append(el("span", "retention-name", label), el("small", null, description));
-    const control = el("div", "retention-control");
-    control.append(select);
     const row = el("div", "retention-row");
-    row.append(copy, control);
-    select._retentionRow = row;
-    return select;
+    row.append(copy, wrap);
+    return { row, get value() { return current; } };
   };
-  const cleanup = el("section", "cleanup-card");
-  const cleanupHead = el("div", "cleanup-head");
-  cleanupHead.append(
-    el("span", "cleanup-title", "Automatic cleanup"),
-    el("p", "note", "Choose how long data stays in this profile before it is cleared."),
-  );
   const tabAge = makeRetention("tab_retention_hours", false, "Inactive tabs", "Close tabs after they have been unused");
   const cookieAge = makeRetention("cookie_retention_hours", true, "Cookies", "May sign you out of websites");
   const cacheAge = makeRetention("cache_retention_hours", true, "Cache", "Remove older cached files");
   const historyAge = makeRetention("history_retention_hours", true, "Browsing history", "Remove older history entries");
-  cleanup.append(cleanupHead, tabAge._retentionRow, cookieAge._retentionRow, cacheAge._retentionRow, historyAge._retentionRow);
+  const cleanup = el("div", "cleanup-section");
+  cleanup.append(
+    el("p", "note", "Choose how long data stays in this profile before it is cleared."),
+    tabAge.row, cookieAge.row, cacheAge.row, historyAge.row,
+  );
   const saveRetention = () => send({
     cmd: "update_profile_cleanup",
     tab_retention_hours: Number(tabAge.value),
@@ -182,12 +229,11 @@ function buildSettings(v) {
     cache_retention_hours: Number(cacheAge.value),
     history_retention_hours: Number(historyAge.value),
   });
-  [tabAge, cookieAge, cacheAge, historyAge].forEach((x) => x.onchange = saveRetention);
   dialog(v, "Settings", [
     field("Appearance", seg),
     field("Browsing", sw),
     field("Sidebar", compact),
-    cleanup,
+    field("Automatic cleanup", cleanup),
     field(null, el("div", "note", "Settings are shared by every space using this profile. Pinned tabs and favorites are exempt from automatic closing.")),
     field("Shortcuts", keys),
   ]);
