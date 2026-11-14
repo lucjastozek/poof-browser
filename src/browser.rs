@@ -23,13 +23,16 @@ use wry::{
 #[cfg(windows)]
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
-        Foundation::BOOL,
+        Foundation::{BOOL, HWND},
         Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, HRGN, SetWindowRgn},
     };
     use wry::WebViewExtWindows;
 
-    let hwnd = wv.hwnd();
+    let mut hwnd = HWND::default();
     unsafe {
+        if wv.controller().ParentWindow(&mut hwnd).is_err() || hwnd.0.is_null() {
+            return;
+        }
         if !rounded {
             let _ = SetWindowRgn(hwnd, HRGN::default(), BOOL(1));
             return;
