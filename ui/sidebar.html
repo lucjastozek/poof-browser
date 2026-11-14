@@ -301,7 +301,7 @@
       #titlebar {
         position: fixed;
         inset: 0 0 auto 0;
-        height: 20px;
+        height: 28px;
         display: flex;
         align-items: center;
         z-index: 100;
@@ -329,7 +329,7 @@
       }
       .window-control {
         width: 36px;
-        height: 20px;
+        height: 28px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -839,8 +839,8 @@
       /* ---------- stage: the area where the page normally is ---------- */
       #web-surface {
         position:fixed;
-        left:280px;
-        top:20px;
+        left:288px;
+        top:36px;
         right:8px;
         bottom:8px;
         border-radius:8px;
@@ -848,12 +848,12 @@
         border:1px solid var(--line);
         pointer-events:none;
       }
-      body.compact #web-surface { left:56px; }
-      body.collapsed #web-surface { left:0; }
+      body.compact #web-surface { left:64px; }
+      body.collapsed #web-surface { left:8px; }
       #stage {
         position: fixed;
-        left: 280px;
-        top: 20px;
+        left: 288px;
+        top: 36px;
         right: 8px;
         bottom: 8px;
         border-radius: 8px;
@@ -862,8 +862,8 @@
         overflow: auto;
         animation: fade 0.18s ease;
       }
-      body.compact #stage { left:56px; }
-      body.collapsed #stage { left:0; }
+      body.compact #stage { left:64px; }
+      body.collapsed #stage { left:8px; }
       #stage[hidden] {
         display: none;
       }
