@@ -22,6 +22,9 @@ use wry::{
 };
 
 #[cfg(windows)]
+use wry::WebViewExtWindows;
+
+#[cfg(windows)]
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
         Foundation::HWND,
