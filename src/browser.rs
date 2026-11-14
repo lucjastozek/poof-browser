@@ -817,6 +817,7 @@ impl Browser {
                         x.profile_id == profile
                     } else {
                         x.space_id.as_deref() == Some(sp.id.as_str())
+                            && (kind != Kind::Pinned || x.folder_id.is_none())
                     }
             })
             .map(|(i, _)| i)
