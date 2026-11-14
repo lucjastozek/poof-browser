@@ -20,10 +20,40 @@ use wry::{
     NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder,
 };
 
+#[cfg(windows)]
+fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
+    use windows::Win32::{
+        Foundation::BOOL,
+        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, HRGN, SetWindowRgn},
+    };
+    use wry::WebViewExtWindows;
+
+    let hwnd = wv.hwnd();
+    unsafe {
+        if !rounded {
+            let _ = SetWindowRgn(hwnd, HRGN::default(), BOOL(1));
+            return;
+        }
+
+        let width = (width * scale).round().max(1.0) as i32;
+        let height = (height * scale).round().max(1.0) as i32;
+        let radius = (8.0 * scale).round().max(1.0) as i32;
+        let region = CreateRoundRectRgn(0, 0, width, height, radius * 2, radius * 2);
+        if region.0.is_null() {
+            return;
+        }
+
+        // SetWindowRgn takes ownership only when it succeeds.
+        if SetWindowRgn(hwnd, region, BOOL(1)) == 0 {
+            let _ = DeleteObject(HGDIOBJ(region.0));
+        }
+    }
+}
+
 const SIDEBAR_W: f64 = 280.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
-const TOPBAR_H: f64 = 20.0;
+const TOPBAR_H: f64 = 28.0;
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 const DEFAULT_SITES: &[(&str, &str)] = &[
@@ -42,12 +72,17 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
 
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = r#"(function(){
+  function post(o){ try { window.ipc.postMessage(JSON.stringify(o)); } catch(e){} }
+  // Video players commonly live in cross-origin iframes. Wry injects this
+  // script into WebView2 subframes too, so listen before the main-frame guard.
+  document.addEventListener('fullscreenchange', function(){
+    post({t:'fullscreen', active: !!document.fullscreenElement});
+  }, true);
   if (window.top !== window) return;
   var scrollbarStyle = document.createElement('style');
   scrollbarStyle.textContent = 'html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}::-webkit-scrollbar{width:6px!important;height:6px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}';
   (document.head || document.documentElement).appendChild(scrollbarStyle);
   var last = '';
-  function post(o){ try { window.ipc.postMessage(JSON.stringify(o)); } catch(e){} }
   function icon(){
     try {
       var l = document.querySelector('link[rel~="icon" i]');
@@ -61,9 +96,6 @@ const INIT_JS: &str = r#"(function(){
   }
   addEventListener('DOMContentLoaded', function(){ meta(true); });
   addEventListener('load', function(){ meta(true); });
-  document.addEventListener('fullscreenchange', function(){
-    post({t:'fullscreen', active: !!document.fullscreenElement});
-  });
   setInterval(function(){ meta(false); }, 1500);
   addEventListener('keydown', function(e){
     if (!e.isTrusted || !e.ctrlKey) return;
@@ -769,6 +801,18 @@ impl Browser {
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
             wv.set_bounds(rect)?;
+            #[cfg(windows)]
+            {
+                let (window_w, window_h) = logical(&self.window);
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                apply_webview_radius(
+                    wv,
+                    window_w - left - 2.0 * INSET,
+                    window_h - TOPBAR_H - 2.0 * INSET,
+                    self.window.scale_factor(),
+                    !self.fullscreen,
+                );
+            }
             wv.set_visible(true)?;
             wv.focus()?;
             if self.p.auto_pip {
@@ -874,6 +918,17 @@ impl Browser {
         let _ = self.sidebar.set_visible(!self.fullscreen);
         if let Some(wv) = self.visible_webview() {
             let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen));
+            #[cfg(windows)]
+            {
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                apply_webview_radius(
+                    wv,
+                    w - left - 2.0 * INSET,
+                    h - TOPBAR_H - 2.0 * INSET,
+                    self.window.scale_factor(),
+                    !self.fullscreen,
+                );
+            }
         }
     }
 
