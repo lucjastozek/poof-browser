@@ -10,6 +10,45 @@ const collapseBtn = ib("panelLeftClose", "Collapse sidebar", () => {
   send({ cmd: "sidebar_collapsed", collapsed });
 });
 $("topNav").append(collapseBtn);
+
+// Drag the sidebar's right edge to resize it. The native content view is
+// relaid out continuously; only the final width is written to disk.
+const resizeHandle = $("side-resize");
+let sidebarWidth = 280;
+let resizingSidebar = false;
+let resizePointerId = null;
+function applySidebarWidth(width, persist = false) {
+  sidebarWidth = Math.max(180, Math.min(480, width));
+  document.documentElement.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+  send({ cmd: "sidebar_width", width: sidebarWidth, persist });
+}
+resizeHandle.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || document.body.classList.contains("compact") ||
+      document.body.classList.contains("collapsed")) return;
+  e.preventDefault();
+  resizingSidebar = true;
+  resizePointerId = e.pointerId;
+  resizeHandle.setPointerCapture(e.pointerId);
+  document.body.classList.add("resizing-sidebar");
+});
+resizeHandle.addEventListener("pointermove", (e) => {
+  if (!resizingSidebar || e.pointerId !== resizePointerId) return;
+  applySidebarWidth(e.clientX);
+});
+function finishSidebarResize(e) {
+  if (!resizingSidebar || (e && e.pointerId !== resizePointerId)) return;
+  resizingSidebar = false;
+  document.body.classList.remove("resizing-sidebar");
+  resizePointerId = null;
+  applySidebarWidth(sidebarWidth, true);
+}
+resizeHandle.addEventListener("pointerup", finishSidebarResize);
+resizeHandle.addEventListener("pointercancel", finishSidebarResize);
+resizeHandle.addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  e.preventDefault();
+  applySidebarWidth(sidebarWidth + (e.key === "ArrowRight" ? 12 : -12), true);
+});
 $("pageNav").append(
   ib("back", "Back", () => send({ cmd: "back" })),
   ib("fwd", "Forward", () => send({ cmd: "forward" })),
@@ -99,6 +138,10 @@ window.__setState = (s) => {
   if (key === lastKey) return;
   lastKey = key;
   S = s;
+  if (Number.isFinite(s.sidebar_width)) {
+    sidebarWidth = Math.max(180, Math.min(480, s.sidebar_width));
+    document.documentElement.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+  }
   document.body.classList.toggle("has-page", !!s.active);
   document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
   document.body.classList.toggle(
