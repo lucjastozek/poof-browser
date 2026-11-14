@@ -64,7 +64,12 @@ pub struct TabFolder {
     pub collapsed: bool,
     #[serde(default)]
     pub pinned: bool,
+    /// Position among loose tabs and folders in the sidebar section.
+    #[serde(default = "folder_order_default")]
+    pub order: usize,
 }
+
+fn folder_order_default() -> usize { usize::MAX }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Saved {
