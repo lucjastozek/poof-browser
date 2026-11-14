@@ -53,9 +53,23 @@ kbd{font:500 11px var(--f-text);padding:2px 6px;border-radius:6px;border:1px sol
 .switch[aria-checked=true] .track{background:var(--accent)}
 .switch[aria-checked=true] .track::after{transform:translateX(16px);background:var(--accent-ink)}
 
+/* ---------- custom native-window chrome ---------- */
+#titlebar{position:fixed;inset:0 0 auto 0;height:44px;display:flex;align-items:center;z-index:100;background:var(--chrome);border-bottom:1px solid var(--line);color:var(--ink)}
+.window-brand{height:100%;display:flex;align-items:center;gap:9px;padding:0 16px;font:600 13px/1 var(--f-display);letter-spacing:-.02em;flex:none}
+.brand-dot{width:8px;height:8px;border-radius:50%;background:var(--space)}
+.window-drag{height:100%;flex:1;cursor:default}
+.window-controls{height:100%;display:flex;align-items:stretch;flex:none}
+.window-control{width:46px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--ink-2);transition:background .12s,color .12s}
+.window-control:hover{background:var(--hover);color:var(--ink)}
+.window-control.close:hover{background:#c42b1c;color:white}
+.min-glyph{width:10px;height:1px;background:currentColor}
+.max-glyph{width:9px;height:9px;border:1px solid currentColor;border-radius:1px}
+.close-glyph{width:12px;height:12px;position:relative}
+.close-glyph:before,.close-glyph:after{content:"";position:absolute;left:5px;top:0;width:1px;height:12px;background:currentColor;transform:rotate(45deg)}
+.close-glyph:after{transform:rotate(-45deg)}
 /* ---------- sidebar column ---------- */
-#side{width:280px;height:100%;display:flex;flex-direction:column;padding:10px 6px 8px 10px;gap:10px;position:relative;transition:width .18s var(--ease)}
-body.collapsed #side{width:56px;padding:10px 6px;gap:8px}
+#side{width:280px;height:100%;display:flex;flex-direction:column;padding:54px 6px 8px 10px;gap:10px;position:relative;transition:width .18s var(--ease)}
+body.collapsed #side{width:56px;padding:54px 6px 8px;gap:8px}
 body.collapsed #side .urlwrap,body.collapsed #side #favs,body.collapsed #side #pane{display:none}
 body.collapsed #side .bar{justify-content:center}
 body.collapsed #side .bar .ib:not(:first-child){display:none}
@@ -133,7 +147,7 @@ body.collapsed #side #toast{left:4px;right:4px}
 #toast.show{opacity:1;transform:none}
 
 /* ---------- stage: the area where the page normally is ---------- */
-#stage{position:fixed;left:280px;top:8px;right:8px;bottom:8px;border-radius:24px;background:var(--stage);border:1px solid var(--line);overflow:auto;animation:fade .18s ease}
+#stage{position:fixed;left:280px;top:44px;right:8px;bottom:8px;border-radius:8px;background:var(--stage);border:1px solid var(--line);overflow:auto;animation:fade .18s ease}
 body.collapsed #stage{left:56px}
 #stage[hidden]{display:none}
 @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -206,6 +220,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;heigh
 .keys span:last-child{display:flex;gap:4px}
 </style></head>
 <body>
+<div id="titlebar" aria-label="Poof window title bar">
+  <div class="window-brand"><span class="brand-dot"></span><span>poof</span></div>
+  <div class="window-drag" id="window-drag" title="Drag to move window"></div>
+  <div class="window-controls">
+    <button class="window-control" id="winMin" title="Minimize" aria-label="Minimize"><span class="min-glyph"></span></button>
+    <button class="window-control" id="winMax" title="Maximize" aria-label="Maximize"><span class="max-glyph"></span></button>
+    <button class="window-control close" id="winClose" title="Close" aria-label="Close"><span class="close-glyph"></span></button>
+  </div>
+</div>
 <div id="side">
   <div class="bar" id="bar"></div>
   <div class="urlwrap"><input id="url" placeholder="Search or enter address" spellcheck="false" autocomplete="off"><button id="addExt" hidden>Add to poof</button></div>
@@ -283,6 +306,11 @@ const collapseBtn=ib('layers','Collapse sidebar',()=>{
   send({cmd:'sidebar_collapsed',collapsed});
 });
 $('bar').append(collapseBtn,ib('back','Back',()=>send({cmd:'back'})),ib('fwd','Forward',()=>send({cmd:'forward'})),ib('reload','Reload',()=>send({cmd:'reload'})),el('span','grow'),ib('puzzle','Extensions',()=>openView('ext')));
+$('winMin').onclick=()=>send({cmd:'window_minimize'});
+$('winMax').onclick=()=>send({cmd:'window_toggle_maximize'});
+$('winClose').onclick=()=>send({cmd:'window_close'});
+$('titlebar').addEventListener('dblclick',e=>{if(e.target.closest('.window-controls'))return;send({cmd:'window_toggle_maximize'})});
+$('window-drag').addEventListener('pointerdown',e=>{if(e.button===0)send({cmd:'window_drag'})});
 {const w=el('span','ico');w.append(ic('plus',15));$('newtab').append(w,el('span','ttl','New tab'))}
 $('newtab').onclick=()=>openView('newtab');
 $('foot').append(el('div'),ib('plus','New space',()=>openView('space:add')),ib('settings','Settings',()=>openView('settings')));
