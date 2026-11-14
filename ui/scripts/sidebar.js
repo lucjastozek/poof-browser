@@ -130,7 +130,7 @@ function folderNode(s, folder, pinned) {
   toggle.type = "button";
   toggle.setAttribute("aria-expanded", String(!folder.collapsed));
   toggle.setAttribute("aria-label", (folder.collapsed ? "Expand " : "Collapse ") + folder.name);
-  toggle.append(ic(folder.collapsed ? "chevronRight" : "chevronDown", 13));
+  toggle.append(ic(folder.collapsed ? "chevron-right" : "chevron-down", 13));
   toggle.onclick = (e) => { e.stopPropagation(); send({ cmd: "toggle_folder_collapsed", id: folder.id }); };
   const glyph = el("span", "folder-glyph");
   glyph.append(ic("folder", 18));
