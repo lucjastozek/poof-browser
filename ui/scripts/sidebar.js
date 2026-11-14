@@ -160,8 +160,14 @@ function folderArea(s, pinned) {
   const folders = (s.folders || []).filter(f => !!f.pinned === pinned);
   const allFolders = s.folders || [];
   const loose = (pinned ? s.pinned : s.tabs).filter(t => !allFolders.some(f => f.id === t.folder_id));
-  // Keep folders after ordinary tabs initially; their order is then controlled by dragging.
-  const nodes = [...loose.map(t => row(t, pinned ? "pin" : "tab")), ...folders.map(f => folderNode(s, f, pinned))];
+  const nodes = loose.map(t => row(t, pinned ? "pin" : "tab"));
+  // Folder.order is an index in the combined tab + folder sequence, not a
+  // folder-only index. This lets a folder sit between any two ordinary tabs.
+  folders.sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
+  for (const folder of folders) {
+    const at = Math.max(0, Math.min(nodes.length, Number.isFinite(folder.order) ? folder.order : nodes.length));
+    nodes.splice(at, 0, folderNode(s, folder, pinned));
+  }
   return nodes;
 }
 const settingsButton = ib("settings", "Settings", () => openView("settings"));
@@ -426,22 +432,12 @@ function updateDrag(ev) {
     if(ref){const r=ref.getBoundingClientRect();box={left:after?r.right+2:r.left-4,top:r.top+4,width:2,height:r.height-8};}
   } else if(zone==="pinned") {
     const list=$("pinned");
-    if(d.kind==="folder") {
-      const groups=[...list.children].filter(c=>c.classList.contains("tab-folder")&&c!==d.row.parentElement);
-      groups.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
-    } else {
-      const rows=[...list.querySelectorAll(":scope > .row")].filter(c=>c!==d.row);
-      rows.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
-    }
+    const items=[...list.children].filter(c=>c!== (d.kind==="folder" ? d.row.parentElement : d.row));
+    items.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
     const lb=list.getBoundingClientRect();box={left:lb.left+6,top:y,width:lb.width-12,height:2};
   } else if(zone==="tab") {
-    if (d.kind === "folder") {
-      const groups=[...$("tabs").children].filter(c=>c.classList.contains("tab-folder")&&c!==d.row.parentElement);
-      groups.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
-    } else {
-      const rows=[...$("tabs").children].filter(c=>c.classList.contains("row")&&c!==d.row);
-      rows.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
-    }
+    const items=[...$("tabs").children].filter(c=>c!== (d.kind==="folder" ? d.row.parentElement : d.row));
+    items.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
     const lb=$("tabs").getBoundingClientRect();box={left:lb.left+6,top:y,width:lb.width-12,height:2};
   }
   const folderGroup = d.kind === "folder" ? null : document.elementFromPoint(x, y)?.closest(".tab-folder");
