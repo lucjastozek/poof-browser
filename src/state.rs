@@ -21,7 +21,19 @@ pub enum Kind {
 pub struct Profile {
     pub id: String,
     pub name: String,
+    #[serde(default = "default_tab_retention")]
+    pub tab_retention_hours: u64,
+    #[serde(default)]
+    pub cookie_retention_hours: u64,
+    #[serde(default)]
+    pub cache_retention_hours: u64,
+    #[serde(default)]
+    pub history_retention_hours: u64,
+    #[serde(default)]
+    pub last_cleanup_at: u64,
 }
+
+fn default_tab_retention() -> u64 { 48 }
 
 /// Many spaces can belong to one profile.
 #[derive(Serialize, Deserialize, Clone)]
@@ -111,7 +123,15 @@ impl Default for Persisted {
         let pid = new_id();
         let sid = new_id();
         Self {
-            profiles: vec![Profile { id: pid.clone(), name: "Personal".into() }],
+            profiles: vec![Profile {
+                id: pid.clone(),
+                name: "Personal".into(),
+                tab_retention_hours: default_tab_retention(),
+                cookie_retention_hours: 0,
+                cache_retention_hours: 0,
+                history_retention_hours: 0,
+                last_cleanup_at: 0,
+            }],
             spaces: vec![Space {
                 id: sid.clone(),
                 profile_id: pid,
