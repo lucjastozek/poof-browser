@@ -440,81 +440,52 @@ input[type="range"]::-webkit-slider-thumb {
   line-height: 1.35;
 }
 .retention-control {
-  flex: 0 0 132px;
-  width: 132px;
+  flex: 0 0 auto;
   min-width: 0;
 }
-.retention-trigger {
-  display: flex;
+.retention-options {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 34px;
-  padding: 0 10px 0 11px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 500;
-  text-align: left;
-  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
-}
-.retention-trigger:hover,
-.retention-trigger[aria-expanded="true"] {
-  background: var(--raised);
-  border-color: color-mix(in srgb, var(--space) 42%, var(--line-2));
-}
-.retention-trigger:focus-visible {
-  outline: 0;
-  border-color: color-mix(in srgb, var(--space) 65%, var(--ink));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--space) 22%, transparent);
-}
-.retention-trigger svg {
-  color: var(--ink-3);
-  transition: transform 0.15s ease;
-}
-.retention-trigger[aria-expanded="true"] svg {
-  transform: rotate(180deg);
-}
-.retention-menu {
-  position: fixed;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
   gap: 2px;
-  max-height: 240px;
-  overflow-y: auto;
-  padding: 5px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-lg);
-  background: var(--raised);
-  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--ink) 4%, transparent);
-  animation: pop 0.12s var(--ease);
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
 }
-.retention-option {
-  display: flex;
+.retention-pill {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 32px;
-  padding: 0 9px;
-  border-radius: var(--r-md);
-  color: var(--ink-2);
-  font-size: 12px;
-  text-align: left;
-  transition: background 0.1s, color 0.1s;
-}
-.retention-option:hover,
-.retention-option:focus-visible {
-  outline: 0;
-  background: var(--hover);
-  color: var(--ink);
-}
-.retention-option.selected {
-  background: color-mix(in srgb, var(--space) 13%, var(--surface));
-  color: var(--ink);
+  justify-content: center;
+  min-width: 30px;
+  height: 27px;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  font-size: 10px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
 }
-.retention-option.selected svg {
-  color: color-mix(in srgb, var(--space) 72%, var(--ink));
+.retention-pill:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+.retention-pill.selected {
+  color: var(--accent-ink);
+  background: var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.retention-pill:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--space) 65%, var(--ink));
+  outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .retention-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .retention-options {
+    max-width: 100%;
+  }
 }
