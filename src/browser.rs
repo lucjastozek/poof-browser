@@ -92,9 +92,16 @@ const INIT_JS: &str = r#"(function(){
     if (videos.length) {
       videos.sort(function(a,b){ return (b.videoWidth*b.videoHeight)-(a.videoWidth*a.videoHeight); });
       var v = videos[0];
-      var target = v.closest('.html5-video-player, .vp-player, .jwplayer, [data-testid*="player"]') || v.parentElement || v;
-      if (target.requestFullscreen) {
-        target.requestFullscreen().catch(function(){});
+      // Fullscreen the video surface itself, not the site's larger player
+      // container. Fullscreening the container exposes unrelated page/player
+      // layers behind or around the video on several sites.
+      v.__poofHadControls = v.controls;
+      v.controls = true;
+      if (v.requestFullscreen) {
+        v.requestFullscreen().catch(function(){
+          v.controls = !!v.__poofHadControls;
+          delete v.__poofHadControls;
+        });
         return true;
       }
     }
@@ -124,19 +131,28 @@ const INIT_JS: &str = r#"(function(){
       }
     }
   }, true);
-  // Make the fullscreen element occupy the whole display. For a player
-  // container, center its video inside the black viewport; for a video that
-  // enters fullscreen directly, use the viewport as its contain box.
+  // The video element itself is the fullscreen surface. Its viewport-sized
+  // box is black, while object-fit:contain keeps the complete video centered
+  // without stretching or cropping. The fullscreen backdrop is also black.
   // Inject this in every frame because third-party players are often cross-origin.
   var fullscreenStyle = document.createElement('style');
   fullscreenStyle.textContent =
     ':fullscreen{background:#000!important}' +
-    ':fullscreen.html5-video-player,:fullscreen .vp-player,:fullscreen .jwplayer,:fullscreen [data-testid*="player"]{' +
+    ':fullscreen::backdrop{background:#000!important}' +
+    'video:fullscreen{' +
+      'display:block!important;position:fixed!important;inset:0!important;margin:0!important;' +
       'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
-      'display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}' +
-    ':fullscreen video{position:relative!important;inset:auto!important;margin:auto!important;width:auto!important;height:auto!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important}' +
-    'video:fullscreen{width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;object-fit:contain!important;background:#000!important}';
+      'object-fit:contain!important;background:#000!important;border:0!important;transform:none!important}';
   (document.head || document.documentElement).appendChild(fullscreenStyle);
+  document.addEventListener('fullscreenchange', function(){
+    if (document.fullscreenElement) return;
+    document.querySelectorAll('video').forEach(function(v){
+      if (v.__poofHadControls !== undefined) {
+        v.controls = !!v.__poofHadControls;
+        delete v.__poofHadControls;
+      }
+    });
+  }, true);
   // Fullscreen in a cross-origin iframe is isolated from the top document.
   // Relay its state up the frame tree with postMessage; only the top document
   // talks to native code. This is the signal that makes the APP window itself
