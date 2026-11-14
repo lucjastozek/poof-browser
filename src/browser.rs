@@ -10,6 +10,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tao::{
     event_loop::EventLoopProxy,
@@ -86,6 +87,7 @@ pub struct Tab {
     pub title: String,
     pub favicon: Option<String>,
     pub webview: Option<WebView>, // None = not loaded yet (lazy)
+    pub last_active: SystemTime,
 }
 
 #[derive(Deserialize)]
@@ -124,6 +126,12 @@ enum Cmd {
     MoveTab { id: String, to: String, index: usize },
     SetTheme { theme: String },
     SetAutoPip { on: bool },
+    UpdateProfileCleanup {
+        tab_retention_hours: u64,
+        cookie_retention_hours: u64,
+        cache_retention_hours: u64,
+        history_retention_hours: u64,
+    },
     DeleteSpace { id: String },
     ListExt,
     InstallExt { input: String },
@@ -282,6 +290,7 @@ impl Browser {
                 title: s.title.clone(),
                 favicon: s.favicon.clone(),
                 webview: None,
+                last_active: SystemTime::now(),
             })
             .collect();
 
@@ -553,7 +562,15 @@ impl Browser {
                 let pid = match new_profile.map(|n| clip(n.trim(), 40)).filter(|n| !n.is_empty()) {
                     Some(n) => {
                         let id = new_id();
-                        self.p.profiles.push(Profile { id: id.clone(), name: n });
+                        self.p.profiles.push(Profile {
+                            id: id.clone(),
+                            name: n,
+                            tab_retention_hours: 48,
+                            cookie_retention_hours: 0,
+                            cache_retention_hours: 0,
+                            history_retention_hours: 0,
+                            last_cleanup_at: 0,
+                        });
                         id
                     }
                     None => profile_id
@@ -591,6 +608,25 @@ impl Browser {
             }
             Cmd::SetAutoPip { on } => {
                 self.p.auto_pip = on;
+                self.save();
+            }
+            Cmd::UpdateProfileCleanup {
+                tab_retention_hours,
+                cookie_retention_hours,
+                cache_retention_hours,
+                history_retention_hours,
+            } => {
+                let valid = |v: u64, allow_off: bool| {
+                    (allow_off && v == 0) || matches!(v, 24 | 48 | 72 | 168 | 336)
+                };
+                let profile_id = self.cur_space().profile_id.clone();
+                if let Some(profile) = self.p.profiles.iter_mut().find(|p| p.id == profile_id) {
+                    if valid(tab_retention_hours, false) { profile.tab_retention_hours = tab_retention_hours; }
+                    if valid(cookie_retention_hours, true) { profile.cookie_retention_hours = cookie_retention_hours; }
+                    if valid(cache_retention_hours, true) { profile.cache_retention_hours = cache_retention_hours; }
+                    if valid(history_retention_hours, true) { profile.history_retention_hours = history_retention_hours; }
+                    profile.last_cleanup_at = 0;
+                }
                 self.save();
             }
             Cmd::ListExt => self.push_exts(),
@@ -702,6 +738,7 @@ impl Browser {
             title: String::new(),
             favicon: None,
             webview: None,
+            last_active: SystemTime::now(),
         });
         self.activate(&id)
     }
@@ -816,6 +853,9 @@ impl Browser {
 
     fn activate(&mut self, id: &str) -> Result<()> {
         let Some(idx) = self.tabs.iter().position(|t| t.id == id) else { return Ok(()) };
+        if self.tabs[idx].kind == Kind::Normal {
+            self.tabs[idx].last_active = SystemTime::now();
+        }
         if self.visible.as_deref() == Some(id) && !self.overlay {
             return Ok(());
         }
@@ -932,6 +972,98 @@ impl Browser {
         Ok(())
     }
 
+
+    /// Expire inactive normal tabs and apply profile-level browsing-data policies.
+    pub fn cleanup_expired_tabs(&mut self) {
+        let now = SystemTime::now();
+        let expired: Vec<String> = self.tabs.iter()
+            .filter(|t| t.kind == Kind::Normal && self.visible.as_deref() != Some(t.id.as_str()))
+            .filter(|t| {
+                let hours = self.p.profiles.iter()
+                    .find(|p| p.id == t.profile_id)
+                    .map(|p| p.tab_retention_hours)
+                    .unwrap_or(48);
+                now.duration_since(t.last_active).unwrap_or(Duration::ZERO).as_secs()
+                    >= hours.saturating_mul(3600)
+            })
+            .map(|t| t.id.clone())
+            .collect();
+        for id in expired {
+            if let Err(e) = self.close_tab(&id) {
+                log::warn!("auto-tidy could not close tab: {e:#}");
+            }
+        }
+        self.cleanup_profile_data();
+        self.push_state();
+    }
+
+    #[cfg(windows)]
+    fn cleanup_profile_data(&mut self) {
+        use webview2_com::{
+            ClearBrowsingDataCompletedHandler,
+            Microsoft::Web::WebView2::Win32::{
+                ICoreWebView2_13, ICoreWebView2Profile2,
+                COREWEBVIEW2_BROWSING_DATA_KINDS_COOKIES,
+                COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE,
+                COREWEBVIEW2_BROWSING_DATA_KINDS_BROWSING_HISTORY,
+            },
+        };
+        use windows::core::Interface;
+
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap_or(Duration::ZERO).as_secs();
+        let due_profiles: Vec<String> = self.p.profiles.iter()
+            .filter(|p| p.cookie_retention_hours > 0 || p.cache_retention_hours > 0 || p.history_retention_hours > 0)
+            .filter(|p| now.saturating_sub(p.last_cleanup_at) >= 3600)
+            .map(|p| p.id.clone())
+            .collect();
+
+        for profile_id in due_profiles {
+            let Some(webview) = self.tabs.iter()
+                .find(|t| t.profile_id == profile_id)
+                .and_then(|t| t.webview.as_ref())
+            else { continue };
+
+            let settings = self.p.profiles.iter()
+                .find(|p| p.id == profile_id)
+                .map(|p| (p.cookie_retention_hours, p.cache_retention_hours, p.history_retention_hours))
+                .unwrap_or((0, 0, 0));
+
+            let result = unsafe {
+                let core = webview.controller().CoreWebView2()?;
+                let core13: ICoreWebView2_13 = core.cast()?;
+                let profile = core13.Profile()?;
+                let profile2: ICoreWebView2Profile2 = profile.cast()?;
+                for (hours, kind) in [
+                    (settings.0, COREWEBVIEW2_BROWSING_DATA_KINDS_COOKIES),
+                    (settings.1, COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE),
+                    (settings.2, COREWEBVIEW2_BROWSING_DATA_KINDS_BROWSING_HISTORY),
+                ] {
+                    if hours == 0 { continue; }
+                    let cutoff = now.saturating_sub(hours.saturating_mul(3600)) as f64;
+                    let handler = ClearBrowsingDataCompletedHandler::create(Box::new(|_| Ok(())));
+                    profile2.ClearBrowsingDataInTimeRange(kind, 0.0, cutoff, &handler)?;
+                }
+                Ok::<(), anyhow::Error>(())
+            };
+
+            match result {
+                Ok(()) => {
+                    if let Some(p) = self.p.profiles.iter_mut().find(|p| p.id == profile_id) {
+                        p.last_cleanup_at = now;
+                    }
+                    self.save();
+                }
+                Err(e) => log::warn!("profile browsing-data cleanup failed: {e:#}"),
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn cleanup_profile_data(&mut self) {
+        // Age-scoped profile cleanup is exposed through WebView2 on Windows.
+    }
+
     // ---------- output ----------
     pub fn relayout(&self) {
         let (w, h) = logical(&self.window);
@@ -1045,6 +1177,15 @@ impl Browser {
             "auto_pip": self.p.auto_pip,
             "sidebar_collapsed": self.p.sidebar_collapsed,
             "sidebar_compact": self.p.sidebar_compact,
+            "profile_cleanup": self.p.profiles.iter()
+                .find(|p| p.id == sp.profile_id)
+                .map(|p| json!({
+                    "tab_retention_hours": p.tab_retention_hours,
+                    "cookie_retention_hours": p.cookie_retention_hours,
+                    "cache_retention_hours": p.cache_retention_hours,
+                    "history_retention_hours": p.history_retention_hours
+                }))
+                .unwrap_or_else(|| json!({})),
         });
         let _ = self.sidebar.evaluate_script(&format!("window.__setState({state})"));
     }
