@@ -25,3 +25,8 @@ resvg = "0.45"
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
 windows = "0.61"
+
+[build-dependencies]
+resvg = "0.45"
+ico = "0.3"
+winres = "0.1"
