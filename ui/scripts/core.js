@@ -133,7 +133,7 @@ let S = null,
   drag = null,
   noClick = false;
 const curSpace = () => S.spaces.find((x) => x.id === S.current);
-function icon(t, guess) {
+function icon(t, guess = true) {
   const w = el("span", "ico");
   const candidates = [];
   const add = (src) => {
