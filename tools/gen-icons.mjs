@@ -1,14 +1,13 @@
 // Generates ui/icons.js from lucide-static (ISC license). Usage: node tools/gen-icons.mjs <path-to-lucide-static/icons>
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 const dir = process.argv[2];
 // ui name -> lucide file name
 const UI = { back:'arrow-left', fwd:'arrow-right', reload:'rotate-cw', plus:'plus', puzzle:'puzzle', pin:'pin', unpin:'pin-off',
   star:'star', x:'x', sliders:'sliders-horizontal', search:'search', globe:'globe', pencil:'pencil', check:'check', trash:'trash-2',
   sun:'sun', moon:'moon', monitor:'monitor', settings:'settings', external:'arrow-up-right', lock:'lock', layers:'layers', download:'download' };
-// icons a space can use (id = lucide name)
-const SPACE = ['house','briefcase','book-open','code-xml','palette','music','film','gamepad-2','shopping-bag','heart','leaf','coffee',
-  'camera','flask-conical','graduation-cap','plane','wallet','mail','sparkles','mountain','rocket','compass','flame','dumbbell'];
+// Every Lucide SVG is available as a space icon. Keep stable ids equal to file names.
+const SPACE = readdirSync(dir).filter(f => f.endsWith('.svg')).map(f => f.slice(0, -4)).sort();
 const inner = n => readFileSync(join(dir, n + '.svg'), 'utf8').replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').replace(/\s*\n\s*/g, '').trim();
 const out = { ui: {}, space: {} };
 for (const [k, f] of Object.entries(UI)) out.ui[k] = inner(f);
