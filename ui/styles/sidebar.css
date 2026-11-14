@@ -569,7 +569,7 @@ body.collapsed #side #toast {
 .folder-contents>.row{padding-left:5px}.folder-contents>.row::before{display:none}
 .folder-head.drop-target{background:color-mix(in srgb,var(--space) 22%,var(--raised));box-shadow:inset 0 0 0 1px var(--space)}
 .folder-preview{display:none;position:absolute;z-index:120;left:calc(100% + 8px);top:0;width:220px;padding:9px;border:1px solid var(--line);border-radius:11px;background:var(--raised);box-shadow:var(--shadow-lg);pointer-events:none}
-.tab-folder:hover>.folder-preview{display:block}
+.tab-folder.collapsed:hover>.folder-preview{display:block}
 .folder-preview-title{font-size:11px;font-weight:650;color:var(--ink);padding:1px 4px 7px}
 .folder-preview-row{display:flex;align-items:center;gap:8px;min-height:27px;padding:2px 4px;border-radius:5px;color:var(--ink-2);font-size:11px}
 .folder-preview-row img,.folder-preview-row .ico{width:15px;height:15px;flex:none}
