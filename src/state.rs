@@ -64,7 +64,22 @@ fn system() -> String {
 
 /// Space icons are ids of the built-in icon set (e.g. "house"), never emoji.
 pub fn valid_icon(s: &str) -> bool {
-    !s.is_empty() && s.len() <= 32 && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    let builtin = !s.is_empty() && s.len() <= 32
+        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if builtin { return true; }
+    let Some(encoded) = s.strip_prefix("svg:") else { return false };
+    if encoded.len() > 8192 || encoded.is_empty() { return false; }
+    use base64::Engine;
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(encoded) else { return false };
+    let Ok(svg) = std::str::from_utf8(&bytes) else { return false };
+    let lower = svg.to_ascii_lowercase();
+    svg.len() <= 6144 && lower.starts_with("<svg")
+        && !lower.contains("<script") && !lower.contains("<foreignobject")
+        && !lower.contains("<iframe") && !lower.contains("<image")
+        && !lower.contains("<!doctype") && !lower.contains("<!entity")
+        && !lower.contains("javascript:") && !lower.contains("url(")
+        && !lower.contains(" onload") && !lower.contains(" onclick")
+        && !lower.contains(" onerror") && !lower.contains("href=")
 }
 
 #[derive(Serialize, Deserialize)]
