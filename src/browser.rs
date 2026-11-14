@@ -765,7 +765,7 @@ impl Browser {
         }
         self.hide_visible();
         self.ensure_webview(idx)?;
-        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.fullscreen);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen);
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
             wv.set_bounds(rect)?;
@@ -873,7 +873,7 @@ impl Browser {
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
         let _ = self.sidebar.set_visible(!self.fullscreen);
         if let Some(wv) = self.visible_webview() {
-            let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.fullscreen));
+            let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen));
         }
     }
 
