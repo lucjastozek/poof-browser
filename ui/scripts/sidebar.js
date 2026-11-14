@@ -160,7 +160,8 @@ function folderArea(s, pinned) {
   const folders = (s.folders || []).filter(f => !!f.pinned === pinned);
   const allFolders = s.folders || [];
   const loose = (pinned ? s.pinned : s.tabs).filter(t => !allFolders.some(f => f.id === t.folder_id));
-  const nodes = [...folders.map(f => folderNode(s, f, pinned)), ...loose.map(t => row(t, pinned ? "pin" : "tab"))];
+  // Keep folders after ordinary tabs initially; their order is then controlled by dragging.
+  const nodes = [...loose.map(t => row(t, pinned ? "pin" : "tab")), ...folders.map(f => folderNode(s, f, pinned))];
   return nodes;
 }
 const settingsButton = ib("settings", "Settings", () => openView("settings"));
@@ -170,11 +171,29 @@ const newSpaceButton = ib("plus", "New space", () => openView("space:add"));
 $("foot").append(settingsButton, spaces, newSpaceButton);
 $("hdr").onclick = () => openView("space:edit");
 
-// Right-clicking open sidebar space creates a folder in-place.
-$("side").addEventListener("contextmenu", (e) => {
-  if (e.target.closest(".row,.tile,.folder-actions,.folder-rename,input,button,a")) return;
-  e.preventDefault();
+// Right-clicking open sidebar space offers folder creation without doing it immediately.
+const folderContextMenu = el("div", "folder-context-menu");
+const createFolderItem = el("button", "folder-context-item", "New folder");
+createFolderItem.type = "button";
+createFolderItem.onclick = () => {
+  folderContextMenu.remove();
   send({ cmd: "create_folder", name: "New folder" });
+};
+folderContextMenu.append(createFolderItem);
+$("side").addEventListener("contextmenu", (e) => {
+  if (e.target.closest(".row,.tile,.tab-folder,.folder-actions,.folder-rename,input,button,a")) return;
+  e.preventDefault();
+  folderContextMenu.remove();
+  $("side").append(folderContextMenu);
+  const bounds = $("side").getBoundingClientRect();
+  folderContextMenu.style.left = Math.max(8, Math.min(e.clientX - bounds.left, bounds.width - 148)) + "px";
+  folderContextMenu.style.top = Math.max(8, e.clientY - bounds.top) + "px";
+});
+document.addEventListener("pointerdown", (e) => {
+  if (!folderContextMenu.contains(e.target)) folderContextMenu.remove();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") folderContextMenu.remove();
 });
 
 function row(t, kind) {
