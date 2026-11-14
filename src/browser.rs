@@ -662,7 +662,7 @@ impl Browser {
                 let name = clip(name.trim(), 40);
                 if !name.is_empty() {
                     let space_id = self.cur_space().id.clone();
-                    self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: false });
+                    self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: false, order: usize::MAX });
                     self.save();
                 }
             }
@@ -685,17 +685,22 @@ impl Browser {
             Cmd::MoveFolder { id, to, index } => {
                 let space = self.p.current_space.clone();
                 let pinned = to == "pinned";
-                if (to == "pinned" || to == "tab") {
+                if to == "pinned" || to == "tab" {
                     if let Some(from) = self.p.folders.iter().position(|f| f.id == id && f.space_id == space) {
                         let mut folder = self.p.folders.remove(from);
+                        let old_order = folder.order;
+                        let old_pinned = folder.pinned;
+                        // Close the gap in the source section, then make room at the exact
+                        // mixed tab/folder position selected by the pointer.
+                        for peer in self.p.folders.iter_mut().filter(|f| f.space_id == space && f.pinned == old_pinned && f.order > old_order) {
+                            peer.order = peer.order.saturating_sub(1);
+                        }
+                        for peer in self.p.folders.iter_mut().filter(|f| f.space_id == space && f.pinned == pinned && f.order >= index) {
+                            peer.order = peer.order.saturating_add(1);
+                        }
                         folder.pinned = pinned;
-                        let peers: Vec<usize> = self.p.folders.iter().enumerate()
-                            .filter(|(_, f)| f.space_id == space && f.pinned == pinned)
-                            .map(|(i, _)| i).collect();
-                        let pos = peers.get(index).copied()
-                            .or_else(|| peers.last().map(|i| i + 1))
-                            .unwrap_or(self.p.folders.len());
-                        self.p.folders.insert(pos, folder);
+                        folder.order = index;
+                        self.p.folders.push(folder);
                         for tab in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())
                             && t.space_id.as_deref() == Some(space.as_str())) {
                             let kind = if pinned { Kind::Pinned } else { Kind::Normal };
