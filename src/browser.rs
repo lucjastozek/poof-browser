@@ -870,7 +870,7 @@ impl Browser {
                     Ok(core) => {
                         let handler = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
                             let Some(sender) = sender else { return Ok(()) };
-                            let mut contains = BOOL(0);
+                            let mut contains = BOOL::default();
                             if let Err(error) = sender.ContainsFullScreenElement(&mut contains) {
                                 log::warn!("reading WebView2 fullscreen state failed: {error}");
                                 return Ok(());
