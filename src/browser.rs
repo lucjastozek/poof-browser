@@ -517,7 +517,7 @@ impl Browser {
 
     fn run(&mut self, cmd: Cmd) -> Result<()> {
         match cmd {
-            Cmd::Ready => self.restore_space_tab()?
+            Cmd::Ready => self.restore_space_tab()?,
             Cmd::SidebarCollapsed { collapsed } => {
                 self.p.sidebar_collapsed = collapsed;
                 self.save();
