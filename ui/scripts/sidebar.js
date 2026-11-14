@@ -203,6 +203,7 @@ window.__setState = (s) => {
     const members = s.tabs.filter((t) => t.folder_id === f.id);
     const group = el("div", "tab-folder" + (f.pinned ? " is-pinned" : ""));
     const head = el("div", "folder-head");
+    head.dataset.folderId = f.id;
     const toggle = el("button", "folder-toggle");
     toggle.type = "button";
     toggle.setAttribute("aria-expanded", String(!f.collapsed));
@@ -403,6 +404,8 @@ function updateDrag(ev) {
       };
     }
   }
+  const folderTarget = document.elementFromPoint(x, y)?.closest(".folder-head");
+  if (folderTarget?.dataset.folderId) zone = "folder:" + folderTarget.dataset.folderId;
   d.zone = zone;
   d.idx = idx;
   const ind = $("ind");
@@ -418,6 +421,7 @@ function updateDrag(ev) {
   const free = (n) => ![...$(n).children].some((c) => c !== d.row);
   $("pinned").classList.toggle("hot-zone", zone === "pinned" && free("pinned"));
   $("favs").classList.toggle("hot-zone", zone === "fav" && free("favs"));
+  document.querySelectorAll(".folder-head").forEach((h) => h.classList.toggle("drop-target", zone === "folder:" + h.dataset.folderId));
   const changing =
     (zone === "pinned" && d.kind !== "pin") ||
     (zone === "tab" && d.kind === "pin");
@@ -435,10 +439,14 @@ function endDrag(drop) {
   $("line").classList.remove("hot");
   $("pinned").classList.remove("hot-zone");
   $("favs").classList.remove("hot-zone");
+  document.querySelectorAll(".folder-head").forEach((h) => h.classList.remove("drop-target"));
   if (drop && d.zone) {
-    const to =
-      d.zone === "pinned" ? "pinned" : d.zone === "fav" ? "fav" : "tab";
-    send({ cmd: "move_tab", id: d.id, to, index: d.idx });
+    if (d.zone.startsWith("folder:")) {
+      send({ cmd: "move_tab_to_folder", id: d.id, folder_id: d.zone.slice(7) });
+    } else {
+      const to = d.zone === "pinned" ? "pinned" : d.zone === "fav" ? "fav" : "tab";
+      send({ cmd: "move_tab", id: d.id, to, index: d.idx });
+    }
   }
   if (pending) {
     const p = pending;
