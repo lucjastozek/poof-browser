@@ -133,30 +133,44 @@ let S = null,
   drag = null,
   noClick = false;
 const curSpace = () => S.spaces.find((x) => x.id === S.current);
-const letter = (t) =>
-  ((t.title || t.label || t.url || "?").trim()[0] || "?").toUpperCase();
 function icon(t, guess) {
   const w = el("span", "ico");
-  const fb = () => {
-    w.textContent = letter(t);
+  const candidates = [];
+  const add = (src) => {
+    if (src && !candidates.includes(src)) candidates.push(src);
   };
-  let src = t.favicon;
-  if (!src && guess) {
-    try {
-      src = new URL("/favicon.ico", t.url).href;
-    } catch (e) {}
+  add(t.favicon);
+  try {
+    const site = new URL(t.url);
+    if (guess) {
+      add(new URL("/favicon.ico", site).href);
+      add(new URL("/apple-touch-icon.png", site).href);
+      add("https://www.google.com/s2/favicons?domain=" +
+        encodeURIComponent(site.hostname) + "&sz=64");
+    }
+  } catch (e) {}
+  const showFallback = () => {
+    w.replaceChildren(ic("globe", 16));
+    w.setAttribute("aria-label", "Website");
+  };
+  if (!candidates.length) {
+    showFallback();
+    return w;
   }
-  if (src) {
-    const i = new Image();
-    i.referrerPolicy = "no-referrer";
-    i.draggable = false;
-    i.onerror = () => {
-      i.remove();
-      fb();
-    };
-    i.src = src;
-    w.appendChild(i);
-  } else fb();
+  const i = new Image();
+  i.referrerPolicy = "no-referrer";
+  i.draggable = false;
+  let index = 0;
+  i.onerror = () => {
+    index += 1;
+    if (index < candidates.length) i.src = candidates[index];
+    else showFallback();
+  };
+  i.onload = () => {
+    if (!i.naturalWidth || !i.naturalHeight) i.onerror();
+  };
+  w.appendChild(i);
+  i.src = candidates[index];
   return w;
 }
 const pretty = (u) => {
