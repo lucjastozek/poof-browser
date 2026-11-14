@@ -716,7 +716,16 @@ impl Browser {
         Ok(())
     }
 
+    fn leave_fullscreen(&mut self) {
+        if self.fullscreen {
+            self.fullscreen = false;
+            self.window.set_fullscreen(None);
+            let _ = self.sidebar.set_visible(true);
+        }
+    }
+
     fn hide_visible(&mut self) {
+        self.leave_fullscreen();
         let Some(id) = self.visible.take() else { return };
         if let Some(wv) = self.tabs.iter().find(|t| t.id == id).and_then(|t| t.webview.as_ref()) {
             if self.p.auto_pip {
@@ -752,6 +761,7 @@ impl Browser {
         let Some(idx) = self.tabs.iter().position(|t| t.id == id) else { return Ok(()) };
         let was_visible = self.visible.as_deref() == Some(id);
         if was_visible {
+            self.leave_fullscreen();
             self.visible = None;
             if let Some(wv) = &self.tabs[idx].webview {
                 let _ = wv.set_visible(false);
