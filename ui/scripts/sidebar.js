@@ -151,9 +151,6 @@ function row(t, kind) {
   r.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab"));
   const a = el("span", "acts");
   a.append(
-    ib(kind === "pin" ? "unpin" : "pin", kind === "pin" ? "Unpin" : "Pin", () =>
-      send({ cmd: kind === "pin" ? "unpin_tab" : "pin_tab", id: t.id }),
-    ),
     ib("folder", "Move to folder", () => {
       const folders = (S.folders || []).filter((f) => f.space_id === S.current);
       const current = folders.find((f) => f.id === t.folder_id);
@@ -234,9 +231,8 @@ window.__setState = (s) => {
     }),
   );
   $("favs").classList.toggle("empty", !s.favorites.length);
-  $("pinned").replaceChildren(...s.pinned.map((t) => row(t, "pin")));
   const folders = [...(s.folders || [])].sort((a, b) => Number(b.pinned) - Number(a.pinned));
-  const folderNodes = [];
+  const pinnedFolders = [], regularFolders = [];
   for (const f of folders) {
     const members = s.tabs.filter((t) => t.folder_id === f.id);
     const group = el("div", "tab-folder" + (f.pinned ? " is-pinned" : ""));
@@ -247,33 +243,27 @@ window.__setState = (s) => {
     toggle.setAttribute("aria-expanded", String(!f.collapsed));
     toggle.setAttribute("aria-label", (f.collapsed ? "Expand " : "Collapse ") + f.name);
     toggle.append(ic(f.collapsed ? "chevronRight" : "chevronDown", 14));
-    toggle.onclick = () => send({ cmd: "toggle_folder_collapsed", id: f.id });
+    toggle.onclick = (e) => { e.stopPropagation(); send({ cmd: "toggle_folder_collapsed", id: f.id }); };
+    const glyph = el("span", "folder-glyph");
+    glyph.append(ic("folder", 16));
     const label = el("span", "folder-name", f.name);
     label.title = f.name;
-    label.ondblclick = (e) => {
-      e.stopPropagation();
-      const name = prompt("Rename folder", f.name);
-      if (name && name.trim()) send({ cmd: "rename_folder", id: f.id, name: name.trim() });
-    };
+    label.ondblclick = (e) => { e.stopPropagation(); const name=prompt("Rename folder",f.name); if(name&&name.trim())send({cmd:"rename_folder",id:f.id,name:name.trim()}); };
     const count = el("span", "folder-count", String(members.length));
     const actions = el("span", "folder-actions");
     actions.append(
-      ib(f.pinned ? "pinOff" : "pin", f.pinned ? "Unpin folder" : "Pin folder", () => send({ cmd: "toggle_folder_pinned", id: f.id })),
-      ib("pencil", "Rename folder", () => {
-        const name = prompt("Rename folder", f.name);
-        if (name && name.trim()) send({ cmd: "rename_folder", id: f.id, name: name.trim() });
-      }),
-      ib("trash", "Delete folder (tabs stay open)", () => {
-        if (confirm("Delete this folder? Its tabs will remain open and become ungrouped.")) send({ cmd: "delete_folder", id: f.id });
-      })
+      ib("pencil", "Rename folder", () => { const name=prompt("Rename folder",f.name); if(name&&name.trim())send({cmd:"rename_folder",id:f.id,name:name.trim()}); }),
+      ib("trash", "Delete folder (tabs stay open)", () => { if(confirm("Delete this folder? Its tabs will remain open and become ungrouped."))send({cmd:"delete_folder",id:f.id}); })
     );
-    head.append(toggle, label, count, actions);
+    head.append(toggle, glyph, label, count, actions);
+    head.onpointerdown = (e) => watchFolderDrag(e, head, f);
     group.append(head);
     if (!f.collapsed) group.append(...members.map((t) => row(t, "tab")));
-    folderNodes.push(group);
+    (f.pinned ? pinnedFolders : regularFolders).push(group);
   }
   const ungrouped = s.tabs.filter((t) => !folders.some((f) => f.id === t.folder_id));
-  $("tabs").replaceChildren(...folderNodes, ...ungrouped.map((t) => row(t, "tab")));
+  $("pinned").replaceChildren(...pinnedFolders, ...s.pinned.map((t) => row(t, "pin")));
+  $("tabs").replaceChildren(...regularFolders, ...ungrouped.map((t) => row(t, "tab")));
   const dots = [];
   let lastP = null;
   s.spaces.forEach((x) => {
@@ -370,14 +360,22 @@ function watchDrag(e, row, t, kind) {
   addEventListener("pointercancel", up);
 }
 function beginDrag(row, t, kind, ox) {
-  const g = row.cloneNode(false);
-  g.className = "dghost";
-  g.style.width = row.offsetWidth + "px";
-  g.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab"));
-  document.body.append(g);
-  drag = { id: t.id, kind, row, ghost: g, ox, zone: null, idx: 0 };
-  row.classList.add("lift");
-  document.body.classList.add("dragging");
+  const g = row.cloneNode(false); g.className = "dghost"; g.style.width = row.offsetWidth + "px";
+  g.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab")); document.body.append(g);
+  drag = { id:t.id,kind,row,ghost:g,ox,zone:null,idx:0 }; row.classList.add("lift"); document.body.classList.add("dragging");
+}
+function watchFolderDrag(e, head, folder) {
+  if(e.button!==0||e.target.closest("button,.folder-actions"))return;
+  const x0=e.clientX,y0=e.clientY,ox=e.clientX-head.getBoundingClientRect().left; let on=false;
+  const mv=(ev)=>{
+    if(!on){if(Math.hypot(ev.clientX-x0,ev.clientY-y0)<5)return;on=true;
+      const ghost=el("div","dghost folder-ghost");ghost.style.width=head.offsetWidth+"px";
+      ghost.append(ic("folder",16),el("span","ttl",folder.name));document.body.append(ghost);
+      drag={id:folder.id,kind:"folder",row:head,ghost,ox,zone:null,idx:0};head.classList.add("lift");document.body.classList.add("dragging");
+    } updateDrag(ev);
+  };
+  const up=(ev)=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);removeEventListener("pointercancel",up);if(on){noClick=true;setTimeout(()=>noClick=false,0);endDrag(ev.type==="pointerup");}};
+  addEventListener("pointermove",mv);addEventListener("pointerup",up);addEventListener("pointercancel",up);
 }
 function overRect(r, x, y, pad = 0) {
   return (
@@ -404,7 +402,8 @@ function updateDrag(ev) {
   if (x > sideBounds.right || x < sideBounds.left || y < sideBounds.top || y > sideBounds.bottom)
     zone = null; /* left the sidebar: cancel */
   else if (overRect(fr, x, y, 4) && y < pr.top - 4) zone = "fav";
-  else zone = y < lr.top + lr.height / 2 ? "pinned" : "tab";
+  else if (overRect($("pinned").getBoundingClientRect(), x, y, 8) || y < lr.top + lr.height / 2) zone = "pinned";
+  else zone = "tab";
   let idx = 0,
     ref = null,
     after = false,
@@ -448,7 +447,7 @@ function updateDrag(ev) {
       };
     }
   }
-  const folderTarget = document.elementFromPoint(x, y)?.closest(".folder-head");
+  const folderTarget = d.kind === "folder" ? null : document.elementFromPoint(x, y)?.closest(".folder-head");
   if (folderTarget?.dataset.folderId) zone = "folder:" + folderTarget.dataset.folderId;
   d.zone = zone;
   d.idx = idx;
@@ -485,12 +484,10 @@ function endDrag(drop) {
   $("favs").classList.remove("hot-zone");
   document.querySelectorAll(".folder-head").forEach((h) => h.classList.remove("drop-target"));
   if (drop && d.zone) {
-    if (d.zone.startsWith("folder:")) {
-      send({ cmd: "move_tab_to_folder", id: d.id, folder_id: d.zone.slice(7) });
-    } else {
-      const to = d.zone === "pinned" ? "pinned" : d.zone === "fav" ? "fav" : "tab";
-      send({ cmd: "move_tab", id: d.id, to, index: d.idx });
-    }
+    if (d.kind === "folder") {
+      if(d.zone==="pinned"||d.zone==="tab")send({cmd:"move_folder",id:d.id,pinned:d.zone==="pinned"});
+    } else if (d.zone.startsWith("folder:")) send({cmd:"move_tab_to_folder",id:d.id,folder_id:d.zone.slice(7)});
+    else { const to=d.zone==="pinned"?"pinned":d.zone==="fav"?"fav":"tab";send({cmd:"move_tab",id:d.id,to,index:d.idx}); }
   }
   if (pending) {
     const p = pending;
