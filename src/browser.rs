@@ -25,6 +25,44 @@ use wry::{
 use wry::WebViewExtWindows;
 
 #[cfg(windows)]
+#[cfg(windows)]
+fn apply_webview_bounds(wv: &WebView, bounds: Rect, scale: f64) -> Result<()> {
+    use windows::Win32::{
+        Foundation::HWND,
+        UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER},
+    };
+
+    // Keep WebView2's viewport in sync, then position its child HWND
+    // synchronously. Wry's normal set_bounds uses ASYNCWINDOWPOS on Windows,
+    // which can visibly lag behind rapid sidebar pointer-move events.
+    wv.set_bounds(bounds)?;
+    let position = bounds.position.to_physical(scale);
+    let size = bounds.size.to_physical::<i32>(scale);
+    let mut hwnd = HWND::default();
+    unsafe {
+        wv.controller().ParentWindow(&mut hwnd)?;
+        if hwnd.0.is_null() {
+            anyhow::bail!("WebView2 child window handle is null");
+        }
+        SetWindowPos(
+            hwnd,
+            None,
+            position.x,
+            position.y,
+            size.width,
+            size.height,
+            SWP_NOACTIVATE | SWP_NOZORDER,
+        )?;
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn apply_webview_bounds(wv: &WebView, bounds: Rect, _scale: f64) -> Result<()> {
+    wv.set_bounds(bounds)?;
+    Ok(())
+}
+
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
         Foundation::HWND,
@@ -877,7 +915,7 @@ impl Browser {
         let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
-            wv.set_bounds(rect)?;
+            apply_webview_bounds(wv, rect, self.window.scale_factor())?;
             #[cfg(windows)]
             {
                 let (window_w, window_h) = logical(&self.window);
@@ -1088,7 +1126,10 @@ impl Browser {
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
         let _ = self.sidebar.set_visible(!self.fullscreen);
         if let Some(wv) = self.visible_webview() {
-            let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen));
+            let bounds = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
+            if let Err(error) = apply_webview_bounds(wv, bounds, self.window.scale_factor()) {
+                log::warn!("resizing content WebView failed: {error:#}");
+            }
             #[cfg(windows)]
             {
                 let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { self.p.sidebar_width };
