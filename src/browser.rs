@@ -56,7 +56,7 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
     }
 }
 
-const SIDEBAR_W: f64 = 280.0;
+const SIDEBAR_W: f64 = 280.0;\nconst SIDEBAR_MIN_W: f64 = 180.0;\nconst SIDEBAR_MAX_W: f64 = 480.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
 const TOPBAR_H: f64 = 40.0;
@@ -98,7 +98,7 @@ pub struct Tab {
 enum Cmd {
     Ready,
     SidebarCollapsed { collapsed: bool },
-    SidebarCompact { compact: bool },
+    SidebarCompact { compact: bool },\n    SidebarWidth { width: f64, #[serde(default)] persist: bool },
     WindowMinimize,
     WindowToggleMaximize,
     WindowDrag,
@@ -185,12 +185,12 @@ fn full_rect(w: &Window) -> Rect {
     let (ww, hh) = logical(w);
     rect(0.0, 0.0, ww, hh)
 }
-fn content_rect(w: &Window, collapsed: bool, compact: bool, fullscreen: bool) -> Rect {
+fn content_rect(w: &Window, collapsed: bool, compact: bool, sidebar_width: f64, fullscreen: bool) -> Rect {
     let (ww, hh) = logical(w);
     if fullscreen {
         return full_rect(w);
     }
-    let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+    let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { sidebar_width };
     rect(left + INSET, TOPBAR_H, ww - left - 2.0 * INSET, hh - TOPBAR_H - INSET)
 }
 
@@ -753,7 +753,7 @@ impl Browser {
         let id = self.tabs[idx].id.clone();
         let profile_id = self.tabs[idx].profile_id.clone();
         let url = self.tabs[idx].url.clone();
-        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
         let dir = self.root.join("profiles").join(&profile_id);
         let ctx = self
             .contexts
@@ -871,7 +871,7 @@ impl Browser {
             #[cfg(windows)]
             {
                 let (window_w, window_h) = logical(&self.window);
-                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { self.p.sidebar_width };
                 apply_webview_radius(
                     wv,
                     window_w - left - 2.0 * INSET,
@@ -1180,7 +1180,7 @@ impl Browser {
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
-            "sidebar_collapsed": self.p.sidebar_collapsed,
+            "sidebar_collapsed": self.p.sidebar_collapsed,\n            "sidebar_width": self.p.sidebar_width,
             "sidebar_compact": self.p.sidebar_compact,
             "profile_cleanup": self.p.profiles.iter()
                 .find(|p| p.id == sp.profile_id)
