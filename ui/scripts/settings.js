@@ -139,10 +139,48 @@ function buildSettings(v) {
     r.append(el("span", null, n), kk);
     keys.append(r);
   });
+  const retention = S.profile_cleanup || {};
+  const choices = [["24", "24 hours"], ["48", "48 hours"], ["72", "72 hours"], ["168", "1 week"], ["336", "2 weeks"]];
+  const makeRetention = (key, allowOff) => {
+    const select = el("select", "inp");
+    if (allowOff) {
+      const off = el("option", null, "Off");
+      off.value = "0";
+      select.append(off);
+    }
+    choices.forEach(([value, label]) => {
+      const option = el("option", null, label);
+      option.value = value;
+      select.append(option);
+    });
+    select.value = String(retention[key] ?? (allowOff ? 0 : 48));
+    return select;
+  };
+  const tabAge = makeRetention("tab_retention_hours", false);
+  const cookieAge = makeRetention("cookie_retention_hours", true);
+  const cacheAge = makeRetention("cache_retention_hours", true);
+  const historyAge = makeRetention("history_retention_hours", true);
+  const saveRetention = () => send({
+    cmd: "update_profile_cleanup",
+    tab_retention_hours: Number(tabAge.value),
+    cookie_retention_hours: Number(cookieAge.value),
+    cache_retention_hours: Number(cacheAge.value),
+    history_retention_hours: Number(historyAge.value),
+  });
+  [tabAge, cookieAge, cacheAge, historyAge].forEach((x) => x.onchange = saveRetention);
+  const cleanup = el("div", "keys");
+  cleanup.append(
+    field("Close inactive tabs after", tabAge),
+    field("Clear cookies after", cookieAge),
+    field("Clear cache after", cacheAge),
+    field("Clear browsing history after", historyAge),
+    el("div", "note", "These settings apply to the current profile and every space that shares it. Pinned tabs and favorites are never auto-closed. Cookie, cache, and history cleanup are off by default."),
+  );
   dialog(v, "Settings", [
     field("Appearance", seg),
     field("Browsing", sw),
     field("Sidebar", compact),
+    field("Automatic cleanup", cleanup),
     field("Shortcuts", keys),
   ]);
 }
