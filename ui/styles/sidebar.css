@@ -1,5 +1,11 @@
 /* ---------- sidebar column ---------- */
 #side {
+  position: fixed;
+  z-index: 20;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
   flex: 0 0 var(--sidebar-width, 280px);
   min-width: 180px;
   max-width: 480px;
