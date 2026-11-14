@@ -141,25 +141,39 @@ function buildSettings(v) {
   });
   const retention = S.profile_cleanup || {};
   const choices = [["24", "24 hours"], ["48", "48 hours"], ["72", "72 hours"], ["168", "1 week"], ["336", "2 weeks"]];
-  const makeRetention = (key, allowOff) => {
-    const select = el("select", "inp");
+  const makeRetention = (key, allowOff, label, description) => {
+    const select = el("select", "inp retention-select");
+    select.setAttribute("aria-label", label);
     if (allowOff) {
       const off = el("option", null, "Off");
       off.value = "0";
       select.append(off);
     }
-    choices.forEach(([value, label]) => {
-      const option = el("option", null, label);
+    choices.forEach(([value, text]) => {
+      const option = el("option", null, text);
       option.value = value;
       select.append(option);
     });
     select.value = String(retention[key] ?? (allowOff ? 0 : 48));
+    const copy = el("div", "retention-copy");
+    copy.append(el("span", "retention-name", label), el("small", null, description));
+    const control = el("div", "retention-control");
+    control.append(select);
+    const row = el("div", "retention-row");
+    row.append(copy, control);
     return select;
   };
-  const tabAge = makeRetention("tab_retention_hours", false);
-  const cookieAge = makeRetention("cookie_retention_hours", true);
-  const cacheAge = makeRetention("cache_retention_hours", true);
-  const historyAge = makeRetention("history_retention_hours", true);
+  const cleanup = el("section", "cleanup-card");
+  const cleanupHead = el("div", "cleanup-head");
+  cleanupHead.append(
+    el("span", "cleanup-title", "Automatic cleanup"),
+    el("p", "note", "Choose how long data stays in this profile before it is cleared."),
+  );
+  const tabAge = makeRetention("tab_retention_hours", false, "Inactive tabs", "Close tabs after they have been unused");
+  const cookieAge = makeRetention("cookie_retention_hours", true, "Cookies", "May sign you out of websites");
+  const cacheAge = makeRetention("cache_retention_hours", true, "Cache", "Remove older cached files");
+  const historyAge = makeRetention("history_retention_hours", true, "Browsing history", "Remove older history entries");
+  cleanup.append(cleanupHead, tabAge.parentElement, cookieAge.parentElement, cacheAge.parentElement, historyAge.parentElement);
   const saveRetention = () => send({
     cmd: "update_profile_cleanup",
     tab_retention_hours: Number(tabAge.value),
@@ -172,11 +186,8 @@ function buildSettings(v) {
     field("Appearance", seg),
     field("Browsing", sw),
     field("Sidebar", compact),
-    field("Close inactive tabs after", tabAge),
-    field("Clear cookies after", cookieAge),
-    field("Clear cache after", cacheAge),
-    field("Clear browsing history after", historyAge),
-    field(null, el("div", "note", "These settings apply to the current profile and every space that shares it. Pinned tabs and favorites are never auto-closed. Cookie, cache, and history cleanup are off by default. Clearing cookies can sign you out of websites.")),
+    cleanup,
+    field(null, el("div", "note", "Settings are shared by every space using this profile. Pinned tabs and favorites are exempt from automatic closing.")),
     field("Shortcuts", keys),
   ]);
 }
