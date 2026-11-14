@@ -93,10 +93,48 @@ $("window-drag").addEventListener("pointerdown", (e) => {
   $("newtab").append(w, el("span", "ttl", "New tab"));
 }
 $("newtab").onclick = () => openView("newtab");
-$("newfolder").onclick = () => {
-  const name = prompt("Name this tab folder");
-  if (name && name.trim()) send({ cmd: "create_folder", name: name.trim() });
-};
+const folderMenu = el("div", "folder-context-menu");
+folderMenu.hidden = true;
+document.body.append(folderMenu);
+function hideFolderMenu() { folderMenu.hidden = true; folderMenu.replaceChildren(); }
+function folderMenuItem(label, action) {
+  const b = el("button", "folder-menu-item", label);
+  b.type = "button";
+  b.onclick = () => { hideFolderMenu(); action(); };
+  folderMenu.append(b);
+}
+function showFolderMenu(e, folder = null) {
+  e.preventDefault();
+  e.stopPropagation();
+  hideFolderMenu();
+  folderMenuItem("New folder", () => send({ cmd: "create_folder", name: "New folder" }));
+  if (folder) {
+    folderMenu.append(el("div", "folder-menu-sep"));
+    folderMenuItem("Rename folder", () => {
+      const name = prompt("Rename folder", folder.name);
+      if (name && name.trim()) send({ cmd: "rename_folder", id: folder.id, name: name.trim() });
+    });
+    folderMenuItem(folder.collapsed ? "Expand folder" : "Collapse folder", () => send({ cmd: "toggle_folder_collapsed", id: folder.id }));
+    folderMenuItem(folder.pinned ? "Unpin folder" : "Pin folder", () => send({ cmd: "toggle_folder_pinned", id: folder.id }));
+    folderMenuItem("Delete folder", () => {
+      if (confirm("Delete this folder? Its tabs will remain open and become ungrouped.")) send({ cmd: "delete_folder", id: folder.id });
+    });
+  }
+  folderMenu.hidden = false;
+  const x = Math.min(e.clientX, innerWidth - 190);
+  const y = Math.min(e.clientY, innerHeight - folderMenu.childElementCount * 34 - 12);
+  folderMenu.style.left = Math.max(4, x) + "px";
+  folderMenu.style.top = Math.max(4, y) + "px";
+}
+$("side").addEventListener("contextmenu", (e) => {
+  const head = e.target.closest(".folder-head");
+  const folder = head && (S.folders || []).find((f) => f.id === head.dataset.folderId);
+  showFolderMenu(e, folder || null);
+});
+addEventListener("pointerdown", (e) => {
+  if (!folderMenu.hidden && !folderMenu.contains(e.target)) hideFolderMenu();
+});
+addEventListener("keydown", (e) => { if (e.key === "Escape") hideFolderMenu(); });
 const settingsButton = ib("settings", "Settings", () => openView("settings"));
 const spaces = el("div");
 spaces.id = "dots";
@@ -212,6 +250,11 @@ window.__setState = (s) => {
     toggle.onclick = () => send({ cmd: "toggle_folder_collapsed", id: f.id });
     const label = el("span", "folder-name", f.name);
     label.title = f.name;
+    label.ondblclick = (e) => {
+      e.stopPropagation();
+      const name = prompt("Rename folder", f.name);
+      if (name && name.trim()) send({ cmd: "rename_folder", id: f.id, name: name.trim() });
+    };
     const count = el("span", "folder-count", String(members.length));
     const actions = el("span", "folder-actions");
     actions.append(
