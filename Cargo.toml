@@ -17,6 +17,7 @@ env_logger = "0.11"
 ureq = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 base64 = "0.22"
+resvg = "0.45"
 
 # Windows only: raw WebView2 access (extensions + gesture-enabled JS for auto-PiP).
 # IMPORTANT: these two versions must match the ones wry resolves to.
