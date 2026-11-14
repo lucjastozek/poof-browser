@@ -99,6 +99,7 @@ window.__setState = (s) => {
   if (key === lastKey) return;
   lastKey = key;
   S = s;
+  document.body.classList.toggle("has-page", !!s.active);
   document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
   document.body.classList.toggle(
     "compact",
