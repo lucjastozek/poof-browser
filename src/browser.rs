@@ -718,6 +718,9 @@ impl Browser {
 
     fn leave_fullscreen(&mut self) {
         if self.fullscreen {
+            if let Some(wv) = self.visible_webview() {
+                let _ = wv.evaluate_script("if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});");
+            }
             self.fullscreen = false;
             self.window.set_fullscreen(None);
             let _ = self.sidebar.set_visible(true);
