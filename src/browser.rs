@@ -733,7 +733,7 @@ impl Browser {
         }
         self.hide_visible();
         self.ensure_webview(idx)?;
-        let rect = content_rect(&self.window);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.fullscreen);
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
             wv.set_bounds(rect)?;
