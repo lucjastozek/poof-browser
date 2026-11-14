@@ -532,6 +532,13 @@ impl Browser {
                 self.save();
                 self.relayout();
             }
+            Cmd::SidebarWidth { width, persist } => {
+                if width.is_finite() {
+                    self.p.sidebar_width = width.clamp(SIDEBAR_MIN_W, SIDEBAR_MAX_W);
+                    if persist { self.save(); }
+                    self.relayout();
+                }
+            }
             Cmd::WindowMinimize => self.window.set_minimized(true),
             Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
             Cmd::WindowDrag => { let _ = self.window.drag_window(); }
