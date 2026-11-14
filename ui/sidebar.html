@@ -12,16 +12,32 @@
   </head>
   <body>
     <div id="titlebar" aria-label="Browser toolbar and window controls">
-      <div class="toolbar-sidebar" id="sidebarToolbar"><div id="topNav"></div></div>
+      <div class="toolbar-sidebar" id="sidebarToolbar">
+        <div id="topNav"></div>
+      </div>
       <div class="toolbar-content" id="pageToolbar">
         <div id="pageNav"></div>
-        <button id="copyLink" class="ib" title="Copy link" aria-label="Copy link"></button>
+        <button
+          id="copyLink"
+          class="ib"
+          title="Copy link"
+          aria-label="Copy link"
+        ></button>
         <div class="urlwrap">
-          <input id="url" placeholder="Search or enter address" spellcheck="false" autocomplete="off" />
+          <input
+            id="url"
+            placeholder="Search or enter address"
+            spellcheck="false"
+            autocomplete="off"
+          />
           <button id="addExt" hidden>Add to poof</button>
         </div>
       </div>
-      <div class="window-drag" id="window-drag" title="Drag to move window"></div>
+      <div
+        class="window-drag"
+        id="window-drag"
+        title="Drag to move window"
+      ></div>
       <div class="window-controls">
         <button
           class="window-control"
@@ -272,7 +288,9 @@
         document.body.classList.toggle("collapsed", collapsed);
         collapseBtn.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
         collapseBtn.setAttribute("aria-label", collapseBtn.title);
-        collapseBtn.replaceChildren(ic(collapsed ? "panelLeftOpen" : "panelLeftClose"));
+        collapseBtn.replaceChildren(
+          ic(collapsed ? "panelLeftOpen" : "panelLeftClose"),
+        );
         send({ cmd: "sidebar_collapsed", collapsed });
       });
       $("topNav").append(collapseBtn);
@@ -295,11 +313,17 @@
           tmp.style.opacity = "0";
           document.body.append(tmp);
           tmp.select();
-          try { document.execCommand("copy"); window.__toast("Link copied"); }
-          finally { tmp.remove(); }
+          try {
+            document.execCommand("copy");
+            window.__toast("Link copied");
+          } finally {
+            tmp.remove();
+          }
         }
       };
-      $("pageToolbar").append(ib("puzzle", "Extensions", () => openView("ext")));
+      $("pageToolbar").append(
+        ib("puzzle", "Extensions", () => openView("ext")),
+      );
       $("winMin").onclick = () => send({ cmd: "window_minimize" });
       $("winMax").onclick = () => send({ cmd: "window_toggle_maximize" });
       $("winClose").onclick = () => send({ cmd: "window_close" });
@@ -371,11 +395,16 @@
         lastKey = key;
         S = s;
         document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
-        document.body.classList.toggle("compact", !!s.sidebar_compact && !s.sidebar_collapsed);
+        document.body.classList.toggle(
+          "compact",
+          !!s.sidebar_compact && !s.sidebar_collapsed,
+        );
         const isCollapsed = !!s.sidebar_collapsed;
         collapseBtn.title = isCollapsed ? "Expand sidebar" : "Collapse sidebar";
         collapseBtn.setAttribute("aria-label", collapseBtn.title);
-        collapseBtn.replaceChildren(ic(isCollapsed ? "panelLeftOpen" : "panelLeftClose"));
+        collapseBtn.replaceChildren(
+          ic(isCollapsed ? "panelLeftOpen" : "panelLeftClose"),
+        );
         const idx = s.spaces.findIndex((x) => x.id === s.current),
           sp = s.spaces[idx];
         if (pref !== s.theme) applyMode(s.theme || "system");
@@ -386,11 +415,7 @@
         const pen = el("span", "pen");
         pen.append(ic("pencil", 14));
         $("hdr").title = "Edit space";
-        $("hdr").replaceChildren(
-          chipi,
-          el("b", null, sp.name),
-          pen,
-        );
+        $("hdr").replaceChildren(chipi, el("b", null, sp.name), pen);
         $("favs").replaceChildren(
           ...s.favorites.map((t) => {
             const d = el(
@@ -1262,13 +1287,19 @@
         compact.setAttribute("role", "switch");
         compact.setAttribute("aria-checked", String(!!S.sidebar_compact));
         const compactText = el("span", "t");
-        compactText.append(el("span", null, "Compact sidebar"), el("small", null, "Keep an icon-only sidebar when it is open"));
+        compactText.append(
+          el("span", null, "Compact sidebar"),
+          el("small", null, "Keep an icon-only sidebar when it is open"),
+        );
         compact.append(compactText, el("span", "track"));
         compact.onclick = () => {
           const on = compact.getAttribute("aria-checked") !== "true";
           compact.setAttribute("aria-checked", String(on));
           S.sidebar_compact = on;
-          document.body.classList.toggle("compact", on && !document.body.classList.contains("collapsed"));
+          document.body.classList.toggle(
+            "compact",
+            on && !document.body.classList.contains("collapsed"),
+          );
           send({ cmd: "sidebar_compact", compact: on });
         };
         const sw = el("button", "switch");

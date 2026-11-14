@@ -58,14 +58,15 @@
 
   /* ---- type ---- */
   --f-text: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --f-display: "Inter Display", "Inter", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --f-display: "Inter Display", "Inter", "Segoe UI Variable Display", "Segoe UI",
+    system-ui, sans-serif;
 
   /* ---- shape & motion ---- */
   --r-sm: 8px;
   --r-md: 10px;
   --r-lg: 14px;
   --r-xl: 20px;
-  --ease: cubic-bezier(.2, .7, .2, 1);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
   /* ---- set per space by the app ---- */
   --space: var(--blue1-logo);
@@ -73,43 +74,65 @@
 
   /* ---- semantic tokens: LIGHT ---- */
   color-scheme: light;
-  --ink:       var(--font);
-  --ink-2:     color-mix(in srgb, var(--font) 64%, var(--bg));
-  --ink-3:     color-mix(in srgb, var(--font) 42%, var(--bg));
-  --line:      color-mix(in srgb, var(--font) 11%, transparent);
-  --line-2:    color-mix(in srgb, var(--font) 18%, transparent);
-  --stage:     color-mix(in srgb, #fff 42%, var(--bg));              /* the page-sized canvas   */
-  --surface:   color-mix(in srgb, #fff 68%, var(--bg));              /* inputs, cards, tiles    */
-  --raised:    color-mix(in srgb, #fff 78%, var(--bg));              /* selected row, dialog    */
-  --chrome:    color-mix(in srgb, var(--space) 15%, color-mix(in srgb, var(--font) 3%, var(--bg)));
-  --hover:     color-mix(in srgb, var(--font) 6%, transparent);
-  --pressed:   color-mix(in srgb, var(--font) 11%, transparent);
-  --accent:    var(--font);                                          /* primary buttons         */
+  --ink: var(--font);
+  --ink-2: color-mix(in srgb, var(--font) 64%, var(--bg));
+  --ink-3: color-mix(in srgb, var(--font) 42%, var(--bg));
+  --line: color-mix(in srgb, var(--font) 11%, transparent);
+  --line-2: color-mix(in srgb, var(--font) 18%, transparent);
+  --stage: color-mix(
+    in srgb,
+    #fff 42%,
+    var(--bg)
+  ); /* the page-sized canvas   */
+  --surface: color-mix(
+    in srgb,
+    #fff 68%,
+    var(--bg)
+  ); /* inputs, cards, tiles    */
+  --raised: color-mix(
+    in srgb,
+    #fff 78%,
+    var(--bg)
+  ); /* selected row, dialog    */
+  --chrome: color-mix(
+    in srgb,
+    var(--space) 15%,
+    color-mix(in srgb, var(--font) 3%, var(--bg))
+  );
+  --hover: color-mix(in srgb, var(--font) 6%, transparent);
+  --pressed: color-mix(in srgb, var(--font) 11%, transparent);
+  --accent: var(--font); /* primary buttons         */
   --accent-ink: var(--bg);
-  --danger:    var(--red);
-  --scrim:     color-mix(in srgb, var(--font) 22%, transparent);
-  --shadow-sm: 0 1px 2px rgba(var(--fontNums), .06);
-  --shadow-lg: 0 1px 2px rgba(var(--fontNums), .05), 0 18px 48px -12px rgba(var(--fontNums), .18);
+  --danger: var(--red);
+  --scrim: color-mix(in srgb, var(--font) 22%, transparent);
+  --shadow-sm: 0 1px 2px rgba(var(--fontNums), 0.06);
+  --shadow-lg: 0 1px 2px rgba(var(--fontNums), 0.05),
+    0 18px 48px -12px rgba(var(--fontNums), 0.18);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ink:       var(--beige);
-  --ink-2:     color-mix(in srgb, var(--beige) 66%, var(--black));
-  --ink-3:     color-mix(in srgb, var(--beige) 42%, var(--black));
-  --line:      color-mix(in srgb, var(--beige) 10%, transparent);
-  --line-2:    color-mix(in srgb, var(--beige) 18%, transparent);
-  --stage:     color-mix(in srgb, var(--beige) 4.5%, var(--black));
-  --surface:   color-mix(in srgb, var(--beige) 8%, var(--black));
-  --raised:    color-mix(in srgb, var(--beige) 11%, var(--black));
-  --chrome:    color-mix(in srgb, var(--space) 17%, color-mix(in srgb, var(--beige) 2.5%, var(--black)));
-  --hover:     color-mix(in srgb, var(--beige) 7%, transparent);
-  --pressed:   color-mix(in srgb, var(--beige) 12%, transparent);
-  --accent:    var(--beige);
+  --ink: var(--beige);
+  --ink-2: color-mix(in srgb, var(--beige) 66%, var(--black));
+  --ink-3: color-mix(in srgb, var(--beige) 42%, var(--black));
+  --line: color-mix(in srgb, var(--beige) 10%, transparent);
+  --line-2: color-mix(in srgb, var(--beige) 18%, transparent);
+  --stage: color-mix(in srgb, var(--beige) 4.5%, var(--black));
+  --surface: color-mix(in srgb, var(--beige) 3%, var(--black));
+  --raised: color-mix(in srgb, var(--beige) 11%, var(--black));
+  --chrome: color-mix(
+    in srgb,
+    var(--space) 17%,
+    color-mix(in srgb, var(--beige) 2.5%, var(--black))
+  );
+  --hover: color-mix(in srgb, var(--beige) 7%, transparent);
+  --pressed: color-mix(in srgb, var(--beige) 12%, transparent);
+  --accent: var(--beige);
   --accent-ink: var(--black);
-  --danger:    var(--oppred);
-  --scrim:     color-mix(in srgb, var(--black) 55%, transparent);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
-  --shadow-lg: 0 1px 2px rgba(0, 0, 0, .3), 0 18px 48px -12px rgba(0, 0, 0, .6);
+  --danger: var(--oppred);
+  --scrim: color-mix(in srgb, var(--black) 55%, transparent);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 18px 48px -12px rgba(0, 0, 0, 0.6);
   scrollbar-color: rgba(var(--bgNums), 0.2) var(--black);
 }

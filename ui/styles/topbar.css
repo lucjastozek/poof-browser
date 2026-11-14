@@ -1,156 +1,163 @@
 /* ---------- topbar layout ----------
          Keep all toolbar controls on one 30px row inside the 40px titlebar.
          The remaining 10px are split evenly: 5px above and below. */
-      #titlebar {
-        --topbar-height: 40px;
-        --topbar-row-height: 30px;
-        position: fixed;
-        inset: 0 0 auto;
-        z-index: 100;
-        display: flex;
-        align-items: center;
-        height: var(--topbar-height);
-        padding: 0 8px;
-        gap: 0;
-        color: var(--ink);
-        background: var(--chrome);
-        border: 0;
-      }
+#titlebar {
+  --topbar-height: 40px;
+  --topbar-row-height: 30px;
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  height: var(--topbar-height);
+  padding: 0 8px;
+  gap: 0;
+  color: var(--ink);
+  background: var(--chrome);
+  border: 0;
+}
 
-      /* Sidebar navigation occupies the same centered row as the address bar. */
-      .toolbar-sidebar {
-        display: flex;
-        align-items: center;
-        flex: 0 0 280px;
-        width: 280px;
-        height: var(--topbar-row-height);
-        padding-left: 8px;
-        transition: width .18s var(--ease), flex-basis .18s var(--ease);
-      }
-      .toolbar-sidebar .ib,
-      #titlebar .ib {
-        width: 28px;
-        height: 28px;
-      }
-      body.compact .toolbar-sidebar {
-        width: 56px;
-        flex-basis: 56px;
-        justify-content: center;
-        padding: 0;
-      }
-      body.collapsed .toolbar-sidebar {
-        width: 40px;
-        flex-basis: 40px;
-        justify-content: center;
-        padding: 0;
-      }
+/* Sidebar navigation occupies the same centered row as the address bar. */
+.toolbar-sidebar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 280px;
+  width: 280px;
+  height: var(--topbar-row-height);
+  padding-left: 8px;
+  transition:
+    width 0.18s var(--ease),
+    flex-basis 0.18s var(--ease);
+}
+.toolbar-sidebar .ib,
+#titlebar .ib {
+  width: 28px;
+  height: 28px;
+}
+body.compact .toolbar-sidebar {
+  width: 56px;
+  flex-basis: 56px;
+  justify-content: center;
+  padding: 0;
+}
+body.collapsed .toolbar-sidebar {
+  width: 40px;
+  flex-basis: 40px;
+  justify-content: center;
+  padding: 0;
+}
 
-      /* Page controls and address field share the same vertical centerline. */
-      .toolbar-content {
-        display: flex;
-        align-items: center;
-        flex: 1;
-        min-width: 0;
-        height: var(--topbar-row-height);
-        gap: 8px;
-        margin-left: 10px;
-      }
-      #topNav {
-        display: flex;
-        align-items: center;
-        flex: none;
-        gap: 4px;
-      }
-      .urlwrap {
-        position: relative;
-        display: flex;
-        align-items: center;
-        flex: 1;
-        min-width: 80px;
-        padding: 0;
-      }
-      #url {
-        width: 100%;
-        min-width: 0;
-        height: var(--topbar-row-height);
-        padding: 0 14px 0 14px;
-        padding-right: 112px;
-        border: 1px solid transparent;
-        border-radius: var(--r-lg);
-        background: color-mix(in srgb, var(--surface) 60%, transparent);
-        font-size: 15px;
-        text-align: left;
-        transition: background .12s, border-color .12s, box-shadow .12s;
-      }
-      #url:hover {
-        background: var(--surface);
-      }
-      #url:focus {
-        text-align: left;
-        background: var(--surface);
-        border-color: color-mix(in srgb, var(--space) 65%, var(--ink));
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--space) 30%, transparent);
-      }
+/* Page controls and address field share the same vertical centerline. */
+.toolbar-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: var(--topbar-row-height);
+  gap: 8px;
+  margin-left: 10px;
+}
+#topNav {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+}
+.urlwrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 80px;
+  padding: 0;
+}
+#url {
+  width: 100%;
+  min-width: 0;
+  height: var(--topbar-row-height);
+  padding: 0 14px 0 14px;
+  padding-right: 112px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  font-size: 15px;
+  text-align: left;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+#url:hover {
+  background: var(--surface);
+}
+#url:focus {
+  text-align: left;
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--space) 65%, var(--ink));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--space) 30%, transparent);
+}
 
-      /* Drag region and native-style window buttons. */
-      #window-drag {
-        width: 12px;
-        min-width: 12px;
-        height: 100%;
-        flex: none;
-        cursor: default;
-      }
-      .window-controls {
-        display: flex;
-        align-items: center;
-        flex: none;
-        height: 100%;
-        margin-left: auto;
-      }
-      .window-control {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 36px;
-        height: 100%;
-        color: var(--ink-2);
-        transition: background .12s, color .12s;
-      }
-      .window-control:hover {
-        background: var(--hover);
-        color: var(--ink);
-      }
-      .window-control.close:hover {
-        background: #c42b1c;
-        color: white;
-      }
-      .min-glyph {
-        width: 10px;
-        height: 1px;
-        background: currentColor;
-      }
-      .max-glyph {
-        width: 9px;
-        height: 9px;
-        border: 1px solid currentColor;
-        border-radius: 1px;
-      }
-      .close-glyph {
-        position: relative;
-        width: 12px;
-        height: 12px;
-      }
-      .close-glyph:before,
-      .close-glyph:after {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 5px;
-        width: 1px;
-        height: 12px;
-        background: currentColor;
-        transform: rotate(45deg);
-      }
-      .close-glyph:after {
-        transform: rotate(-45deg);
-      }
+/* Drag region and native-style window buttons. */
+#window-drag {
+  width: 12px;
+  min-width: 12px;
+  height: 100%;
+  flex: none;
+  cursor: default;
+}
+.window-controls {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 100%;
+  margin-left: auto;
+}
+.window-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+  color: var(--ink-2);
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.window-control:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.window-control.close:hover {
+  background: #c42b1c;
+  color: white;
+}
+.min-glyph {
+  width: 10px;
+  height: 1px;
+  background: currentColor;
+}
+.max-glyph {
+  width: 9px;
+  height: 9px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+.close-glyph {
+  position: relative;
+  width: 12px;
+  height: 12px;
+}
+.close-glyph:before,
+.close-glyph:after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 5px;
+  width: 1px;
+  height: 12px;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+.close-glyph:after {
+  transform: rotate(-45deg);
+}
