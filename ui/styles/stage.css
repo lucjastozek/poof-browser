@@ -45,3 +45,9 @@ body.collapsed #stage {
     opacity: 1;
   }
 }
+
+
+/* Do not paint an empty accent-tinted page well before the first tab is ready. */
+body:not(.has-page) #web-surface {
+  display: none;
+}
