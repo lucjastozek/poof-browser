@@ -75,11 +75,8 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = r#"(function(){
   function post(o){ try { window.ipc.postMessage(JSON.stringify(o)); } catch(e){} }
-  // Video players commonly live in cross-origin iframes. Wry injects this
-  // script into WebView2 subframes too, so listen before the main-frame guard.
-  document.addEventListener('fullscreenchange', function(){
-    post({t:'fullscreen', active: !!document.fullscreenElement});
-  }, true);
+  // Only the top document controls the native window. Fullscreen changes from
+  // embedded frames propagate to their iframe element in the parent document.
   // Keep the video player's F shortcut available even before its controls are clicked.
   // This runs in every frame because embedded players commonly own their video element.
   function editableTarget(el){
@@ -128,6 +125,9 @@ const INIT_JS: &str = r#"(function(){
     }
   }, true);
   if (window.top !== window) return;
+  document.addEventListener('fullscreenchange', function(){
+    post({t:'fullscreen', active: !!document.fullscreenElement});
+  }, true);
   var scrollbarStyle = document.createElement('style');
   scrollbarStyle.textContent = 'html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}::-webkit-scrollbar{width:6px!important;height:6px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}';
   (document.head || document.documentElement).appendChild(scrollbarStyle);
