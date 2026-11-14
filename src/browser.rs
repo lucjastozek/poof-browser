@@ -20,39 +20,6 @@ use wry::{
     NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder,
 };
 
-#[cfg(windows)]
-fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
-    use windows::Win32::{
-        Foundation::HWND,
-        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, HRGN, SetWindowRgn},
-    };
-    use wry::WebViewExtWindows;
-
-    let mut hwnd = HWND::default();
-    unsafe {
-        if wv.controller().ParentWindow(&mut hwnd).is_err() || hwnd.0.is_null() {
-            return;
-        }
-        if !rounded {
-            let _ = SetWindowRgn(hwnd, None, true);
-            return;
-        }
-
-        let width = (width * scale).round().max(1.0) as i32;
-        let height = (height * scale).round().max(1.0) as i32;
-        let radius = (8.0 * scale).round().max(1.0) as i32;
-        let region = CreateRoundRectRgn(0, 0, width, height, radius * 2, radius * 2);
-        if region.0.is_null() {
-            return;
-        }
-
-        // SetWindowRgn takes ownership only when it succeeds.
-        if SetWindowRgn(hwnd, Some(region), true) == 0 {
-            let _ = DeleteObject(HGDIOBJ(region.0));
-        }
-    }
-}
-
 const SIDEBAR_W: f64 = 280.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
@@ -804,18 +771,6 @@ impl Browser {
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
             wv.set_bounds(rect)?;
-            #[cfg(windows)]
-            {
-                let (window_w, window_h) = logical(&self.window);
-                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
-                apply_webview_radius(
-                    wv,
-                    window_w - left - 2.0 * INSET,
-                    window_h - TOPBAR_H - 2.0 * INSET,
-                    self.window.scale_factor(),
-                    !self.fullscreen,
-                );
-            }
             wv.set_visible(true)?;
             wv.focus()?;
             if self.p.auto_pip {
@@ -921,17 +876,6 @@ impl Browser {
         let _ = self.sidebar.set_visible(!self.fullscreen);
         if let Some(wv) = self.visible_webview() {
             let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen));
-            #[cfg(windows)]
-            {
-                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
-                apply_webview_radius(
-                    wv,
-                    w - left - 2.0 * INSET,
-                    h - TOPBAR_H - 2.0 * INSET,
-                    self.window.scale_factor(),
-                    !self.fullscreen,
-                );
-            }
         }
     }
 
