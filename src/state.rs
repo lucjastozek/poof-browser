@@ -143,7 +143,7 @@ impl Default for Persisted {
             current_space: sid,
             auto_pip: true,
             theme: system(),
-            sidebar_collapsed: false,
+            sidebar_width: default_sidebar_width(),\n            sidebar_collapsed: false,
             sidebar_compact: false,
             sites: HashMap::new(),
             preinstalled: vec![],
@@ -173,7 +173,7 @@ impl Persisted {
                 s.icon = "house".into();
             }
         }
-        if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
+        if !p.sidebar_width.is_finite() { p.sidebar_width = default_sidebar_width(); }\n        p.sidebar_width = p.sidebar_width.clamp(180.0, 480.0);\n        if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
             p.theme = system();
         }
         if !p.spaces.iter().any(|s| s.id == p.current_space) {
