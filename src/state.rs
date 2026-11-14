@@ -93,9 +93,12 @@ pub struct Persisted {
     /// "system" | "light" | "dark"
     #[serde(default = "system")]
     pub theme: String,
-    /// Whether the sidebar starts collapsed.
+    /// Whether the sidebar is fully hidden.
     #[serde(default)]
     pub sidebar_collapsed: bool,
+    /// Show the sidebar as a compact icon rail when it is not collapsed.
+    #[serde(default)]
+    pub sidebar_compact: bool,
     #[serde(default)]
     pub sites: HashMap<String, Site>,
     /// Store extensions we already tried to preinstall (so removing one sticks).
@@ -121,6 +124,7 @@ impl Default for Persisted {
             auto_pip: true,
             theme: system(),
             sidebar_collapsed: false,
+            sidebar_compact: false,
             sites: HashMap::new(),
             preinstalled: vec![],
         }
