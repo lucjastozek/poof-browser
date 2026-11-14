@@ -300,30 +300,16 @@
         align-items: center;
         z-index: 100;
         background: var(--chrome);
-        border-bottom: 1px solid var(--line);
         color: var(--ink);
       }
-      .window-brand {
-        height: 100%;
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        padding: 0 16px;
-        font: 600 13px/1 var(--f-display);
-        letter-spacing: -0.02em;
-        flex: none;
-      }
-      .brand-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--space);
-      }
-      .window-drag {
-        height: 100%;
-        flex: 1;
-        cursor: default;
-      }
+      .window-drag { width:12px; height:100%; flex:none; cursor:default; }
+      #titlebar { gap:4px; padding:0 6px; border-bottom:0; }
+      #topNav { display:flex; align-items:center; gap:2px; flex:none; }
+      #titlebar .ib { width:30px; height:30px; }
+      .urlwrap { position:relative; display:flex; align-items:center; flex:1; min-width:80px; padding:0; }
+      #url { width:100%; min-width:0; height:34px; text-align:left; padding-right:104px; }
+      #url:focus { text-align:left; }
+      .window-controls { margin-left:auto; }
       .window-controls {
         height: 100%;
         display: flex;
@@ -435,22 +421,12 @@
       .bar .grow {
         flex: 1;
       }
-      .urlwrap {
-        position: relative;
-        padding-right: 4px;
-      }
       #url {
-        height: 38px;
-        padding: 0 12px;
         border-radius: var(--r-lg);
         background: color-mix(in srgb, var(--surface) 60%, transparent);
         border: 1px solid transparent;
-        text-align: center;
         font-size: 13px;
-        transition:
-          background 0.12s,
-          border-color 0.12s,
-          box-shadow 0.12s;
+        transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
       }
       #url:hover {
         background: var(--surface);
@@ -548,11 +524,11 @@
         flex: none;
       }
       .hdr .chipi {
-        width: 26px;
-        height: 26px;
-        border-radius: 50%;
-        background: var(--space);
-        color: var(--on-space);
+        width: 22px;
+        height: 22px;
+        border-radius: 0;
+        background: transparent;
+        color: var(--ink-2);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -560,8 +536,9 @@
         transition: background 0.2s;
       }
       .hdr b {
-        font: 600 14px var(--f-display);
-        letter-spacing: -0.01em;
+        font: 600 12px var(--f-display);
+        letter-spacing: -0.005em;
+        color: var(--ink-2);
       }
       .hdr small {
         color: var(--ink-3);
@@ -1310,15 +1287,14 @@
     </style>
   </head>
   <body>
-    <div id="titlebar" aria-label="Poof window title bar">
-      <div class="window-brand">
-        <span class="brand-dot"></span><span>poof</span>
+    <div id="titlebar" aria-label="Browser toolbar and window controls">
+      <div id="topNav"></div>
+      <button id="copyLink" class="ib" title="Copy link" aria-label="Copy link"></button>
+      <div class="urlwrap">
+        <input id="url" placeholder="Search or enter address" spellcheck="false" autocomplete="off" />
+        <button id="addExt" hidden>Add to poof</button>
       </div>
-      <div
-        class="window-drag"
-        id="window-drag"
-        title="Drag to move window"
-      ></div>
+      <div class="window-drag" id="window-drag" title="Drag to move window"></div>
       <div class="window-controls">
         <button
           class="window-control"
@@ -1347,15 +1323,6 @@
       </div>
     </div>
     <div id="side">
-      <div class="bar" id="bar"></div>
-      <div class="urlwrap">
-        <input
-          id="url"
-          placeholder="Search or enter address"
-          spellcheck="false"
-          autocomplete="off"
-        /><button id="addExt" hidden>Add to poof</button>
-      </div>
       <div id="favs" class="empty"></div>
       <div id="pane">
         <button class="hdr" id="hdr"></button>
@@ -1572,21 +1539,39 @@
       }
 
       /* ---------- static sidebar chrome ---------- */
-      const collapseBtn = ib("layers", "Collapse sidebar", () => {
+      const collapseBtn = ib("panelLeftClose", "Collapse sidebar", () => {
         const collapsed = !document.body.classList.contains("collapsed");
         document.body.classList.toggle("collapsed", collapsed);
         collapseBtn.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
         collapseBtn.setAttribute("aria-label", collapseBtn.title);
+        collapseBtn.replaceChildren(ic(collapsed ? "panelLeftOpen" : "panelLeftClose"));
         send({ cmd: "sidebar_collapsed", collapsed });
       });
-      $("bar").append(
+      $("topNav").append(
         collapseBtn,
         ib("back", "Back", () => send({ cmd: "back" })),
         ib("fwd", "Forward", () => send({ cmd: "forward" })),
         ib("reload", "Reload", () => send({ cmd: "reload" })),
-        el("span", "grow"),
-        ib("puzzle", "Extensions", () => openView("ext")),
       );
+      $("copyLink").append(ic("copy", 15));
+      $("copyLink").onclick = async () => {
+        const value = S && S.url ? S.url : "";
+        if (!value) return;
+        try {
+          await navigator.clipboard.writeText(value);
+          window.__toast("Link copied");
+        } catch (_) {
+          const tmp = el("textarea");
+          tmp.value = value;
+          tmp.style.position = "fixed";
+          tmp.style.opacity = "0";
+          document.body.append(tmp);
+          tmp.select();
+          try { document.execCommand("copy"); window.__toast("Link copied"); }
+          finally { tmp.remove(); }
+        }
+      };
+      $("topNav").append(ib("puzzle", "Extensions", () => openView("ext")));
       $("winMin").onclick = () => send({ cmd: "window_minimize" });
       $("winMax").onclick = () => send({ cmd: "window_toggle_maximize" });
       $("winClose").onclick = () => send({ cmd: "window_close" });
@@ -1658,6 +1643,10 @@
         lastKey = key;
         S = s;
         document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
+        const isCollapsed = !!s.sidebar_collapsed;
+        collapseBtn.title = isCollapsed ? "Expand sidebar" : "Collapse sidebar";
+        collapseBtn.setAttribute("aria-label", collapseBtn.title);
+        collapseBtn.replaceChildren(ic(isCollapsed ? "panelLeftOpen" : "panelLeftClose"));
         const idx = s.spaces.findIndex((x) => x.id === s.current),
           sp = s.spaces[idx];
         if (pref !== s.theme) applyMode(s.theme || "system");
@@ -1671,7 +1660,6 @@
         $("hdr").replaceChildren(
           chipi,
           el("b", null, sp.name),
-          el("small", null, prof ? prof.name : ""),
           pen,
         );
         $("favs").replaceChildren(
