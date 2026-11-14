@@ -1,6 +1,6 @@
 use crate::{
     extensions, pip,
-    state::{new_id, valid_icon, Kind, Persisted, Profile, Saved, Space},
+    state::{new_id, valid_icon, Kind, Persisted, Profile, Saved, Space, TabFolder},
     store, UserEvent,
 };
 use anyhow::Result;
@@ -123,6 +123,7 @@ pub struct Tab {
     pub id: String,
     pub profile_id: String,
     pub space_id: Option<String>, // None for favorites
+    pub folder_id: Option<String>,
     pub kind: Kind,
     pub home: String, // URL a pinned/favorite resets to when closed
     pub url: String,
@@ -168,6 +169,12 @@ enum Cmd {
     EditSpace { id: String, name: String, icon: String, color: String },
     /// Drag & drop: put a tab into the pinned list, the tab list or the favorites at `index`.
     MoveTab { id: String, to: String, index: usize },
+    CreateFolder { name: String },
+    RenameFolder { id: String, name: String },
+    DeleteFolder { id: String },
+    ToggleFolderCollapsed { id: String },
+    ToggleFolderPinned { id: String },
+    MoveTabToFolder { id: String, folder_id: Option<String> },
     SetTheme { theme: String },
     SetAutoPip { on: bool },
     UpdateProfileCleanup {
@@ -327,6 +334,7 @@ impl Browser {
                 id: s.id.clone(),
                 profile_id: s.profile_id.clone(),
                 space_id: s.space_id.clone(),
+                folder_id: s.folder_id.clone(),
                 kind: s.kind,
                 home: s.url.clone(),
                 url: s.url.clone(),
@@ -650,6 +658,41 @@ impl Browser {
             }
             Cmd::DeleteSpace { id } => self.delete_space(&id)?,
             Cmd::MoveTab { id, to, index } => self.move_tab(&id, &to, index),
+            Cmd::CreateFolder { name } => {
+                let name = clip(name.trim(), 40);
+                if !name.is_empty() {
+                    let space_id = self.cur_space().id.clone();
+                    if !self.p.folders.iter().any(|f| f.space_id == space_id && f.name.eq_ignore_ascii_case(&name)) {
+                        self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: false });
+                        self.save();
+                    } else { self.toast("A folder with that name already exists."); }
+                }
+            }
+            Cmd::RenameFolder { id, name } => {
+                let name = clip(name.trim(), 40);
+                if !name.is_empty() {
+                    if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.name = name; self.save(); }
+                }
+            }
+            Cmd::DeleteFolder { id } => {
+                if self.p.folders.iter().any(|f| f.id == id && f.space_id == self.p.current_space) {
+                    self.p.folders.retain(|f| f.id != id);
+                    for t in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())) { t.folder_id = None; }
+                    self.save();
+                }
+            }
+            Cmd::ToggleFolderCollapsed { id } => {
+                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.collapsed = !f.collapsed; self.save(); }
+            }
+            Cmd::ToggleFolderPinned { id } => {
+                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.pinned = !f.pinned; self.save(); }
+            }
+            Cmd::MoveTabToFolder { id, folder_id } => {
+                let valid = folder_id.as_ref().map(|fid| self.p.folders.iter().any(|f| f.id == *fid && f.space_id == self.p.current_space)).unwrap_or(true);
+                if valid {
+                    if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id && t.space_id.as_deref() == Some(self.p.current_space.as_str())) { t.folder_id = folder_id; self.save(); }
+                }
+            }
             Cmd::SetTheme { theme } => {
                 if matches!(theme.as_str(), "system" | "light" | "dark") {
                     self.p.theme = theme;
@@ -783,6 +826,7 @@ impl Browser {
             profile_id: sp.profile_id,
             space_id: Some(sp.id),
             kind: Kind::Normal,
+            folder_id: None,
             home: url.to_string(),
             url: url.to_string(),
             host: String::new(),
@@ -1154,6 +1198,7 @@ impl Browser {
                 profile_id: t.profile_id.clone(),
                 space_id: t.space_id.clone(),
                 kind: t.kind,
+                folder_id: t.folder_id.clone(),
                 url: t.home.clone(),
                 title: t.title.clone(),
                 favicon: t.favicon.clone(),
@@ -1199,7 +1244,7 @@ impl Browser {
         let row = |t: &Tab| {
             json!({
                 "id": t.id, "title": t.title, "url": t.url,
-                "favicon": t.favicon, "loaded": t.webview.is_some()
+                "favicon": t.favicon, "loaded": t.webview.is_some(), "folder_id": t.folder_id
             })
         };
         let favorites: Vec<_> = self
@@ -1227,6 +1272,7 @@ impl Browser {
             "favorites": favorites,
             "pinned": in_space(Kind::Pinned),
             "tabs": in_space(Kind::Normal),
+            "folders": self.p.folders.iter().filter(|f| f.space_id == sp.id).collect::<Vec<_>>(),
             "suggestions": self.suggestions(),
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
