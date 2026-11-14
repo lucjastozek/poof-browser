@@ -114,6 +114,7 @@ function renameFolderInline(label, folder) {
   };
   input.onblur = () => {
     const name = input.value.trim();
+    delete label.dataset.editing;
     input.replaceWith(label);
     if (!cancel && name && name !== folder.name)
       send({ cmd: "rename_folder", id: folder.id, name });
@@ -144,7 +145,7 @@ function folderNode(s, folder, pinned) {
   );
   head.append(toggle, glyph, label, count, actions);
   head.onclick = (e) => {
-    if (!e.target.closest("button") && !noClick)
+    if (!e.target.closest("button,.folder-name,.folder-actions") && !noClick)
       send({ cmd: "toggle_folder_collapsed", id: folder.id });
   };
   head.onpointerdown = (e) => watchFolderDrag(e, head, folder);
