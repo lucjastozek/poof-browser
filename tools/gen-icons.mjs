@@ -64,18 +64,22 @@ for (const [key, name] of Object.entries(UI)) {
 console.log("Downloading complete Lucide icon library...");
 
 const response = await fetch(
-  "https://api.github.com/repos/lucide-icons/lucide/contents/icons",
+  "https://api.github.com/repos/lucide-icons/lucide/git/trees/main?recursive=1",
 );
 
 if (!response.ok) {
   throw new Error(`Failed to retrieve icon list: ${response.status}`);
 }
 
-const files = await response.json();
+const tree = await response.json();
 
-const names = files
-  .filter((file) => file.name.endsWith(".svg"))
-  .map((file) => file.name.slice(0, -4))
+if (tree.truncated) {
+  throw new Error("Lucide icon listing was truncated by GitHub");
+}
+
+const names = tree.tree
+  .filter((file) => file.path.startsWith("icons/") && file.path.endsWith(".svg"))
+  .map((file) => file.path.slice("icons/".length, -4))
   .sort();
 
 for (const name of names) {
