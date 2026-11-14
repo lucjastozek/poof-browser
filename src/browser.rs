@@ -56,7 +56,9 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
     }
 }
 
-const SIDEBAR_W: f64 = 280.0;\nconst SIDEBAR_MIN_W: f64 = 180.0;\nconst SIDEBAR_MAX_W: f64 = 480.0;
+const SIDEBAR_W: f64 = 280.0;
+const SIDEBAR_MIN_W: f64 = 180.0;
+const SIDEBAR_MAX_W: f64 = 480.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
 const TOPBAR_H: f64 = 40.0;
@@ -98,7 +100,8 @@ pub struct Tab {
 enum Cmd {
     Ready,
     SidebarCollapsed { collapsed: bool },
-    SidebarCompact { compact: bool },\n    SidebarWidth { width: f64, #[serde(default)] persist: bool },
+    SidebarCompact { compact: bool },
+    SidebarWidth { width: f64, #[serde(default)] persist: bool },
     WindowMinimize,
     WindowToggleMaximize,
     WindowDrag,
@@ -1180,7 +1183,8 @@ impl Browser {
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
-            "sidebar_collapsed": self.p.sidebar_collapsed,\n            "sidebar_width": self.p.sidebar_width,
+            "sidebar_collapsed": self.p.sidebar_collapsed,
+            "sidebar_width": self.p.sidebar_width,
             "sidebar_compact": self.p.sidebar_compact,
             "profile_cleanup": self.p.profiles.iter()
                 .find(|p| p.id == sp.profile_id)
