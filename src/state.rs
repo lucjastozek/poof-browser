@@ -149,7 +149,6 @@ impl Default for Persisted {
             auto_pip: true,
             theme: system(),
             sidebar_width: default_sidebar_width(),
-            sidebar_width: default_sidebar_width(),
             sidebar_collapsed: false,
             sidebar_compact: false,
             sites: HashMap::new(),
