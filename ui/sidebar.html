@@ -1751,11 +1751,11 @@
       /* ---------- address bar: shows the site name, the full address while editing ---------- */
       const url = $("url");
       let urlDraft = null;
-      let lastSyncedUrl = null;
+      let lastSyncedKey = null;
       function syncUrl() {
-        const currentUrl = S ? S.url || "" : "";
-        if (currentUrl !== lastSyncedUrl) {
-          lastSyncedUrl = currentUrl;
+        const currentKey = S ? (S.active || "") + "\n" + (S.url || "") : "";
+        if (currentKey !== lastSyncedKey) {
+          lastSyncedKey = currentKey;
           urlDraft = null;
         }
         if (document.activeElement !== url && urlDraft === null) {
