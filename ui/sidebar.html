@@ -464,7 +464,7 @@ function buildSpace(v,mode){
   const sp=curSpace(),add=mode==='add';
   const used=new Set(S.spaces.map(x=>x.color.toLowerCase()));
   let color=add?(PRESETS.find(c=>!used.has(c))||PRESETS[5]):sp.color.toLowerCase();
-  let icn=add?'sparkles':(SPACE_ICONS[sp.icon]?sp.icon:'house');
+  let icn=add?'sparkles':((SPACE_ICONS[sp.icon]||sp.icon.startsWith('svg:'))?sp.icon:'house');
   let [H,SA,V]=rgb2hsv(hex2rgb(color));V=Math.max(V,.2);
   applyColor(color);
 
