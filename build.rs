@@ -2,7 +2,7 @@ use std::{env, fs::File, path::PathBuf};
 
 fn main() {
     println!("cargo:rerun-if-changed=poof-logo.svg");
-    if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+    if env::var("CARGO_CFG_TARGET_OS").unwrap_or_default() != "windows" {
         return;
     }
 
