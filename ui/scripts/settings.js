@@ -141,72 +141,39 @@ function buildSettings(v) {
   });
   const retention = S.profile_cleanup || {};
   const choices = [["24", "24 hours"], ["48", "48 hours"], ["72", "72 hours"], ["168", "1 week"], ["336", "2 weeks"]];
-  const openMenus = [];
   const makeRetention = (key, allowOff, label, description) => {
-    const value = String(retention[key] ?? (allowOff ? 0 : 48));
+    let current = String(retention[key] ?? (allowOff ? 0 : 48));
     const wrap = el("div", "retention-control");
-    const trigger = el("button", "retention-trigger");
-    trigger.type = "button";
-    trigger.setAttribute("aria-haspopup", "listbox");
-    trigger.setAttribute("aria-expanded", "false");
-    const valueLabel = () => (allowOff && value === "0" ? "Off" : (choices.find(([v]) => v === value)?.[1] || "48 hours"));
+    const group = el("div", "retention-options");
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", label);
+    const opts = allowOff ? [["0", "Off", "Off"], ...choices.map(([v], i) => [v, ["1d", "2d", "3d", "1w", "2w"][i], choices[i][1]])] :
+      choices.map(([v], i) => [v, ["1d", "2d", "3d", "1w", "2w"][i], choices[i][1]]);
     const paint = () => {
-      trigger.replaceChildren(el("span", null, valueLabel()), ic("chevron-down", 14));
-      trigger.setAttribute("aria-label", label + ": " + valueLabel());
+      [...group.children].forEach((button) => {
+        const selected = button.dataset.value === current;
+        button.classList.toggle("selected", selected);
+        button.setAttribute("aria-pressed", String(selected));
+      });
     };
-    let current = value;
-    const menu = el("div", "retention-menu");
-    menu.setAttribute("role", "listbox");
-    menu.setAttribute("aria-label", label);
-    const opts = allowOff ? [["0", "Off"], ...choices] : choices;
-    const close = () => {
-      menu.remove();
-      trigger.setAttribute("aria-expanded", "false");
-      document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("keydown", keys, true);
-    };
-    const outside = (e) => { if (!menu.contains(e.target) && !trigger.contains(e.target)) close(); };
-    const choose = (v) => {
-      current = v;
-      paint();
-      close();
-      saveRetention();
-    };
-    const keys = (e) => {
-      if (e.key === "Escape") { e.preventDefault(); close(); trigger.focus(); }
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault();
-        const active = Math.max(0, opts.findIndex(([v]) => v === current));
-        const next = (active + (e.key === "ArrowDown" ? 1 : opts.length - 1)) % opts.length;
-        menu.children[next]?.focus();
-      }
-    };
-    const show = () => {
-      document.querySelectorAll(".retention-menu").forEach((m) => m.remove());
-      menu.replaceChildren(...opts.map(([v, text], i) => {
-        const option = el("button", "retention-option" + (v === current ? " selected" : ""));
-        option.type = "button";
-        option.setAttribute("role", "option");
-        option.setAttribute("aria-selected", String(v === current));
-        option.append(el("span", null, text));
-        if (v === current) option.append(ic("check", 14));
-        option.onclick = () => choose(v);
-        return option;
-      }));
-      document.body.append(menu);
-      const r = trigger.getBoundingClientRect();
-      const menuHeight = Math.min(opts.length * 36 + 8, 240);
-      menu.style.left = Math.max(8, Math.min(r.right - 168, innerWidth - 176)) + "px";
-      menu.style.width = "168px";
-      menu.style.top = (r.bottom + menuHeight > innerHeight - 8 ? Math.max(8, r.top - menuHeight - 5) : r.bottom + 5) + "px";
-      trigger.setAttribute("aria-expanded", "true");
-      document.addEventListener("pointerdown", outside, true);
-      document.addEventListener("keydown", keys, true);
-      menu.querySelector(".selected")?.focus();
-      if (!menu.querySelector(".selected")) menu.firstElementChild?.focus();
-    };
-    trigger.onclick = show;
-    wrap.append(trigger);
+    opts.forEach(([value, shortLabel, fullLabel]) => {
+      const option = el("button", "retention-pill");
+      option.type = "button";
+      option.dataset.value = value;
+      option.textContent = shortLabel;
+      option.title = fullLabel;
+      option.setAttribute("aria-label", label + ": " + fullLabel);
+      option.setAttribute("aria-pressed", String(value === current));
+      option.onclick = () => {
+        if (current === value) return;
+        current = value;
+        paint();
+        saveRetention();
+      };
+      group.append(option);
+    });
+    paint();
+    wrap.append(group);
     const copy = el("div", "retention-copy");
     copy.append(el("span", "retention-name", label), el("small", null, description));
     const row = el("div", "retention-row");
