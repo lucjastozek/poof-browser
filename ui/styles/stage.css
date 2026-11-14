@@ -1,0 +1,39 @@
+/* ---------- stage: the area where the page normally is ---------- */
+      #web-surface {
+        position:fixed;
+        left:288px;
+        top:52px;
+        right:8px;
+        bottom:8px;
+        border-radius:8px;
+        background:var(--stage);
+        border:1px solid var(--line);
+        pointer-events:none;
+      }
+      body.compact #web-surface { left:64px; }
+      body.collapsed #web-surface { left:8px; }
+      #stage {
+        position: fixed;
+        left: 288px;
+        top: 52px;
+        right: 8px;
+        bottom: 8px;
+        border-radius: 8px;
+        background: var(--stage);
+        border: 1px solid var(--line);
+        overflow: auto;
+        animation: fade 0.18s ease;
+      }
+      body.compact #stage { left:64px; }
+      body.collapsed #stage { left:8px; }
+      #stage[hidden] {
+        display: none;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
