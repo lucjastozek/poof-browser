@@ -99,6 +99,7 @@ window.__setState = (s) => {
   if (key === lastKey) return;
   lastKey = key;
   S = s;
+  document.body.classList.toggle("has-page", !!s.active);
   document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
   document.body.classList.toggle(
     "compact",
@@ -368,3 +369,8 @@ addEventListener(
   },
   true,
 );
+
+
+// Ask the native side to restore the current space only after this UI is ready
+// to receive its first state snapshot.
+window.addEventListener("load", () => send({ cmd: "ready" }), { once: true });
