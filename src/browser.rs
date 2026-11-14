@@ -173,7 +173,6 @@ enum Cmd {
     RenameFolder { id: String, name: String },
     DeleteFolder { id: String },
     ToggleFolderCollapsed { id: String },
-    ToggleFolderPinned { id: String },
     MoveFolder { id: String, pinned: bool },
     MoveTabToFolder { id: String, folder_id: Option<String> },
     SetTheme { theme: String },
@@ -682,9 +681,6 @@ impl Browser {
             }
             Cmd::ToggleFolderCollapsed { id } => {
                 if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.collapsed = !f.collapsed; self.save(); }
-            }
-            Cmd::ToggleFolderPinned { id } => {
-                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.pinned = !f.pinned; self.save(); }
             }
             Cmd::MoveFolder { id, pinned } => {
                 if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.pinned=pinned; self.save(); }
