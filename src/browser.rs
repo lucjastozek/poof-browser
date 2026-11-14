@@ -124,6 +124,15 @@ const INIT_JS: &str = r#"(function(){
       }
     }
   }, true);
+  // Give every fullscreen surface a black canvas. Keep video pixels inside the
+  // available viewport without cropping or stretching when screen and video
+  // aspect ratios differ. This must run in embedded player frames too.
+  var fullscreenStyle = document.createElement('style');
+  fullscreenStyle.textContent =
+    ':fullscreen{background:#000!important}' +
+    ':fullscreen video{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}' +
+    'video:fullscreen{width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;object-fit:contain!important;background:#000!important}';
+  (document.head || document.documentElement).appendChild(fullscreenStyle);
   // Fullscreen can be initiated by a cross-origin video iframe. Its fullscreenchange
   // event does not reach the top document, so every frame must notify the native
   // window. The native side filters messages to the currently visible tab.
