@@ -1032,23 +1032,25 @@ impl Browser {
                 .map(|p| (p.cookie_retention_hours, p.cache_retention_hours, p.history_retention_hours))
                 .unwrap_or((0, 0, 0));
 
-            let result = unsafe {
-                let core = webview.controller().CoreWebView2()?;
-                let core13: ICoreWebView2_13 = core.cast()?;
-                let profile = core13.Profile()?;
-                let profile2: ICoreWebView2Profile2 = profile.cast()?;
-                for (hours, kind) in [
-                    (settings.0, COREWEBVIEW2_BROWSING_DATA_KINDS_COOKIES),
-                    (settings.1, COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE),
-                    (settings.2, COREWEBVIEW2_BROWSING_DATA_KINDS_BROWSING_HISTORY),
-                ] {
-                    if hours == 0 { continue; }
-                    let cutoff = now.saturating_sub(hours.saturating_mul(3600)) as f64;
-                    let handler = ClearBrowsingDataCompletedHandler::create(Box::new(|_| Ok(())));
-                    profile2.ClearBrowsingDataInTimeRange(kind, 0.0, cutoff, &handler)?;
+            let result = (|| -> anyhow::Result<()> {
+                unsafe {
+                    let core = webview.controller().CoreWebView2()?;
+                    let core13: ICoreWebView2_13 = core.cast()?;
+                    let profile = core13.Profile()?;
+                    let profile2: ICoreWebView2Profile2 = profile.cast()?;
+                    for (hours, kind) in [
+                        (settings.0, COREWEBVIEW2_BROWSING_DATA_KINDS_COOKIES),
+                        (settings.1, COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE),
+                        (settings.2, COREWEBVIEW2_BROWSING_DATA_KINDS_BROWSING_HISTORY),
+                    ] {
+                        if hours == 0 { continue; }
+                        let cutoff = now.saturating_sub(hours.saturating_mul(3600)) as f64;
+                        let handler = ClearBrowsingDataCompletedHandler::create(Box::new(|_| Ok(())));
+                        profile2.ClearBrowsingDataInTimeRange(kind, 0.0, cutoff, &handler)?;
+                    }
                 }
-                Ok::<(), anyhow::Error>(())
-            };
+                Ok(())
+            })();
 
             match result {
                 Ok(()) => {
