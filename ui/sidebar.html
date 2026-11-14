@@ -169,7 +169,8 @@ body.collapsed #stage{left:56px}
 .row2{display:flex;gap:8px}
 .namerow{display:flex;gap:10px;align-items:center}
 .bigchip{width:40px;height:40px;border-radius:50%;background:var(--space);color:var(--on-space);display:flex;align-items:center;justify-content:center;flex:none;transition:background .15s}
-.icons{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+.icons{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:190px;overflow:auto}
+.custom-space-icon{object-fit:contain;flex:none}
 .icons button{height:34px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--ink-2)}
 .icons button:hover{background:var(--hover);color:var(--ink)}
 .icons button.on{background:var(--accent);color:var(--accent-ink)}
@@ -229,7 +230,10 @@ const svg=(set,n,s=16)=>{const e=document.createElementNS(NS,'svg');
   [['viewBox','0 0 24 24'],['width',s],['height',s],['fill','none'],['stroke','currentColor'],['stroke-width','1.75'],['stroke-linecap','round'],['stroke-linejoin','round'],['aria-hidden','true']].forEach(([k,v])=>e.setAttribute(k,v));
   e.innerHTML=set[n]||'';return e};
 const ic=(n,s)=>svg(ICONS,n,s);
-const sic=(n,s)=>svg(SPACE_ICONS,SPACE_ICONS[n]?n:'house',s);
+const sic=(n,s)=>{
+  if(typeof n==='string'&&n.startsWith('svg:')){const i=el('img','custom-space-icon');i.src='data:image/svg+xml;base64,'+n.slice(4);i.width=s;i.height=s;i.alt='';return i}
+  return svg(SPACE_ICONS,SPACE_ICONS[n]?n:'house',s);
+};
 const ib=(n,tip,fn)=>{const b=el('button','ib');b.title=tip;b.setAttribute('aria-label',tip);b.append(ic(n));b.onclick=e=>{e.stopPropagation();fn()};return b};
 const btn=(cls,txt,fn)=>{const b=el('button','btn '+cls,txt);if(fn)b.onclick=fn;return b};
 
@@ -466,7 +470,37 @@ function buildSpace(v,mode){
   const nrow=el('div','namerow');nrow.append(chip,name);
 
   const grid=el('div','icons');
-  const paintIcons=()=>grid.replaceChildren(...Object.keys(SPACE_ICONS).map(n=>{const b=el('button',n===icn?'on':'');b.type='button';b.title=n.replace(/-/g,' ');b.setAttribute('aria-label',n);b.append(sic(n,18));b.onclick=()=>{icn=n;sync()};return b}));
+  const iconSearch=el('input','inp');iconSearch.placeholder='Search Lucide icons';iconSearch.setAttribute('aria-label','Search icons');
+  const upload=el('input');upload.type='file';upload.accept='.svg,image/svg+xml';upload.hidden=true;
+  const uploadBtn=btn('sm ghost','Upload SVG',()=>upload.click());
+  const paintIcons=()=>{
+    const q=iconSearch.value.trim().toLowerCase();
+    const names=Object.keys(SPACE_ICONS).filter(n=>n.includes(q));
+    grid.replaceChildren(...names.map(n=>{const b=el('button',n===icn?'on':'');b.type='button';b.title=n.replace(/-/g,' ');b.setAttribute('aria-label',n);b.append(sic(n,18));b.onclick=()=>{icn=n;sync()};return b}));
+  };
+  iconSearch.addEventListener('input',paintIcons);
+  uploadBtn.onclick=()=>upload.click();
+  upload.addEventListener('change',async()=>{
+    const f=upload.files&&upload.files[0];if(!f)return;
+    if(f.size>16384){window.__toast('SVG must be 16 KB or smaller');upload.value='';return}
+    try{
+      const source=await f.text(),doc=new DOMParser().parseFromString(source,'image/svg+xml');
+      if(doc.querySelector('parsererror')||doc.documentElement.localName!=='svg')throw Error('Invalid SVG');
+      const allowed=new Set(['svg','g','path','circle','rect','line','polyline','polygon','ellipse']);
+      const attrs=new Set(['viewBox','xmlns','d','cx','cy','r','x','y','width','height','rx','ry','x1','y1','x2','y2','points','fill','stroke','stroke-width','stroke-linecap','stroke-linejoin','fill-rule','clip-rule']);
+      const root=doc.documentElement;
+      for(const node of [...root.querySelectorAll('*')].reverse()){
+        if(!allowed.has(node.localName))node.remove();
+        else for(const a of [...node.attributes])if(!attrs.has(a.name))node.removeAttribute(a.name);
+      }
+      for(const a of [...root.attributes])if(!attrs.has(a.name))root.removeAttribute(a.name);
+      root.setAttribute('viewBox',root.getAttribute('viewBox')||'0 0 24 24');
+      root.setAttribute('xmlns','http://www.w3.org/2000/svg');
+      const clean=new XMLSerializer().serializeToString(root);
+      if(clean.length>6144||/<script|javascript:|url\(|on[a-z]+=/i.test(clean))throw Error('Unsafe or oversized SVG');
+      icn='svg:'+btoa(unescape(encodeURIComponent(clean)));sync();
+    }catch(e){window.__toast('Could not use that SVG. Use simple paths and shapes.')}finally{upload.value=''}
+  });
 
   const W=156,R=W/2;
   const wheel=el('div','wheel'),shade=el('div','shade'),knob=el('div','knob');wheel.tabIndex=0;wheel.setAttribute('role','slider');wheel.setAttribute('aria-label','Color');
@@ -485,7 +519,7 @@ function buildSpace(v,mode){
     range.value=Math.round(V*100);range.style.setProperty('--c0',rgb2hex(hsv2rgb(H,SA,.2)));range.style.setProperty('--c1',rgb2hex(hsv2rgb(H,SA,1)));
     if(!skipHex)hex.value=color;
     [...sw.children].forEach((b,i)=>b.classList.toggle('on',PRESETS[i]===color));
-    [...grid.children].forEach((b,i)=>b.classList.toggle('on',Object.keys(SPACE_ICONS)[i]===icn));
+    [...grid.children].forEach(b=>b.classList.toggle('on',b.getAttribute('aria-label')===icn));
   }
   PRESETS.forEach(c=>{const b=el('button');b.type='button';b.style.background=c;b.title=c;b.setAttribute('aria-label',c);b.onclick=()=>setHex(c);sw.append(b)});
   const pick=e=>{const r=wheel.getBoundingClientRect(),dx=e.clientX-(r.left+R),dy=e.clientY-(r.top+R);
@@ -503,7 +537,7 @@ function buildSpace(v,mode){
   const picker=el('div','picker');picker.append(wheel,pside);
   const hexRow=el('div','row2');hex.style.maxWidth='120px';hexRow.append(hex);
 
-  const body=[nrow,field('Icon',grid),field('Color',picker,hexRow)];
+  const iconTools=el('div','row2');iconTools.append(iconSearch,uploadBtn);const body=[nrow,field('Icon',iconTools,grid),field('Color',picker,hexRow)];
   let prof,np;
   if(add){
     let chosen=sp.profile_id;
