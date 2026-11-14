@@ -54,7 +54,12 @@ kbd{font:500 11px var(--f-text);padding:2px 6px;border-radius:6px;border:1px sol
 .switch[aria-checked=true] .track::after{transform:translateX(16px);background:var(--accent-ink)}
 
 /* ---------- sidebar column ---------- */
-#side{width:280px;height:100%;display:flex;flex-direction:column;padding:10px 6px 8px 10px;gap:10px;position:relative}
+#side{width:280px;height:100%;display:flex;flex-direction:column;padding:10px 6px 8px 10px;gap:10px;position:relative;transition:width .18s var(--ease)}
+body.collapsed #side{width:56px;padding:10px 6px;gap:8px}
+body.collapsed #side .urlwrap,body.collapsed #side #favs,body.collapsed #side #pane,body.collapsed #side #foot #dots{display:none}
+body.collapsed #side .bar{justify-content:center;flex-wrap:wrap}
+body.collapsed #side .foot{justify-content:center;flex-wrap:wrap;padding:0}
+body.collapsed #side #toast{left:4px;right:4px}
 .bar{display:flex;align-items:center;gap:2px}.bar .grow{flex:1}
 .urlwrap{position:relative;padding-right:4px}
 #url{height:38px;padding:0 12px;border-radius:var(--r-lg);background:color-mix(in srgb,var(--surface) 60%,transparent);border:1px solid transparent;text-align:center;font-size:13px;transition:background .12s,border-color .12s,box-shadow .12s}
@@ -125,7 +130,8 @@ kbd{font:500 11px var(--f-text);padding:2px 6px;border-radius:6px;border:1px sol
 #toast.show{opacity:1;transform:none}
 
 /* ---------- stage: the area where the page normally is ---------- */
-#stage{position:fixed;left:280px;top:8px;right:8px;bottom:8px;border-radius:var(--r-xl);background:var(--stage);border:1px solid var(--line);overflow:auto;animation:fade .18s ease}
+#stage{position:fixed;left:280px;top:8px;right:8px;bottom:8px;border-radius:24px;background:var(--stage);border:1px solid var(--line);overflow:auto;animation:fade .18s ease}
+body.collapsed #stage{left:56px}
 #stage[hidden]{display:none}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 .center{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:19vh 28px 48px}
@@ -262,7 +268,14 @@ function openView(name){ov=name;$('stage').hidden=false;send({cmd:'overlay',open
 function closeView(){applyColor(curSpace().color);if(!S||!S.active){openView('newtab');return}ov=null;$('stage').hidden=true;applyColor(curSpace().color);send({cmd:'overlay',open:false})}
 
 /* ---------- static sidebar chrome ---------- */
-$('bar').append(ib('back','Back',()=>send({cmd:'back'})),ib('fwd','Forward',()=>send({cmd:'forward'})),ib('reload','Reload',()=>send({cmd:'reload'})),el('span','grow'),ib('puzzle','Extensions',()=>openView('ext')));
+const collapseBtn=ib('layers','Collapse sidebar',()=>{
+  const collapsed=!document.body.classList.contains('collapsed');
+  document.body.classList.toggle('collapsed',collapsed);
+  collapseBtn.title=collapsed?'Expand sidebar':'Collapse sidebar';
+  collapseBtn.setAttribute('aria-label',collapseBtn.title);
+  send({cmd:'sidebar_collapsed',collapsed});
+});
+$('bar').append(collapseBtn,ib('back','Back',()=>send({cmd:'back'})),ib('fwd','Forward',()=>send({cmd:'forward'})),ib('reload','Reload',()=>send({cmd:'reload'})),el('span','grow'),ib('puzzle','Extensions',()=>openView('ext')));
 {const w=el('span','ico');w.append(ic('plus',15));$('newtab').append(w,el('span','ttl','New tab'))}
 $('newtab').onclick=()=>openView('newtab');
 $('foot').append(el('div'),ib('plus','New space',()=>openView('space:add')),ib('settings','Settings',()=>openView('settings')));
@@ -285,7 +298,8 @@ function row(t,kind){
 window.__setState=s=>{
   if(drag){pending=s;return}
   const key=JSON.stringify(s);if(key===lastKey)return;lastKey=key;
-  S=s;const idx=s.spaces.findIndex(x=>x.id===s.current),sp=s.spaces[idx];
+  S=s;document.body.classList.toggle('collapsed',!!s.sidebar_collapsed);
+  const idx=s.spaces.findIndex(x=>x.id===s.current),sp=s.spaces[idx];
   if(pref!==s.theme)applyMode(s.theme||'system');
   if(!ov||!ov.startsWith('space'))applyColor(sp.color);
   const prof=s.profiles.find(p=>p.id===sp.profile_id);
