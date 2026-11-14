@@ -174,6 +174,7 @@ enum Cmd {
     DeleteFolder { id: String },
     ToggleFolderCollapsed { id: String },
     ToggleFolderPinned { id: String },
+    MoveFolder { id: String, pinned: bool },
     MoveTabToFolder { id: String, folder_id: Option<String> },
     SetTheme { theme: String },
     SetAutoPip { on: bool },
@@ -685,10 +686,15 @@ impl Browser {
             Cmd::ToggleFolderPinned { id } => {
                 if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.pinned = !f.pinned; self.save(); }
             }
+            Cmd::MoveFolder { id, pinned } => {
+                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.pinned=pinned; self.save(); }
+            }
             Cmd::MoveTabToFolder { id, folder_id } => {
                 let valid = folder_id.as_ref().map(|fid| self.p.folders.iter().any(|f| f.id == *fid && f.space_id == self.p.current_space)).unwrap_or(true);
                 if valid {
-                    if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id && t.space_id.as_deref() == Some(self.p.current_space.as_str())) { t.folder_id = folder_id; self.save(); }
+                    if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id && t.space_id.as_deref() == Some(self.p.current_space.as_str())) {
+                        t.kind=Kind::Normal; t.folder_id=folder_id; self.save();
+                    }
                 }
             }
             Cmd::SetTheme { theme } => {
@@ -787,10 +793,12 @@ impl Browser {
             "fav" => Kind::Favorite,
             _ => Kind::Normal,
         };
+        t.folder_id = None;
         if t.kind != kind {
             t.home = t.url.clone();
         }
         t.kind = kind;
+        if kind != Kind::Normal { t.folder_id = None; }
         t.space_id = if kind == Kind::Favorite { None } else { Some(sp.id.clone()) };
         let profile = t.profile_id.clone();
         let peers: Vec<usize> = self
