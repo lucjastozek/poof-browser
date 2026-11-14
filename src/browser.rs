@@ -253,7 +253,11 @@ impl Browser {
                 ].concat()),
             )
             .replace("/*ICONS*/", include_str!("../ui/icons.js"))
-            .replace("/*APP*/", include_str!("../ui/app.js"));
+            .replace("/*CORE*/", include_str!("../ui/scripts/core.js"))
+            .replace("/*SIDEBAR*/", include_str!("../ui/scripts/sidebar.js"))
+            .replace("/*START_PAGE*/", include_str!("../ui/scripts/start-page.js"))
+            .replace("/*DIALOGS*/", include_str!("../ui/scripts/dialogs.js"))
+            .replace("/*SETTINGS*/", include_str!("../ui/scripts/settings.js"));
         let mut ui_ctx = WebContext::new(Some(root.join("ui")));
         let ptx = proxy.clone();
         let sidebar = WebViewBuilder::new_with_web_context(&mut ui_ctx)
