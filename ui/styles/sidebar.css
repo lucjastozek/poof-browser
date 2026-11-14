@@ -531,11 +531,11 @@ body.collapsed #side #toast {
 /* Sidebar folders: flat rows, no tree rails, overlays or hover cards. */
 #pinned, #tabs { display: flex; flex-direction: column; gap: 2px; }
 .tab-folder { display: flex; flex-direction: column; gap: 0; margin: 1px 0 3px; }
-.folder-head { display: flex; align-items: center; gap: 8px; min-height: 38px; width: 100%; box-sizing: border-box; padding: 0 8px; border-radius: 9px; cursor: pointer; transition: background .16s ease, box-shadow .16s ease, color .16s ease; user-select: none; }
+.folder-head { display: flex; align-items: center; gap: 5px; min-height: 38px; width: 100%; box-sizing: border-box; padding: 0 0; border-radius: 9px; cursor: pointer; transition: background .16s ease, box-shadow .16s ease, color .16s ease; user-select: none; }
 .folder-head:hover, .folder-head:focus-visible { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line); outline: none; }
 .folder-head:hover .folder-chevron, .folder-head:focus-visible .folder-chevron { color: var(--ink); }
 .folder-head.lift { opacity: .35; }
-.folder-chevron { display: flex; align-items: center; justify-content: center; width: 15px; height: 26px; color: var(--ink-3); flex: none; transition: color .14s ease; }
+.folder-chevron { display: flex; align-items: center; justify-content: center; width: 12px; height: 26px; color: var(--ink-3); flex: none; transition: color .14s ease; }
 .folder-glyph { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: none; color: var(--space); }
 .folder-glyph svg { width: 19px; height: 19px; stroke-width: 1.8; }
 .folder-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 12.5px; font-weight: 560; cursor: default; }
@@ -553,3 +553,8 @@ body.collapsed #side #toast {
 .folder-rename { min-width: 0; flex: 1; height: 25px; padding: 2px 6px; border: 1px solid var(--space); border-radius: 5px; outline: none; background: var(--raised); color: var(--ink); font: inherit; font-size: 12.5px; }
 .folder-ghost { cursor: grabbing; }
 .dragging #pinned:empty, .dragging #tabs:empty { min-height: 40px; border: 1px dashed var(--space); border-radius: 8px; }
+
+/* Compact, native-feeling sidebar context action. */
+.folder-context-menu { position: absolute; z-index: 1000; min-width: 140px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+.folder-context-item { display: flex; align-items: center; width: 100%; min-height: 30px; padding: 0 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.folder-context-item:hover, .folder-context-item:focus-visible { background: var(--hover); outline: none; }
