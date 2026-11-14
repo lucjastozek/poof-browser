@@ -20,6 +20,38 @@ use wry::{
     NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder,
 };
 
+#[cfg(windows)]
+fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
+    use windows::Win32::{
+        Foundation::HWND,
+        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, HRGN, SetWindowRgn},
+    };
+    use wry::WebViewExtWindows;
+
+    let mut hwnd = HWND::default();
+    unsafe {
+        if wv.controller().ParentWindow(&mut hwnd).is_err() || hwnd.0.is_null() {
+            return;
+        }
+        if !rounded {
+            let _ = SetWindowRgn(hwnd, None, true);
+            return;
+        }
+
+        let width = (width * scale).round().max(1.0) as i32;
+        let height = (height * scale).round().max(1.0) as i32;
+        let radius = (8.0 * scale).round().max(1.0) as i32;
+        let region = CreateRoundRectRgn(0, 0, width, height, radius * 2, radius * 2);
+        if region.0.is_null() {
+            return;
+        }
+        // SetWindowRgn takes ownership only when it succeeds.
+        if SetWindowRgn(hwnd, Some(region), true) == 0 {
+            let _ = DeleteObject(HGDIOBJ(region.0));
+        }
+    }
+}
+
 const SIDEBAR_W: f64 = 280.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
@@ -47,6 +79,53 @@ const INIT_JS: &str = r#"(function(){
   // script into WebView2 subframes too, so listen before the main-frame guard.
   document.addEventListener('fullscreenchange', function(){
     post({t:'fullscreen', active: !!document.fullscreenElement});
+  }, true);
+  // Keep the video player's F shortcut available even before its controls are clicked.
+  // This runs in every frame because embedded players commonly own their video element.
+  function editableTarget(el){
+    return !!(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)));
+  }
+  function requestPlayerFullscreen(){
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function(){});
+      return true;
+    }
+    var videos = Array.prototype.slice.call(document.querySelectorAll('video'))
+      .filter(function(v){ return v.readyState > 0 && v.videoWidth > 0; });
+    if (videos.length) {
+      videos.sort(function(a,b){ return (b.videoWidth*b.videoHeight)-(a.videoWidth*a.videoHeight); });
+      var v = videos[0];
+      var target = v.closest('.html5-video-player, .vp-player, .jwplayer, [data-testid*="player"]') || v.parentElement || v;
+      if (target.requestFullscreen) {
+        target.requestFullscreen().catch(function(){});
+        return true;
+      }
+    }
+    return false;
+  }
+  addEventListener('keydown', function(e){
+    if (!e.isTrusted || e.defaultPrevented || e.repeat || e.ctrlKey || e.altKey || e.metaKey ||
+        e.shiftKey || e.key.toLowerCase() !== 'f' || editableTarget(e.target)) return;
+    if (requestPlayerFullscreen()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // If focus is in the top document rather than a cross-origin player frame,
+    // fullscreen the embedded player frame from this trusted key event.
+    if (window.top === window) {
+      var frames = Array.prototype.slice.call(document.querySelectorAll('iframe'))
+        .filter(function(frame){
+          var src = (frame.getAttribute('src') || '').toLowerCase();
+          return /youtube|youtu\\.be|vimeo|dailymotion|twitch/.test(src) &&
+            frame.allowFullscreen && frame.requestFullscreen;
+        });
+      if (frames.length) {
+        frames[0].requestFullscreen().catch(function(){});
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
   }, true);
   if (window.top !== window) return;
   var scrollbarStyle = document.createElement('style');
@@ -771,6 +850,18 @@ impl Browser {
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
             wv.set_bounds(rect)?;
+            #[cfg(windows)]
+            {
+                let (window_w, window_h) = logical(&self.window);
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                apply_webview_radius(
+                    wv,
+                    window_w - left - 2.0 * INSET,
+                    window_h - TOPBAR_H - 2.0 * INSET,
+                    self.window.scale_factor(),
+                    !self.fullscreen,
+                );
+            }
             wv.set_visible(true)?;
             wv.focus()?;
             if self.p.auto_pip {
@@ -876,6 +967,17 @@ impl Browser {
         let _ = self.sidebar.set_visible(!self.fullscreen);
         if let Some(wv) = self.visible_webview() {
             let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen));
+            #[cfg(windows)]
+            {
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                apply_webview_radius(
+                    wv,
+                    w - left - 2.0 * INSET,
+                    h - TOPBAR_H - 2.0 * INSET,
+                    self.window.scale_factor(),
+                    !self.fullscreen,
+                );
+            }
         }
     }
 
