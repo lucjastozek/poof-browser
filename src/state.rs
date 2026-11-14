@@ -78,6 +78,9 @@ pub struct Persisted {
     /// "system" | "light" | "dark"
     #[serde(default = "system")]
     pub theme: String,
+    /// Whether the sidebar starts collapsed.
+    #[serde(default)]
+    pub sidebar_collapsed: bool,
     #[serde(default)]
     pub sites: HashMap<String, Site>,
     /// Store extensions we already tried to preinstall (so removing one sticks).
@@ -102,6 +105,7 @@ impl Default for Persisted {
             current_space: sid,
             auto_pip: true,
             theme: system(),
+            sidebar_collapsed: false,
             sites: HashMap::new(),
             preinstalled: vec![],
         }
