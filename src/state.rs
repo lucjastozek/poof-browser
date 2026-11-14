@@ -74,6 +74,8 @@ fn system() -> String {
     "system".into()
 }
 
+fn default_sidebar_width() -> f64 { 280.0 }
+
 /// Space icons are ids of the built-in icon set (e.g. "house"), never emoji.
 pub fn valid_icon(s: &str) -> bool {
     let builtin = !s.is_empty() && s.len() <= 32
@@ -105,6 +107,9 @@ pub struct Persisted {
     /// "system" | "light" | "dark"
     #[serde(default = "system")]
     pub theme: String,
+    /// Width of the expanded sidebar in logical pixels.
+    #[serde(default = "default_sidebar_width")]
+    pub sidebar_width: f64,
     /// Whether the sidebar is fully hidden.
     #[serde(default)]
     pub sidebar_collapsed: bool,
@@ -143,6 +148,7 @@ impl Default for Persisted {
             current_space: sid,
             auto_pip: true,
             theme: system(),
+            sidebar_width: default_sidebar_width(),
             sidebar_collapsed: false,
             sidebar_compact: false,
             sites: HashMap::new(),
@@ -173,6 +179,8 @@ impl Persisted {
                 s.icon = "house".into();
             }
         }
+        if !p.sidebar_width.is_finite() { p.sidebar_width = default_sidebar_width(); }
+        p.sidebar_width = p.sidebar_width.clamp(180.0, 480.0);
         if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
             p.theme = system();
         }

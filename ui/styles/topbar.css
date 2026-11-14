@@ -21,8 +21,8 @@
 .toolbar-sidebar {
   display: flex;
   align-items: center;
-  flex: 0 0 280px;
-  width: 280px;
+  flex: 0 0 var(--sidebar-width, 280px);
+  width: var(--sidebar-width, 280px);
   height: var(--topbar-row-height);
   padding-left: 8px;
   transition:

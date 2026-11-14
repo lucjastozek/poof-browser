@@ -1,7 +1,7 @@
 /* ---------- stage: the area where the page normally is ---------- */
 #web-surface {
   position: fixed;
-  left: 288px;
+  left: calc(var(--sidebar-width, 280px) + 8px);
   top: 40px;
   right: 8px;
   bottom: 8px;
@@ -18,7 +18,7 @@ body.collapsed #web-surface {
 }
 #stage {
   position: fixed;
-  left: 288px;
+  left: calc(var(--sidebar-width, 280px) + 8px);
   top: 40px;
   right: 8px;
   bottom: 8px;

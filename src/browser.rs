@@ -25,6 +25,44 @@ use wry::{
 use wry::WebViewExtWindows;
 
 #[cfg(windows)]
+#[cfg(windows)]
+fn apply_webview_bounds(wv: &WebView, bounds: Rect, scale: f64) -> Result<()> {
+    use windows::Win32::{
+        Foundation::HWND,
+        UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER},
+    };
+
+    // Keep WebView2's viewport in sync, then position its child HWND
+    // synchronously. Wry's normal set_bounds uses ASYNCWINDOWPOS on Windows,
+    // which can visibly lag behind rapid sidebar pointer-move events.
+    wv.set_bounds(bounds)?;
+    let position = bounds.position.to_physical(scale);
+    let size = bounds.size.to_physical::<i32>(scale);
+    let mut hwnd = HWND::default();
+    unsafe {
+        wv.controller().ParentWindow(&mut hwnd)?;
+        if hwnd.0.is_null() {
+            anyhow::bail!("WebView2 child window handle is null");
+        }
+        SetWindowPos(
+            hwnd,
+            None,
+            position.x,
+            position.y,
+            size.width,
+            size.height,
+            SWP_NOACTIVATE | SWP_NOZORDER,
+        )?;
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn apply_webview_bounds(wv: &WebView, bounds: Rect, _scale: f64) -> Result<()> {
+    wv.set_bounds(bounds)?;
+    Ok(())
+}
+
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
         Foundation::HWND,
@@ -57,6 +95,8 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
 }
 
 const SIDEBAR_W: f64 = 280.0;
+const SIDEBAR_MIN_W: f64 = 180.0;
+const SIDEBAR_MAX_W: f64 = 480.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
 const TOPBAR_H: f64 = 40.0;
@@ -99,6 +139,7 @@ enum Cmd {
     Ready,
     SidebarCollapsed { collapsed: bool },
     SidebarCompact { compact: bool },
+    SidebarWidth { width: f64, #[serde(default)] persist: bool },
     WindowMinimize,
     WindowToggleMaximize,
     WindowDrag,
@@ -185,12 +226,12 @@ fn full_rect(w: &Window) -> Rect {
     let (ww, hh) = logical(w);
     rect(0.0, 0.0, ww, hh)
 }
-fn content_rect(w: &Window, collapsed: bool, compact: bool, fullscreen: bool) -> Rect {
+fn content_rect(w: &Window, collapsed: bool, compact: bool, sidebar_width: f64, fullscreen: bool) -> Rect {
     let (ww, hh) = logical(w);
     if fullscreen {
         return full_rect(w);
     }
-    let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+    let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { sidebar_width };
     rect(left + INSET, TOPBAR_H, ww - left - 2.0 * INSET, hh - TOPBAR_H - INSET)
 }
 
@@ -529,6 +570,13 @@ impl Browser {
                 self.save();
                 self.relayout();
             }
+            Cmd::SidebarWidth { width, persist } => {
+                if width.is_finite() {
+                    self.p.sidebar_width = width.clamp(SIDEBAR_MIN_W, SIDEBAR_MAX_W);
+                    if persist { self.save(); }
+                    self.relayout();
+                }
+            }
             Cmd::WindowMinimize => self.window.set_minimized(true),
             Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
             Cmd::WindowDrag => { let _ = self.window.drag_window(); }
@@ -753,7 +801,7 @@ impl Browser {
         let id = self.tabs[idx].id.clone();
         let profile_id = self.tabs[idx].profile_id.clone();
         let url = self.tabs[idx].url.clone();
-        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
         let dir = self.root.join("profiles").join(&profile_id);
         let ctx = self
             .contexts
@@ -864,14 +912,14 @@ impl Browser {
         }
         self.hide_visible();
         self.ensure_webview(idx)?;
-        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
-            wv.set_bounds(rect)?;
+            apply_webview_bounds(wv, rect, self.window.scale_factor())?;
             #[cfg(windows)]
             {
                 let (window_w, window_h) = logical(&self.window);
-                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { self.p.sidebar_width };
                 apply_webview_radius(
                     wv,
                     window_w - left - 2.0 * INSET,
@@ -1078,10 +1126,13 @@ impl Browser {
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
         let _ = self.sidebar.set_visible(!self.fullscreen);
         if let Some(wv) = self.visible_webview() {
-            let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen));
+            let bounds = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
+            if let Err(error) = apply_webview_bounds(wv, bounds, self.window.scale_factor()) {
+                log::warn!("resizing content WebView failed: {error:#}");
+            }
             #[cfg(windows)]
             {
-                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { self.p.sidebar_width };
                 apply_webview_radius(
                     wv,
                     w - left - 2.0 * INSET,
@@ -1181,6 +1232,7 @@ impl Browser {
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
             "sidebar_collapsed": self.p.sidebar_collapsed,
+            "sidebar_width": self.p.sidebar_width,
             "sidebar_compact": self.p.sidebar_compact,
             "profile_cleanup": self.p.profiles.iter()
                 .find(|p| p.id == sp.profile_id)
