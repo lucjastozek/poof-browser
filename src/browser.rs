@@ -1020,7 +1020,7 @@ impl Browser {
 
         for profile_id in due_profiles {
             let Some(webview) = self.tabs.iter()
-                .find(|t| t.profile_id == profile_id)
+                .find(|t| t.profile_id == profile_id && t.webview.is_some())
                 .and_then(|t| t.webview.as_ref())
             else { continue };
 
