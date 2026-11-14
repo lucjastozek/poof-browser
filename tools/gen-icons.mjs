@@ -33,6 +33,7 @@ const UI = {
   panelLeftOpen: "panel-left-open",
   panelLeftClose: "panel-left-close",
   copy: "copy",
+  link: "link",
 };
 
 // Download one SVG and extract its inner markup.
