@@ -56,6 +56,17 @@ pub struct Site {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct TabFolder {
+    pub id: String,
+    pub space_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub collapsed: bool,
+    #[serde(default)]
+    pub pinned: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Saved {
     pub id: String,
     pub profile_id: String,
@@ -64,6 +75,8 @@ pub struct Saved {
     pub url: String,
     pub title: String,
     pub favicon: Option<String>,
+    #[serde(default)]
+    pub folder_id: Option<String>,
 }
 
 fn yes() -> bool {
@@ -101,6 +114,8 @@ pub struct Persisted {
     pub profiles: Vec<Profile>,
     pub spaces: Vec<Space>,
     pub saved: Vec<Saved>,
+    #[serde(default)]
+    pub folders: Vec<TabFolder>,
     pub current_space: String,
     #[serde(default = "yes")]
     pub auto_pip: bool,
@@ -145,6 +160,7 @@ impl Default for Persisted {
                 color: "#6dc5e2".into(),
             }],
             saved: vec![],
+            folders: vec![],
             current_space: sid,
             auto_pip: true,
             theme: system(),
