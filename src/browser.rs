@@ -24,7 +24,7 @@ use wry::{
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
         Foundation::HWND,
-        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, HRGN, SetWindowRgn},
+        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, SetWindowRgn},
     };
     use wry::WebViewExtWindows;
 
@@ -860,7 +860,7 @@ impl Browser {
         #[cfg(windows)]
         {
             use webview2_com::ContainsFullScreenElementChangedEventHandler;
-            use windows::Win32::Foundation::BOOL;
+            use windows::core::BOOL;
             use wry::WebViewExtWindows;
 
             let fullscreen_proxy = self.proxy.clone();
