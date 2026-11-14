@@ -137,13 +137,36 @@ const INIT_JS: &str = r#"(function(){
     ':fullscreen video{position:relative!important;inset:auto!important;margin:auto!important;width:auto!important;height:auto!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important}' +
     'video:fullscreen{width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;object-fit:contain!important;background:#000!important}';
   (document.head || document.documentElement).appendChild(fullscreenStyle);
-  // fullscreenchange is document-scoped. A cross-origin frame's event does not
-  // bubble into the top document, so every frame must notify the native window.
-  // Native code ignores messages from tabs that are not currently visible.
+  // Fullscreen in a cross-origin iframe is isolated from the top document.
+  // Relay its state up the frame tree with postMessage; only the top document
+  // talks to native code. This is the signal that makes the APP window itself
+  // enter OS-level borderless fullscreen, rather than merely filling the WebView.
+  var fullscreenRelay = '__poof_native_fullscreen__';
   document.addEventListener('fullscreenchange', function(){
-    post({t:'fullscreen', active: !!document.fullscreenElement});
+    var active = !!document.fullscreenElement;
+    if (window.top === window) {
+      post({t:'fullscreen', active:active});
+    } else {
+      try { window.parent.postMessage({type:fullscreenRelay, active:active}, '*'); } catch(e){}
+    }
   }, true);
-  if (window.top !== window) return;
+  if (window.top !== window) {
+    addEventListener('message', function(e){
+      if (!e.data || e.data.type !== fullscreenRelay) return;
+      if (window.parent !== window) {
+        try { window.parent.postMessage(e.data, '*'); } catch(err){}
+      } else {
+        post({t:'fullscreen', active:!!e.data.active});
+      }
+    }, false);
+    return;
+  }
+  // A player may forward a shortcut/fullscreen request from a nested frame.
+  addEventListener('message', function(e){
+    if (e.data && e.data.type === fullscreenRelay) {
+      post({t:'fullscreen', active:!!e.data.active});
+    }
+  }, false);
   var scrollbarStyle = document.createElement('style');
   scrollbarStyle.textContent = 'html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}::-webkit-scrollbar{width:6px!important;height:6px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}';
   (document.head || document.documentElement).appendChild(scrollbarStyle);
