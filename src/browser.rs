@@ -342,6 +342,7 @@ impl Browser {
     // ---------- events ----------
     pub fn on_user_event(&mut self, ev: UserEvent) {
         match ev {
+            UserEvent::CloseWindow => {},
             UserEvent::Ui(raw) => self.handle_ui(&raw),
             UserEvent::Page { tab, body } => self.handle_page(&tab, &body),
             UserEvent::Title { tab, title } => {
