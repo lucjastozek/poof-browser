@@ -23,7 +23,7 @@ use wry::{
 #[cfg(windows)]
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
-        Foundation::{BOOL, HWND},
+        Foundation::HWND,
         Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, HRGN, SetWindowRgn},
     };
     use wry::WebViewExtWindows;
@@ -34,7 +34,7 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
             return;
         }
         if !rounded {
-            let _ = SetWindowRgn(hwnd, HRGN::default(), BOOL(1));
+            let _ = SetWindowRgn(hwnd, None, true);
             return;
         }
 
@@ -47,7 +47,7 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
         }
 
         // SetWindowRgn takes ownership only when it succeeds.
-        if SetWindowRgn(hwnd, region, BOOL(1)) == 0 {
+        if SetWindowRgn(hwnd, Some(region), true) == 0 {
             let _ = DeleteObject(HGDIOBJ(region.0));
         }
     }
