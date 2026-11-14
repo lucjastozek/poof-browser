@@ -366,7 +366,6 @@ impl Browser {
         // The sidebar is our own trusted UI (HTML), living in its own data folder.
         // theme.css holds every design token; it is spliced into the page here.
         let html = include_str!("../ui/sidebar.html")
-            .replace("/*THEME*/", include_str!("../ui/theme.css"))
             .replace(
                 "/*STYLES*/",
                 &format!("<style>{}</style>", [
