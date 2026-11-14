@@ -19,6 +19,8 @@ pub enum UserEvent {
     Ui(String),
     /// Raw JSON from a content page. UNTRUSTED: validated in browser.rs.
     Page { tab: String, body: String },
+    /// Native WebView2 notification that a page element entered or left fullscreen.
+    Fullscreen { tab: String, active: bool },
     Title { tab: String, title: String },
     OpenTab { url: String },
     /// Result of a background extension install (Web Store download).
