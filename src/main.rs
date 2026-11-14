@@ -26,6 +26,17 @@ pub enum UserEvent {
     CloseWindow,
 }
 
+fn poof_icon() -> Option<tao::window::Icon> {
+    let tree = resvg::usvg::Tree::from_data(
+        include_bytes!("../poof-logo.svg"),
+        &resvg::usvg::Options::default(),
+    ).ok()?;
+    let size = tree.size().to_int_size();
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(size.width(), size.height())?;
+    resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
+    tao::window::Icon::from_rgba(pixmap.data().to_vec(), size.width(), size.height()).ok()
+}
+
 fn main() -> anyhow::Result<()> {
     env_logger::init();
 
@@ -33,6 +44,7 @@ fn main() -> anyhow::Result<()> {
     let window = WindowBuilder::new()
         .with_title("poof")
         .with_decorations(false)
+        .with_window_icon(poof_icon())
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .build(&event_loop)?;
 
