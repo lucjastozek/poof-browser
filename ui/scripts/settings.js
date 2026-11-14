@@ -168,19 +168,15 @@ function buildSettings(v) {
     history_retention_hours: Number(historyAge.value),
   });
   [tabAge, cookieAge, cacheAge, historyAge].forEach((x) => x.onchange = saveRetention);
-  const cleanup = el("div", "keys");
-  cleanup.append(
-    field("Close inactive tabs after", tabAge),
-    field("Clear cookies after", cookieAge),
-    field("Clear cache after", cacheAge),
-    field("Clear browsing history after", historyAge),
-    el("div", "note", "These settings apply to the current profile and every space that shares it. Pinned tabs and favorites are never auto-closed. Cookie, cache, and history cleanup are off by default."),
-  );
   dialog(v, "Settings", [
     field("Appearance", seg),
     field("Browsing", sw),
     field("Sidebar", compact),
-    field("Automatic cleanup", cleanup),
+    field("Close inactive tabs after", tabAge),
+    field("Clear cookies after", cookieAge),
+    field("Clear cache after", cacheAge),
+    field("Clear browsing history after", historyAge),
+    field(null, el("div", "note", "These settings apply to the current profile and every space that shares it. Pinned tabs and favorites are never auto-closed. Cookie, cache, and history cleanup are off by default.")),
     field("Shortcuts", keys),
   ]);
 }
