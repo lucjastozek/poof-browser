@@ -93,12 +93,6 @@ $("window-drag").addEventListener("pointerdown", (e) => {
   $("newtab").append(w, el("span", "ttl", "New tab"));
 }
 $("newtab").onclick = () => openView("newtab");
-let focusNewFolder = false;
-$("newfolder").append(ic("folder", 15), el("span", "ttl", "New folder"));
-$("newfolder").onclick = () => {
-  focusNewFolder = true;
-  send({ cmd: "create_folder", name: "New folder" });
-};
 function renameFolderInline(label, folder) {
   if (label.dataset.editing === "true") return;
   label.dataset.editing = "true";
@@ -126,12 +120,9 @@ function folderNode(s, folder, pinned) {
   group.dataset.folderId = folder.id;
   const head = el("div", "folder-head");
   head.dataset.folderId = folder.id;
-  const toggle = el("button", "folder-toggle");
-  toggle.type = "button";
-  toggle.setAttribute("aria-expanded", String(!folder.collapsed));
-  toggle.setAttribute("aria-label", (folder.collapsed ? "Expand " : "Collapse ") + folder.name);
+  const toggle = el("span", "folder-chevron");
+  toggle.setAttribute("aria-hidden", "true");
   toggle.append(ic(folder.collapsed ? "chevron-right" : "chevron-down", 13));
-  toggle.onclick = (e) => { e.stopPropagation(); send({ cmd: "toggle_folder_collapsed", id: folder.id }); };
   const glyph = el("span", "folder-glyph");
   glyph.append(ic("folder", 18));
   const label = el("span", "folder-name", folder.name);
@@ -144,17 +135,25 @@ function folderNode(s, folder, pinned) {
     ib("trash", "Delete folder", () => send({ cmd: "delete_folder", id: folder.id })),
   );
   head.append(toggle, glyph, label, count, actions);
+  head.setAttribute("role", "button");
+  head.tabIndex = 0;
+  head.setAttribute("aria-expanded", String(!folder.collapsed));
+  head.setAttribute("aria-label", (folder.collapsed ? "Expand " : "Collapse ") + folder.name);
   head.onclick = (e) => {
-    if (!e.target.closest("button,.folder-name,.folder-actions") && !noClick)
+    if (e.target.closest(".folder-actions,.folder-rename") || noClick) return;
+    send({ cmd: "toggle_folder_collapsed", id: folder.id });
+  };
+  head.onkeydown = (e) => {
+    if ((e.key === "Enter" || e.key === " ") && !e.target.closest(".folder-actions,.folder-rename")) {
+      e.preventDefault();
       send({ cmd: "toggle_folder_collapsed", id: folder.id });
+    }
   };
   head.onpointerdown = (e) => watchFolderDrag(e, head, folder);
   group.append(head);
-  if (!folder.collapsed) {
-    const contents = el("div", "folder-contents");
-    contents.append(...members.map(t => row(t, pinned ? "pin" : "tab")));
-    group.append(contents);
-  }
+  const contents = el("div", "folder-contents");
+  contents.append(...members.map(t => row(t, pinned ? "pin" : "tab")));
+  group.append(contents);
   return group;
 }
 function folderArea(s, pinned) {
@@ -162,15 +161,6 @@ function folderArea(s, pinned) {
   const allFolders = s.folders || [];
   const loose = (pinned ? s.pinned : s.tabs).filter(t => !allFolders.some(f => f.id === t.folder_id));
   const nodes = [...folders.map(f => folderNode(s, f, pinned)), ...loose.map(t => row(t, pinned ? "pin" : "tab"))];
-  if (focusNewFolder && !pinned) {
-    const created = [...folders].reverse().find(f => f.name === "New folder");
-    if (created) {
-      focusNewFolder = false;
-      const group = nodes.find(n => n.dataset.folderId === created.id);
-      const label = group?.querySelector(".folder-name");
-      if (label) renameFolderInline(label, created);
-    }
-  }
   return nodes;
 }
 const settingsButton = ib("settings", "Settings", () => openView("settings"));
@@ -179,6 +169,13 @@ spaces.id = "dots";
 const newSpaceButton = ib("plus", "New space", () => openView("space:add"));
 $("foot").append(settingsButton, spaces, newSpaceButton);
 $("hdr").onclick = () => openView("space:edit");
+
+// Right-clicking the sidebar canvas creates a folder in-place.
+$("pane").addEventListener("contextmenu", (e) => {
+  if (e.target.closest(".row,.folder-actions,.folder-rename,input,button")) return;
+  e.preventDefault();
+  send({ cmd: "create_folder", name: "New folder" });
+});
 
 function row(t, kind) {
   const r = el(
