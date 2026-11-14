@@ -134,7 +134,7 @@ const INIT_JS: &str = r#"(function(){
     ':fullscreen.html5-video-player,:fullscreen .vp-player,:fullscreen .jwplayer,:fullscreen [data-testid*="player"]{' +
       'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
       'display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}' +
-    ':fullscreen video{width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}' +
+    ':fullscreen video{position:relative!important;inset:auto!important;margin:auto!important;width:auto!important;height:auto!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important}' +
     'video:fullscreen{width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;object-fit:contain!important;background:#000!important}';
   (document.head || document.documentElement).appendChild(fullscreenStyle);
   // fullscreenchange is document-scoped. A cross-origin frame's event does not
