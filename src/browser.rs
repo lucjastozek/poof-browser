@@ -306,7 +306,7 @@ fn content_rect(w: &Window, collapsed: bool, compact: bool, fullscreen: bool) ->
         return full_rect(w);
     }
     let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
-    rect(left + INSET, TOPBAR_H + INSET, ww - left - 2.0 * INSET, hh - TOPBAR_H - 2.0 * INSET)
+    rect(left + INSET, TOPBAR_H, ww - left - 2.0 * INSET, hh - TOPBAR_H - INSET)
 }
 
 // ---------- input helpers ----------
@@ -367,6 +367,17 @@ impl Browser {
         // theme.css holds every design token; it is spliced into the page here.
         let html = include_str!("../ui/sidebar.html")
             .replace("/*THEME*/", include_str!("../ui/theme.css"))
+            .replace(
+                "/*STYLES*/",
+                &format!("<style>{}</style>", [
+                    include_str!("../ui/styles/base.css"),
+                    include_str!("../ui/styles/components.css"),
+                    include_str!("../ui/styles/topbar.css"),
+                    include_str!("../ui/styles/sidebar.css"),
+                    include_str!("../ui/styles/stage.css"),
+                    include_str!("../ui/styles/start-page.css")
+                ].concat()),
+            )
             .replace("/*ICONS*/", include_str!("../ui/icons.js"));
         let mut ui_ctx = WebContext::new(Some(root.join("ui")));
         let ptx = proxy.clone();
@@ -942,7 +953,7 @@ impl Browser {
                 apply_webview_radius(
                     wv,
                     window_w - left - 2.0 * INSET,
-                    window_h - TOPBAR_H - 2.0 * INSET,
+                    window_h - TOPBAR_H - INSET,
                     self.window.scale_factor(),
                     !self.fullscreen,
                 );
@@ -1058,7 +1069,7 @@ impl Browser {
                 apply_webview_radius(
                     wv,
                     w - left - 2.0 * INSET,
-                    h - TOPBAR_H - 2.0 * INSET,
+                    h - TOPBAR_H - INSET,
                     self.window.scale_factor(),
                     !self.fullscreen,
                 );
