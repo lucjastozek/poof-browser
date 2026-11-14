@@ -115,7 +115,6 @@ function showFolderMenu(e, folder = null) {
       if (name && name.trim()) send({ cmd: "rename_folder", id: folder.id, name: name.trim() });
     });
     folderMenuItem(folder.collapsed ? "Expand folder" : "Collapse folder", () => send({ cmd: "toggle_folder_collapsed", id: folder.id }));
-    folderMenuItem(folder.pinned ? "Unpin folder" : "Pin folder", () => send({ cmd: "toggle_folder_pinned", id: folder.id }));
     folderMenuItem("Delete folder", () => {
       if (confirm("Delete this folder? Its tabs will remain open and become ungrouped.")) send({ cmd: "delete_folder", id: folder.id });
     });
@@ -151,15 +150,6 @@ function row(t, kind) {
   r.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab"));
   const a = el("span", "acts");
   a.append(
-    ib("folder", "Move to folder", () => {
-      const folders = (S.folders || []).filter((f) => f.space_id === S.current);
-      const current = folders.find((f) => f.id === t.folder_id);
-      const choice = prompt("Enter a folder name, or leave blank to ungroup this tab:", current ? current.name : "");
-      if (choice === null) return;
-      const folder = folders.find((f) => f.name.toLowerCase() === choice.trim().toLowerCase());
-      if (choice.trim() && !folder) { window.__toast("Folder not found"); return; }
-      send({ cmd: "move_tab_to_folder", id: t.id, folder_id: folder ? folder.id : null });
-    }),
     ib("star", "Add to favorites", () => send({ cmd: "fav_tab", id: t.id })),
     ib("x", kind === "tab" ? "Close" : "Unload", () =>
       send({ cmd: "close_tab", id: t.id }),
