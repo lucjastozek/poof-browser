@@ -124,10 +124,13 @@ const INIT_JS: &str = r#"(function(){
       }
     }
   }, true);
-  if (window.top !== window) return;
+  // Fullscreen can be initiated by a cross-origin video iframe. Its fullscreenchange
+  // event does not reach the top document, so every frame must notify the native
+  // window. The native side filters messages to the currently visible tab.
   document.addEventListener('fullscreenchange', function(){
     post({t:'fullscreen', active: !!document.fullscreenElement});
   }, true);
+  if (window.top !== window) return;
   var scrollbarStyle = document.createElement('style');
   scrollbarStyle.textContent = 'html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}::-webkit-scrollbar{width:6px!important;height:6px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}';
   (document.head || document.documentElement).appendChild(scrollbarStyle);
