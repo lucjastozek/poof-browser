@@ -56,9 +56,12 @@ kbd{font:500 11px var(--f-text);padding:2px 6px;border-radius:6px;border:1px sol
 /* ---------- sidebar column ---------- */
 #side{width:280px;height:100%;display:flex;flex-direction:column;padding:10px 6px 8px 10px;gap:10px;position:relative;transition:width .18s var(--ease)}
 body.collapsed #side{width:56px;padding:10px 6px;gap:8px}
-body.collapsed #side .urlwrap,body.collapsed #side #favs,body.collapsed #side #pane,body.collapsed #side #foot #dots{display:none}
-body.collapsed #side .bar{justify-content:center;flex-wrap:wrap}
-body.collapsed #side .foot{justify-content:center;flex-wrap:wrap;padding:0}
+body.collapsed #side .urlwrap,body.collapsed #side #favs,body.collapsed #side #pane{display:none}
+body.collapsed #side .bar{justify-content:center}
+body.collapsed #side .bar .ib:not(:first-child){display:none}
+body.collapsed #side .foot{flex-direction:column;justify-content:flex-start;align-items:center;flex:1;padding:0}
+body.collapsed #side #dots{flex-direction:column;overflow-x:hidden;overflow-y:auto;width:100%;justify-content:flex-start}
+body.collapsed #side .vsep{display:none}
 body.collapsed #side #toast{left:4px;right:4px}
 .bar{display:flex;align-items:center;gap:2px}.bar .grow{flex:1}
 .urlwrap{position:relative;padding-right:4px}
