@@ -2,7 +2,7 @@
       #web-surface {
         position:fixed;
         left:288px;
-        top:52px;
+        top:40px;
         right:8px;
         bottom:8px;
         border-radius:8px;
@@ -15,7 +15,7 @@
       #stage {
         position: fixed;
         left: 288px;
-        top: 52px;
+        top:40px;
         right: 8px;
         bottom: 8px;
         border-radius: 8px;
