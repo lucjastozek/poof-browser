@@ -130,10 +130,41 @@ const INIT_JS: &str = r#"(function(){
     'video:fullscreen{' +
       'display:block!important;position:fixed!important;inset:0!important;margin:0!important;' +
       'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
+      'object-fit:contain!important;background:#000!important;border:0!important;transform:none!important}' +
+    '.poof-video-only-fullscreen{background:#000!important;overflow:hidden!important}' +
+    '.poof-video-only-fullscreen *{visibility:hidden!important}' +
+    '.poof-video-only-fullscreen video.poof-fullscreen-video{' +
+      'visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;margin:0!important;' +
+      'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
       'object-fit:contain!important;background:#000!important;border:0!important;transform:none!important}';
   (document.head || document.documentElement).appendChild(fullscreenStyle);
+  function clearVideoOnlyFullscreen(){
+    document.querySelectorAll('.poof-video-only-fullscreen').forEach(function(el){
+      el.classList.remove('poof-video-only-fullscreen');
+    });
+    document.querySelectorAll('video.poof-fullscreen-video').forEach(function(v){
+      v.classList.remove('poof-fullscreen-video');
+    });
+  }
   document.addEventListener('fullscreenchange', function(){
-    if (document.fullscreenElement) return;
+    clearVideoOnlyFullscreen();
+    var active = document.fullscreenElement;
+    if (active && active.tagName !== 'VIDEO') {
+      // Some YouTube fullscreen paths request the whole player container.
+      // Keep that native fullscreen request, but make its visible surface
+      // strictly the video. Player chrome, overlays and colored page layers
+      // are hidden; the video itself fills the viewport without cropping.
+      var videos = Array.prototype.slice.call(active.querySelectorAll('video'))
+        .filter(function(v){ return v.videoWidth > 0 && v.videoHeight > 0; });
+      videos.sort(function(a,b){
+        return (b.videoWidth*b.videoHeight)-(a.videoWidth*a.videoHeight);
+      });
+      if (videos.length) {
+        active.classList.add('poof-video-only-fullscreen');
+        videos[0].classList.add('poof-fullscreen-video');
+      }
+    }
+    if (active) return;
     document.querySelectorAll('video').forEach(function(v){
       if (v.__poofHadControls !== undefined) {
         v.controls = !!v.__poofHadControls;
