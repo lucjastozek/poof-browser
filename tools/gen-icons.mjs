@@ -30,6 +30,9 @@ const UI = {
   lock: "lock",
   layers: "layers",
   download: "download",
+  panelLeftOpen: "panel-left-open",
+  panelLeftClose: "panel-left-close",
+  copy: "copy",
 };
 
 // Download one SVG and extract its inner markup.
