@@ -308,10 +308,10 @@
         background: var(--chrome);
         color: var(--ink);
       }
-      #titlebar { gap:0; padding:0 6px; border:0; }
-      .toolbar-sidebar { width:280px; height:100%; display:flex; align-items:center; flex:none; padding-left:4px; transition:width .18s var(--ease); }
+      #titlebar { gap:0; padding:0 6px 0 0; border:0; }
+      .toolbar-sidebar { width:280px; height:100%; display:flex; align-items:center; flex:none; padding-left:10px; transition:width .18s var(--ease); }
       .toolbar-sidebar .ib { width:28px; height:28px; }
-      .toolbar-content { min-width:0; height:100%; display:flex; align-items:center; gap:4px; flex:1; margin-left:12px; }
+      .toolbar-content { min-width:0; height:100%; display:flex; align-items:center; gap:4px; flex:1; margin-left:8px; }
       #topNav { display:flex; align-items:center; gap:2px; flex:none; }
       #titlebar .ib { width:26px; height:26px; }
       .urlwrap { position:relative; display:flex; align-items:center; flex:1; min-width:80px; padding:0; }
@@ -328,7 +328,7 @@
         flex: none;
       }
       .window-control {
-        width: 46px;
+        width: 36px;
         height: 30px;
         display: flex;
         align-items: center;
@@ -837,6 +837,19 @@
       }
 
       /* ---------- stage: the area where the page normally is ---------- */
+      #web-surface {
+        position:fixed;
+        left:280px;
+        top:30px;
+        right:8px;
+        bottom:8px;
+        border-radius:8px;
+        background:var(--stage);
+        border:1px solid var(--line);
+        pointer-events:none;
+      }
+      body.compact #web-surface { left:56px; }
+      body.collapsed #web-surface { left:0; }
       #stage {
         position: fixed;
         left: 280px;
@@ -1309,6 +1322,7 @@
         </button>
       </div>
     </div>
+    <div id="web-surface" aria-hidden="true"></div>
     <div id="side">
       <div id="favs" class="empty"></div>
       <div id="pane">
