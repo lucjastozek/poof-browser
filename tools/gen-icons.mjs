@@ -79,7 +79,9 @@ if (tree.truncated) {
 }
 
 const names = tree.tree
-  .filter((file) => file.path.startsWith("icons/") && file.path.endsWith(".svg"))
+  .filter(
+    (file) => file.path.startsWith("icons/") && file.path.endsWith(".svg"),
+  )
   .map((file) => file.path.slice("icons/".length, -4))
   .sort();
 
