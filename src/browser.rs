@@ -469,6 +469,7 @@ impl Browser {
             UserEvent::CloseWindow => {},
             UserEvent::Ui(raw) => self.handle_ui(&raw),
             UserEvent::Page { tab, body } => self.handle_page(&tab, &body),
+            UserEvent::Fullscreen { tab, active } => self.handle_fullscreen(&tab, active),
             UserEvent::Title { tab, title } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     t.title = clip(&title, 300);
@@ -526,6 +527,21 @@ impl Browser {
         self.push_state();
     }
 
+    /// Switch the entire native application window, not just the embedded WebView, into fullscreen.
+    fn handle_fullscreen(&mut self, tab: &str, active: bool) {
+        if self.visible.as_deref() != Some(tab) || self.fullscreen == active {
+            return;
+        }
+        self.fullscreen = active;
+        self.window.set_fullscreen(if active {
+            Some(tao::window::Fullscreen::Borderless(None))
+        } else {
+            None
+        });
+        let _ = self.sidebar.set_visible(!active);
+        self.relayout();
+    }
+
     /// Messages from web pages are untrusted: strict parsing, size limits, own-tab only.
     fn handle_page(&mut self, tab: &str, body: &str) {
         if body.len() > 20_000 {
@@ -564,18 +580,7 @@ impl Browser {
                     self.save();
                 }
             }
-            PageMsg::Fullscreen { active } => {
-                if self.visible.as_deref() == Some(tab) && self.fullscreen != active {
-                    self.fullscreen = active;
-                    self.window.set_fullscreen(if active {
-                        Some(tao::window::Fullscreen::Borderless(None))
-                    } else {
-                        None
-                    });
-                    let _ = self.sidebar.set_visible(!active);
-                    self.relayout();
-                }
-            }
+            PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
             PageMsg::Key { k } => {
                 if self.visible.as_deref() != Some(tab) {
                     return;
@@ -848,6 +853,43 @@ impl Browser {
         };
 
         let wv = builder.build_as_child(&self.window)?;
+
+        // WebView2 reports HTML fullscreen transitions directly from its native
+        // host. This covers fullscreen requests inside cross-origin/nested frames
+        // without depending on JavaScript IPC or postMessage frame relays.
+        #[cfg(windows)]
+        {
+            use webview2_com::ContainsFullScreenElementChangedEventHandler;
+            use windows::Win32::Foundation::BOOL;
+            use wry::WebViewExtWindows;
+
+            let fullscreen_proxy = self.proxy.clone();
+            let fullscreen_tab = id.clone();
+            unsafe {
+                match wv.controller().CoreWebView2() {
+                    Ok(core) => {
+                        let handler = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
+                            let Some(sender) = sender else { return Ok(()) };
+                            let mut contains = BOOL(0);
+                            if let Err(error) = sender.ContainsFullScreenElement(&mut contains) {
+                                log::warn!("reading WebView2 fullscreen state failed: {error}");
+                                return Ok(());
+                            }
+                            let _ = fullscreen_proxy.send_event(UserEvent::Fullscreen {
+                                tab: fullscreen_tab.clone(),
+                                active: contains.as_bool(),
+                            });
+                            Ok(())
+                        }));
+                        let mut token = 0;
+                        if let Err(error) = core.add_ContainsFullScreenElementChanged(&handler, &mut token) {
+                            log::warn!("registering WebView2 fullscreen handler failed: {error}");
+                        }
+                    }
+                    Err(error) => log::warn!("getting WebView2 core for fullscreen handler failed: {error}"),
+                }
+            }
+        }
 
         if self.ext_done.insert(profile_id) {
             extensions::load_all(&wv, &self.root.join("extensions"));
