@@ -6,9 +6,10 @@ mod pip;
 mod state;
 mod store;
 
+use std::time::{Duration, Instant};
 use tao::{
     dpi::LogicalSize,
-    event::{Event, WindowEvent},
+    event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
     window::WindowBuilder,
 };
@@ -52,9 +53,14 @@ fn main() -> anyhow::Result<()> {
 
     let mut browser = browser::Browser::new(window, event_loop.create_proxy())?;
 
+    let mut next_maintenance = Instant::now() + Duration::from_secs(60);
     event_loop.run(move |event, _, flow| {
-        *flow = ControlFlow::Wait;
+        *flow = ControlFlow::WaitUntil(next_maintenance);
         match event {
+            Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
+                browser.cleanup_expired_tabs();
+                next_maintenance = Instant::now() + Duration::from_secs(60);
+            }
             Event::WindowEvent { event: WindowEvent::Resized(_), .. } => browser.relayout(),
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 browser.save();
