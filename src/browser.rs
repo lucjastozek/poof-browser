@@ -662,10 +662,8 @@ impl Browser {
                 let name = clip(name.trim(), 40);
                 if !name.is_empty() {
                     let space_id = self.cur_space().id.clone();
-                    if !self.p.folders.iter().any(|f| f.space_id == space_id && f.name.eq_ignore_ascii_case(&name)) {
-                        self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: false });
-                        self.save();
-                    } else { self.toast("A folder with that name already exists."); }
+                    self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: false });
+                    self.save();
                 }
             }
             Cmd::RenameFolder { id, name } => {
