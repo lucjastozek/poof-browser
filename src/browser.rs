@@ -182,7 +182,7 @@ fn content_rect(w: &Window, collapsed: bool, compact: bool, fullscreen: bool) ->
         return full_rect(w);
     }
     let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
-    rect(left, TOPBAR_H, ww - left - INSET, hh - TOPBAR_H - INSET)
+    rect(left + INSET, TOPBAR_H + INSET, ww - left - 2.0 * INSET, hh - TOPBAR_H - 2.0 * INSET)
 }
 
 // ---------- input helpers ----------
