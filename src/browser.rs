@@ -124,22 +124,26 @@ const INIT_JS: &str = r#"(function(){
       }
     }
   }, true);
-  // Give every fullscreen surface a black canvas. Keep video pixels inside the
-  // available viewport without cropping or stretching when screen and video
-  // aspect ratios differ. This must run in embedded player frames too.
+  // Make the fullscreen element occupy the whole display. For a player
+  // container, center its video inside the black viewport; for a video that
+  // enters fullscreen directly, use the viewport as its contain box.
+  // Inject this in every frame because third-party players are often cross-origin.
   var fullscreenStyle = document.createElement('style');
   fullscreenStyle.textContent =
     ':fullscreen{background:#000!important}' +
-    ':fullscreen video{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}' +
+    ':fullscreen.html5-video-player,:fullscreen .vp-player,:fullscreen .jwplayer,:fullscreen [data-testid*="player"]{' +
+      'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
+      'display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}' +
+    ':fullscreen video{width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}' +
     'video:fullscreen{width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;object-fit:contain!important;background:#000!important}';
   (document.head || document.documentElement).appendChild(fullscreenStyle);
-  // Only the top-level document may control the native window. When an iframe
-  // enters fullscreen, the fullscreenchange event is also dispatched for that
-  // iframe element in its parent document, so this listener sees both cases.
-  if (window.top !== window) return;
+  // fullscreenchange is document-scoped. A cross-origin frame's event does not
+  // bubble into the top document, so every frame must notify the native window.
+  // Native code ignores messages from tabs that are not currently visible.
   document.addEventListener('fullscreenchange', function(){
     post({t:'fullscreen', active: !!document.fullscreenElement});
   }, true);
+  if (window.top !== window) return;
   var scrollbarStyle = document.createElement('style');
   scrollbarStyle.textContent = 'html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}::-webkit-scrollbar{width:6px!important;height:6px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}';
   (document.head || document.documentElement).appendChild(scrollbarStyle);
