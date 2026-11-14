@@ -55,7 +55,7 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
 const SIDEBAR_W: f64 = 280.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
-const TOPBAR_H: f64 = 28.0;
+const TOPBAR_H: f64 = 44.0;
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 const DEFAULT_SITES: &[(&str, &str)] = &[
