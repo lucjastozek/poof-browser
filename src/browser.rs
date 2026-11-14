@@ -21,9 +21,9 @@ use wry::{
 };
 
 const SIDEBAR_W: f64 = 280.0;
-const SIDEBAR_COLLAPSED_W: f64 = 56.0;
+const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
-const TOPBAR_H: f64 = 44.0;
+const TOPBAR_H: f64 = 30.0;
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 const DEFAULT_SITES: &[(&str, &str)] = &[
@@ -92,6 +92,7 @@ pub struct Tab {
 enum Cmd {
     Ready,
     SidebarCollapsed { collapsed: bool },
+    SidebarCompact { compact: bool },
     WindowMinimize,
     WindowToggleMaximize,
     WindowDrag,
@@ -172,12 +173,12 @@ fn full_rect(w: &Window) -> Rect {
     let (ww, hh) = logical(w);
     rect(0.0, 0.0, ww, hh)
 }
-fn content_rect(w: &Window, collapsed: bool, fullscreen: bool) -> Rect {
+fn content_rect(w: &Window, collapsed: bool, compact: bool, fullscreen: bool) -> Rect {
     let (ww, hh) = logical(w);
     if fullscreen {
         return full_rect(w);
     }
-    let left = if collapsed { SIDEBAR_COLLAPSED_W } else { SIDEBAR_W };
+    let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
     rect(left, TOPBAR_H, ww - left - INSET, hh - TOPBAR_H - INSET)
 }
 
@@ -488,6 +489,12 @@ impl Browser {
                 self.save();
                 self.relayout();
             }
+            Cmd::SidebarCompact { compact } => {
+                self.p.sidebar_compact = compact;
+                if compact { self.p.sidebar_collapsed = false; }
+                self.save();
+                self.relayout();
+            }
             Cmd::WindowMinimize => self.window.set_minimized(true),
             Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
             Cmd::WindowDrag => { let _ = self.window.drag_window(); }
@@ -684,7 +691,7 @@ impl Browser {
         let id = self.tabs[idx].id.clone();
         let profile_id = self.tabs[idx].profile_id.clone();
         let url = self.tabs[idx].url.clone();
-        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.fullscreen);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen);
         let dir = self.root.join("profiles").join(&profile_id);
         let ctx = self
             .contexts
@@ -955,6 +962,7 @@ impl Browser {
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
             "sidebar_collapsed": self.p.sidebar_collapsed,
+            "sidebar_compact": self.p.sidebar_compact,
         });
         let _ = self.sidebar.evaluate_script(&format!("window.__setState({state})"));
     }
