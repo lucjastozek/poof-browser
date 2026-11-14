@@ -23,6 +23,7 @@ pub enum UserEvent {
     OpenTab { url: String },
     /// Result of a background extension install (Web Store download).
     ExtResult { ok: bool, msg: String, dir: Option<std::path::PathBuf>, id: Option<String> },
+    CloseWindow,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -31,6 +32,7 @@ fn main() -> anyhow::Result<()> {
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let window = WindowBuilder::new()
         .with_title("poof")
+        .with_decorations(false)
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .build(&event_loop)?;
 
@@ -41,6 +43,10 @@ fn main() -> anyhow::Result<()> {
         match event {
             Event::WindowEvent { event: WindowEvent::Resized(_), .. } => browser.relayout(),
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+                browser.save();
+                *flow = ControlFlow::Exit;
+            }
+            Event::UserEvent(UserEvent::CloseWindow) => {
                 browser.save();
                 *flow = ControlFlow::Exit;
             }
