@@ -173,7 +173,7 @@ enum Cmd {
     RenameFolder { id: String, name: String },
     DeleteFolder { id: String },
     ToggleFolderCollapsed { id: String },
-    MoveFolder { id: String, pinned: bool },
+    MoveFolder { id: String, index: usize },
     MoveTabToFolder { id: String, folder_id: Option<String> },
     SetTheme { theme: String },
     SetAutoPip { on: bool },
@@ -662,7 +662,7 @@ impl Browser {
                 let name = clip(name.trim(), 40);
                 if !name.is_empty() {
                     let space_id = self.cur_space().id.clone();
-                    self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: false });
+                    self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: true });
                     self.save();
                 }
             }
@@ -682,14 +682,24 @@ impl Browser {
             Cmd::ToggleFolderCollapsed { id } => {
                 if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.collapsed = !f.collapsed; self.save(); }
             }
-            Cmd::MoveFolder { id, pinned } => {
-                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.pinned=pinned; self.save(); }
+            Cmd::MoveFolder { id, index } => {
+                let space = self.p.current_space.clone();
+                if let Some(from) = self.p.folders.iter().position(|f| f.id == id && f.space_id == space) {
+                    let folder = self.p.folders.remove(from);
+                    let peers: Vec<usize> = self.p.folders.iter().enumerate().filter(|(_, f)| f.space_id == space).map(|(i, _)| i).collect();
+                    let pos = peers.get(index).copied().or_else(|| peers.last().map(|i| i + 1)).unwrap_or(self.p.folders.len());
+                    self.p.folders.insert(pos, folder);
+                    self.save();
+                }
             }
             Cmd::MoveTabToFolder { id, folder_id } => {
                 let valid = folder_id.as_ref().map(|fid| self.p.folders.iter().any(|f| f.id == *fid && f.space_id == self.p.current_space)).unwrap_or(true);
                 if valid {
                     if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id && t.space_id.as_deref() == Some(self.p.current_space.as_str())) {
-                        t.kind=Kind::Normal; t.folder_id=folder_id; self.save();
+                        if t.kind == Kind::Normal { t.home = t.url.clone(); }
+                        if folder_id.is_some() { t.kind = Kind::Pinned; }
+                        t.folder_id = folder_id;
+                        self.save();
                     }
                 }
             }
