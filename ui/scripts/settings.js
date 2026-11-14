@@ -151,7 +151,7 @@ function buildSettings(v) {
     trigger.setAttribute("aria-expanded", "false");
     const valueLabel = () => (allowOff && value === "0" ? "Off" : (choices.find(([v]) => v === value)?.[1] || "48 hours"));
     const paint = () => {
-      trigger.replaceChildren(el("span", null, valueLabel()), ic("chevronDown", 14));
+      trigger.replaceChildren(el("span", null, valueLabel()), ic("chevron-down", 14));
       trigger.setAttribute("aria-label", label + ": " + valueLabel());
     };
     let current = value;
