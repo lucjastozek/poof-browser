@@ -161,6 +161,7 @@ function buildSettings(v) {
     control.append(select);
     const row = el("div", "retention-row");
     row.append(copy, control);
+    select._retentionRow = row;
     return select;
   };
   const cleanup = el("section", "cleanup-card");
@@ -173,7 +174,7 @@ function buildSettings(v) {
   const cookieAge = makeRetention("cookie_retention_hours", true, "Cookies", "May sign you out of websites");
   const cacheAge = makeRetention("cache_retention_hours", true, "Cache", "Remove older cached files");
   const historyAge = makeRetention("history_retention_hours", true, "Browsing history", "Remove older history entries");
-  cleanup.append(cleanupHead, tabAge.parentElement, cookieAge.parentElement, cacheAge.parentElement, historyAge.parentElement);
+  cleanup.append(cleanupHead, tabAge._retentionRow, cookieAge._retentionRow, cacheAge._retentionRow, historyAge._retentionRow);
   const saveRetention = () => send({
     cmd: "update_profile_cleanup",
     tab_retention_hours: Number(tabAge.value),
