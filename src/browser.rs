@@ -20,8 +20,42 @@ use wry::{
     NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder,
 };
 
+#[cfg(windows)]
+fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
+    use windows::Win32::{
+        Foundation::HWND,
+        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, SetWindowRgn},
+    };
+    use wry::WebViewExtWindows;
+
+    let mut hwnd = HWND::default();
+    unsafe {
+        if wv.controller().ParentWindow(&mut hwnd).is_err() || hwnd.0.is_null() {
+            return;
+        }
+        if !rounded {
+            let _ = SetWindowRgn(hwnd, None, true);
+            return;
+        }
+
+        let width = (width * scale).round().max(1.0) as i32;
+        let height = (height * scale).round().max(1.0) as i32;
+        let radius = (8.0 * scale).round().max(1.0) as i32;
+        let region = CreateRoundRectRgn(0, 0, width, height, radius * 2, radius * 2);
+        if region.0.is_null() {
+            return;
+        }
+        // SetWindowRgn takes ownership only when it succeeds.
+        if SetWindowRgn(hwnd, Some(region), true) == 0 {
+            let _ = DeleteObject(HGDIOBJ(region.0));
+        }
+    }
+}
+
 const SIDEBAR_W: f64 = 280.0;
+const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
+const TOPBAR_H: f64 = 40.0;
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 const DEFAULT_SITES: &[(&str, &str)] = &[
@@ -40,9 +74,138 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
 
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = r#"(function(){
-  if (window.top !== window) return;
-  var last = '';
   function post(o){ try { window.ipc.postMessage(JSON.stringify(o)); } catch(e){} }
+  // Only the top document controls the native window. Fullscreen changes from
+  // embedded frames propagate to their iframe element in the parent document.
+  // Keep the video player's F shortcut available even before its controls are clicked.
+  // This runs in every frame because embedded players commonly own their video element.
+  function editableTarget(el){
+    return !!(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)));
+  }
+  function requestPlayerFullscreen(){
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function(){});
+      return true;
+    }
+    var videos = Array.prototype.slice.call(document.querySelectorAll('video'))
+      .filter(function(v){ return v.readyState > 0 && v.videoWidth > 0; });
+    if (videos.length) {
+      videos.sort(function(a,b){ return (b.videoWidth*b.videoHeight)-(a.videoWidth*a.videoHeight); });
+      var v = videos[0];
+      // Fullscreen the video surface itself, not the site's larger player
+      // container. Fullscreening the container exposes unrelated page/player
+      // layers behind or around the video on several sites.
+      v.__poofHadControls = v.controls;
+      v.controls = true;
+      if (v.requestFullscreen) {
+        v.requestFullscreen().catch(function(){
+          v.controls = !!v.__poofHadControls;
+          delete v.__poofHadControls;
+        });
+        return true;
+      }
+    }
+    return false;
+  }
+  addEventListener('keydown', function(e){
+    if (!e.isTrusted || e.defaultPrevented || e.repeat || e.ctrlKey || e.altKey || e.metaKey ||
+        e.shiftKey || e.key.toLowerCase() !== 'f' || editableTarget(e.target)) return;
+    if (requestPlayerFullscreen()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // Do not fullscreen the iframe from the top document: that exposes
+    // the site's outer player layers. Cross-origin video frames handle F
+    // themselves and fullscreen the video element directly.
+  }, true);
+  // The video element itself is the fullscreen surface. Its viewport-sized
+  // box is black, while object-fit:contain keeps the complete video centered
+  // without stretching or cropping. The fullscreen backdrop is also black.
+  // Inject this in every frame because third-party players are often cross-origin.
+  var fullscreenStyle = document.createElement('style');
+  fullscreenStyle.textContent =
+    ':fullscreen{background:#000!important}' +
+    ':fullscreen::backdrop{background:#000!important}' +
+    'video:fullscreen{' +
+      'display:block!important;position:fixed!important;inset:0!important;margin:0!important;' +
+      'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
+      'object-fit:contain!important;background:#000!important;border:0!important;transform:none!important}' +
+    '.poof-video-only-fullscreen{background:#000!important;overflow:hidden!important}' +
+    '.poof-video-only-fullscreen *{visibility:hidden!important}' +
+    '.poof-video-only-fullscreen video.poof-fullscreen-video{' +
+      'visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;margin:0!important;' +
+      'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
+      'object-fit:contain!important;background:#000!important;border:0!important;transform:none!important}';
+  (document.head || document.documentElement).appendChild(fullscreenStyle);
+  function clearVideoOnlyFullscreen(){
+    document.querySelectorAll('.poof-video-only-fullscreen').forEach(function(el){
+      el.classList.remove('poof-video-only-fullscreen');
+    });
+    document.querySelectorAll('video.poof-fullscreen-video').forEach(function(v){
+      v.classList.remove('poof-fullscreen-video');
+    });
+  }
+  document.addEventListener('fullscreenchange', function(){
+    clearVideoOnlyFullscreen();
+    var active = document.fullscreenElement;
+    if (active && active.tagName !== 'VIDEO') {
+      // Some YouTube fullscreen paths request the whole player container.
+      // Keep that native fullscreen request, but make its visible surface
+      // strictly the video. Player chrome, overlays and colored page layers
+      // are hidden; the video itself fills the viewport without cropping.
+      var videos = Array.prototype.slice.call(active.querySelectorAll('video'))
+        .filter(function(v){ return v.videoWidth > 0 && v.videoHeight > 0; });
+      videos.sort(function(a,b){
+        return (b.videoWidth*b.videoHeight)-(a.videoWidth*a.videoHeight);
+      });
+      if (videos.length) {
+        active.classList.add('poof-video-only-fullscreen');
+        videos[0].classList.add('poof-fullscreen-video');
+      }
+    }
+    if (active) return;
+    document.querySelectorAll('video').forEach(function(v){
+      if (v.__poofHadControls !== undefined) {
+        v.controls = !!v.__poofHadControls;
+        delete v.__poofHadControls;
+      }
+    });
+  }, true);
+  // Fullscreen in a cross-origin iframe is isolated from the top document.
+  // Relay its state up the frame tree with postMessage; only the top document
+  // talks to native code. This is the signal that makes the APP window itself
+  // enter OS-level borderless fullscreen, rather than merely filling the WebView.
+  var fullscreenRelay = '__poof_native_fullscreen__';
+  document.addEventListener('fullscreenchange', function(){
+    var active = !!document.fullscreenElement;
+    if (window.top === window) {
+      post({t:'fullscreen', active:active});
+    } else {
+      try { window.parent.postMessage({type:fullscreenRelay, active:active}, '*'); } catch(e){}
+    }
+  }, true);
+  if (window.top !== window) {
+    addEventListener('message', function(e){
+      if (!e.data || e.data.type !== fullscreenRelay) return;
+      if (window.parent !== window) {
+        try { window.parent.postMessage(e.data, '*'); } catch(err){}
+      } else {
+        post({t:'fullscreen', active:!!e.data.active});
+      }
+    }, false);
+    return;
+  }
+  // A player may forward a shortcut/fullscreen request from a nested frame.
+  addEventListener('message', function(e){
+    if (e.data && e.data.type === fullscreenRelay) {
+      post({t:'fullscreen', active:!!e.data.active});
+    }
+  }, false);
+  var scrollbarStyle = document.createElement('style');
+  scrollbarStyle.textContent = 'html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}::-webkit-scrollbar{width:6px!important;height:6px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}';
+  (document.head || document.documentElement).appendChild(scrollbarStyle);
+  var last = '';
   function icon(){
     try {
       var l = document.querySelector('link[rel~="icon" i]');
@@ -86,6 +249,12 @@ pub struct Tab {
 #[serde(tag = "cmd", rename_all = "snake_case")]
 enum Cmd {
     Ready,
+    SidebarCollapsed { collapsed: bool },
+    SidebarCompact { compact: bool },
+    WindowMinimize,
+    WindowToggleMaximize,
+    WindowDrag,
+    WindowClose,
     /// The sidebar is showing a full-area view (new tab bar, dialogs): hide/show the page.
     Overlay { open: bool },
     NewTab { input: String },
@@ -126,6 +295,7 @@ enum Cmd {
 enum PageMsg {
     Meta { u: Option<String>, f: Option<String> },
     Key { k: String },
+    Fullscreen { active: bool },
 }
 
 pub struct Browser {
@@ -143,6 +313,7 @@ pub struct Browser {
     active: HashMap<String, String>,
     visible: Option<String>,
     overlay: bool,
+    fullscreen: bool,
 }
 
 // ---------- geometry ----------
@@ -160,9 +331,13 @@ fn full_rect(w: &Window) -> Rect {
     let (ww, hh) = logical(w);
     rect(0.0, 0.0, ww, hh)
 }
-fn content_rect(w: &Window) -> Rect {
+fn content_rect(w: &Window, collapsed: bool, compact: bool, fullscreen: bool) -> Rect {
     let (ww, hh) = logical(w);
-    rect(SIDEBAR_W, INSET, ww - SIDEBAR_W - INSET, hh - 2.0 * INSET)
+    if fullscreen {
+        return full_rect(w);
+    }
+    let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+    rect(left + INSET, TOPBAR_H, ww - left - 2.0 * INSET, hh - TOPBAR_H - INSET)
 }
 
 // ---------- input helpers ----------
@@ -222,7 +397,18 @@ impl Browser {
         // The sidebar is our own trusted UI (HTML), living in its own data folder.
         // theme.css holds every design token; it is spliced into the page here.
         let html = include_str!("../ui/sidebar.html")
-            .replace("/*THEME*/", include_str!("../ui/theme.css"))
+            .replace(
+                "/*STYLES*/",
+                &format!("<style>{}</style>", [
+                    include_str!("../ui/theme.css"),
+                    include_str!("../ui/styles/base.css"),
+                    include_str!("../ui/styles/components.css"),
+                    include_str!("../ui/styles/topbar.css"),
+                    include_str!("../ui/styles/sidebar.css"),
+                    include_str!("../ui/styles/stage.css"),
+                    include_str!("../ui/styles/start-page.css")
+                ].concat()),
+            )
             .replace("/*ICONS*/", include_str!("../ui/icons.js"));
         let mut ui_ctx = WebContext::new(Some(root.join("ui")));
         let ptx = proxy.clone();
@@ -264,6 +450,7 @@ impl Browser {
             active: HashMap::new(),
             visible: None,
             overlay: false,
+            fullscreen: false,
         };
         b.apply_theme();
         b.preinstall();
@@ -325,8 +512,10 @@ impl Browser {
     // ---------- events ----------
     pub fn on_user_event(&mut self, ev: UserEvent) {
         match ev {
+            UserEvent::CloseWindow => {},
             UserEvent::Ui(raw) => self.handle_ui(&raw),
             UserEvent::Page { tab, body } => self.handle_page(&tab, &body),
+            UserEvent::Fullscreen { tab, active } => self.handle_fullscreen(&tab, active),
             UserEvent::Title { tab, title } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     t.title = clip(&title, 300);
@@ -384,6 +573,21 @@ impl Browser {
         self.push_state();
     }
 
+    /// Switch the entire native application window, not just the embedded WebView, into fullscreen.
+    fn handle_fullscreen(&mut self, tab: &str, active: bool) {
+        if self.visible.as_deref() != Some(tab) || self.fullscreen == active {
+            return;
+        }
+        self.fullscreen = active;
+        self.window.set_fullscreen(if active {
+            Some(tao::window::Fullscreen::Borderless(None))
+        } else {
+            None
+        });
+        let _ = self.sidebar.set_visible(!active);
+        self.relayout();
+    }
+
     /// Messages from web pages are untrusted: strict parsing, size limits, own-tab only.
     fn handle_page(&mut self, tab: &str, body: &str) {
         if body.len() > 20_000 {
@@ -422,6 +626,7 @@ impl Browser {
                     self.save();
                 }
             }
+            PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
             PageMsg::Key { k } => {
                 if self.visible.as_deref() != Some(tab) {
                     return;
@@ -453,6 +658,21 @@ impl Browser {
     fn run(&mut self, cmd: Cmd) -> Result<()> {
         match cmd {
             Cmd::Ready => {}
+            Cmd::SidebarCollapsed { collapsed } => {
+                self.p.sidebar_collapsed = collapsed;
+                self.save();
+                self.relayout();
+            }
+            Cmd::SidebarCompact { compact } => {
+                self.p.sidebar_compact = compact;
+                if compact { self.p.sidebar_collapsed = false; }
+                self.save();
+                self.relayout();
+            }
+            Cmd::WindowMinimize => self.window.set_minimized(true),
+            Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
+            Cmd::WindowDrag => { let _ = self.window.drag_window(); }
+            Cmd::WindowClose => { let _ = self.proxy.send_event(UserEvent::CloseWindow); }
             Cmd::Overlay { open } => {
                 self.overlay = open;
                 if open {
@@ -645,7 +865,7 @@ impl Browser {
         let id = self.tabs[idx].id.clone();
         let profile_id = self.tabs[idx].profile_id.clone();
         let url = self.tabs[idx].url.clone();
-        let rect = content_rect(&self.window);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen);
         let dir = self.root.join("profiles").join(&profile_id);
         let ctx = self
             .contexts
@@ -659,7 +879,7 @@ impl Browser {
             .with_bounds(rect)
             .with_visible(false)
             .with_url(&url)
-            .with_initialization_script(INIT_JS)
+            .with_initialization_script_for_main_only(INIT_JS, false)
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page { tab: id1.clone(), body: req.into_body() });
             })
@@ -680,6 +900,43 @@ impl Browser {
 
         let wv = builder.build_as_child(&self.window)?;
 
+        // WebView2 reports HTML fullscreen transitions directly from its native
+        // host. This covers fullscreen requests inside cross-origin/nested frames
+        // without depending on JavaScript IPC or postMessage frame relays.
+        #[cfg(windows)]
+        {
+            use webview2_com::ContainsFullScreenElementChangedEventHandler;
+            use windows::core::BOOL;
+            use wry::WebViewExtWindows;
+
+            let fullscreen_proxy = self.proxy.clone();
+            let fullscreen_tab = id.clone();
+            unsafe {
+                match wv.controller().CoreWebView2() {
+                    Ok(core) => {
+                        let handler = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
+                            let Some(sender) = sender else { return Ok(()) };
+                            let mut contains = BOOL::default();
+                            if let Err(error) = unsafe { sender.ContainsFullScreenElement(&mut contains) } {
+                                log::warn!("reading WebView2 fullscreen state failed: {error}");
+                                return Ok(());
+                            }
+                            let _ = fullscreen_proxy.send_event(UserEvent::Fullscreen {
+                                tab: fullscreen_tab.clone(),
+                                active: contains.as_bool(),
+                            });
+                            Ok(())
+                        }));
+                        let mut token = 0;
+                        if let Err(error) = core.add_ContainsFullScreenElementChanged(&handler, &mut token) {
+                            log::warn!("registering WebView2 fullscreen handler failed: {error}");
+                        }
+                    }
+                    Err(error) => log::warn!("getting WebView2 core for fullscreen handler failed: {error}"),
+                }
+            }
+        }
+
         if self.ext_done.insert(profile_id) {
             extensions::load_all(&wv, &self.root.join("extensions"));
         }
@@ -687,7 +944,19 @@ impl Browser {
         Ok(())
     }
 
+    fn leave_fullscreen(&mut self) {
+        if self.fullscreen {
+            if let Some(wv) = self.visible_webview() {
+                let _ = wv.evaluate_script("if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});");
+            }
+            self.fullscreen = false;
+            self.window.set_fullscreen(None);
+            let _ = self.sidebar.set_visible(true);
+        }
+    }
+
     fn hide_visible(&mut self) {
+        self.leave_fullscreen();
         let Some(id) = self.visible.take() else { return };
         if let Some(wv) = self.tabs.iter().find(|t| t.id == id).and_then(|t| t.webview.as_ref()) {
             if self.p.auto_pip {
@@ -704,10 +973,22 @@ impl Browser {
         }
         self.hide_visible();
         self.ensure_webview(idx)?;
-        let rect = content_rect(&self.window);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen);
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
             wv.set_bounds(rect)?;
+            #[cfg(windows)]
+            {
+                let (window_w, window_h) = logical(&self.window);
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                apply_webview_radius(
+                    wv,
+                    window_w - left - 2.0 * INSET,
+                    window_h - TOPBAR_H - INSET,
+                    self.window.scale_factor(),
+                    !self.fullscreen,
+                );
+            }
             wv.set_visible(true)?;
             wv.focus()?;
             if self.p.auto_pip {
@@ -723,6 +1004,7 @@ impl Browser {
         let Some(idx) = self.tabs.iter().position(|t| t.id == id) else { return Ok(()) };
         let was_visible = self.visible.as_deref() == Some(id);
         if was_visible {
+            self.leave_fullscreen();
             self.visible = None;
             if let Some(wv) = &self.tabs[idx].webview {
                 let _ = wv.set_visible(false);
@@ -809,8 +1091,20 @@ impl Browser {
             return; // minimized
         }
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
+        let _ = self.sidebar.set_visible(!self.fullscreen);
         if let Some(wv) = self.visible_webview() {
-            let _ = wv.set_bounds(content_rect(&self.window));
+            let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.fullscreen));
+            #[cfg(windows)]
+            {
+                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { SIDEBAR_W };
+                apply_webview_radius(
+                    wv,
+                    w - left - 2.0 * INSET,
+                    h - TOPBAR_H - INSET,
+                    self.window.scale_factor(),
+                    !self.fullscreen,
+                );
+            }
         }
     }
 
@@ -901,6 +1195,8 @@ impl Browser {
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
+            "sidebar_collapsed": self.p.sidebar_collapsed,
+            "sidebar_compact": self.p.sidebar_compact,
         });
         let _ = self.sidebar.evaluate_script(&format!("window.__setState({state})"));
     }

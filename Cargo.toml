@@ -17,10 +17,16 @@ env_logger = "0.11"
 ureq = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 base64 = "0.22"
+resvg = "0.45"
 
 # Windows only: raw WebView2 access (extensions + gesture-enabled JS for auto-PiP).
 # IMPORTANT: these two versions must match the ones wry resolves to.
 # Check with: cargo tree -i webview2-com   /   cargo tree -i windows
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
-windows = "0.61"
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi"] }
+
+[build-dependencies]
+resvg = "0.45"
+ico = "0.3"
+winres = "0.1"
