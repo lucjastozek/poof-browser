@@ -221,39 +221,47 @@ window.__setState = (s) => {
     }),
   );
   $("favs").classList.toggle("empty", !s.favorites.length);
-  const folders = [...(s.folders || [])].sort((a, b) => Number(b.pinned) - Number(a.pinned));
-  const pinnedFolders = [], regularFolders = [];
+  // Arc-style folders are pinned containers; their children are pinned tabs.
+  const folders = [...(s.folders || [])];
+  const folderNodes = [];
   for (const f of folders) {
-    const members = s.tabs.filter((t) => t.folder_id === f.id);
-    const group = el("div", "tab-folder" + (f.pinned ? " is-pinned" : ""));
+    const members = s.pinned.filter((t) => t.folder_id === f.id);
+    const group = el("div", "tab-folder" + (f.collapsed ? " collapsed" : ""));
+    group.dataset.folderId = f.id;
     const head = el("div", "folder-head");
     head.dataset.folderId = f.id;
     const toggle = el("button", "folder-toggle");
     toggle.type = "button";
     toggle.setAttribute("aria-expanded", String(!f.collapsed));
     toggle.setAttribute("aria-label", (f.collapsed ? "Expand " : "Collapse ") + f.name);
-    toggle.append(ic(f.collapsed ? "chevronRight" : "chevronDown", 14));
+    toggle.append(ic(f.collapsed ? "chevronRight" : "chevronDown", 13));
     toggle.onclick = (e) => { e.stopPropagation(); send({ cmd: "toggle_folder_collapsed", id: f.id }); };
     const glyph = el("span", "folder-glyph");
-    glyph.append(ic("folder", 16));
+    glyph.append(ic("folder", 17));
     const label = el("span", "folder-name", f.name);
     label.title = f.name;
     label.ondblclick = (e) => { e.stopPropagation(); const name=prompt("Rename folder",f.name); if(name&&name.trim())send({cmd:"rename_folder",id:f.id,name:name.trim()}); };
     const count = el("span", "folder-count", String(members.length));
-    const actions = el("span", "folder-actions");
-    actions.append(
-      ib("pencil", "Rename folder", () => { const name=prompt("Rename folder",f.name); if(name&&name.trim())send({cmd:"rename_folder",id:f.id,name:name.trim()}); }),
-      ib("trash", "Delete folder (tabs stay open)", () => { if(confirm("Delete this folder? Its tabs will remain open and become ungrouped."))send({cmd:"delete_folder",id:f.id}); })
-    );
-    head.append(toggle, glyph, label, count, actions);
+    head.append(toggle, glyph, label, count);
     head.onpointerdown = (e) => watchFolderDrag(e, head, f);
     group.append(head);
-    if (!f.collapsed) group.append(...members.map((t) => row(t, "tab")));
-    (f.pinned ? pinnedFolders : regularFolders).push(group);
+    const preview = el("div", "folder-preview");
+    preview.append(el("div", "folder-preview-title", f.name));
+    if (members.length) {
+      members.slice(0, 6).forEach((t) => { const item=el("div","folder-preview-row");item.append(icon(t),el("span","ttl",t.title||pretty(t.url)||"New tab"));preview.append(item); });
+      if (members.length > 6) preview.append(el("div","folder-preview-more","+"+(members.length-6)+" more"));
+    } else preview.append(el("div","folder-preview-more","Drop tabs here"));
+    group.append(preview);
+    if (!f.collapsed) {
+      const contents=el("div","folder-contents");
+      contents.append(...members.map((t)=>row(t,"pin")));
+      group.append(contents);
+    }
+    folderNodes.push(group);
   }
-  const ungrouped = s.tabs.filter((t) => !folders.some((f) => f.id === t.folder_id));
-  $("pinned").replaceChildren(...pinnedFolders, ...s.pinned.map((t) => row(t, "pin")));
-  $("tabs").replaceChildren(...regularFolders, ...ungrouped.map((t) => row(t, "tab")));
+  const loosePinned=s.pinned.filter((t)=>!folders.some((f)=>f.id===t.folder_id));
+  $("pinned").replaceChildren(...folderNodes,...loosePinned.map((t)=>row(t,"pin")));
+  $("tabs").replaceChildren(...s.tabs.map((t)=>row(t,"tab")));
   const dots = [];
   let lastP = null;
   s.spaces.forEach((x) => {
@@ -394,48 +402,26 @@ function updateDrag(ev) {
   else if (overRect(fr, x, y, 4) && y < pr.top - 4) zone = "fav";
   else if (overRect($("pinned").getBoundingClientRect(), x, y, 8) || y < lr.top + lr.height / 2) zone = "pinned";
   else zone = "tab";
-  let idx = 0,
-    ref = null,
-    after = false,
-    box = null;
+  let idx = 0, box = null;
   if (zone === "fav") {
-    const tiles = [...$("favs").children].filter((c) => c !== d.row);
-    tiles.forEach((c) => {
-      const r = c.getBoundingClientRect();
-      if (
-        r.bottom < y ||
-        (y <= r.bottom && y >= r.top && r.left + r.width / 2 < x)
-      )
-        idx++;
-    });
-    ref = tiles[idx] || tiles[tiles.length - 1];
-    after = !tiles[idx];
-    if (ref) {
-      const r = ref.getBoundingClientRect();
-      box = {
-        left: after ? r.right + 2 : r.left - 4,
-        top: r.top + 4,
-        width: 2,
-        height: r.height - 8,
-      };
+    const tiles=[...$("favs").children].filter((c)=>c!==d.row);
+    tiles.forEach((c)=>{const r=c.getBoundingClientRect();if(r.bottom<y||(y<=r.bottom&&y>=r.top&&r.left+r.width/2<x))idx++;});
+    const ref=tiles[idx]||tiles[tiles.length-1],after=!tiles[idx];
+    if(ref){const r=ref.getBoundingClientRect();box={left:after?r.right+2:r.left-4,top:r.top+4,width:2,height:r.height-8};}
+  } else if(zone==="pinned") {
+    const list=$("pinned");
+    if(d.kind==="folder") {
+      const groups=[...list.children].filter(c=>c.classList.contains("tab-folder")&&c!==d.row.parentElement);
+      groups.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
+    } else {
+      const rows=[...list.querySelectorAll(":scope > .row")].filter(c=>c!==d.row);
+      rows.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
     }
-  } else if (zone) {
-    const list = $(zone === "pinned" ? "pinned" : "tabs");
-    const rows = [...list.children].filter((c) => c !== d.row);
-    rows.forEach((c) => {
-      const r = c.getBoundingClientRect();
-      if (r.top + r.height / 2 < y) idx++;
-    });
-    const lb = list.getBoundingClientRect();
-    if (rows.length) {
-      const r = (rows[idx] || rows[rows.length - 1]).getBoundingClientRect();
-      box = {
-        left: lb.left + 6,
-        top: rows[idx] ? r.top - 2 : r.bottom + 1,
-        width: lb.width - 12,
-        height: 2,
-      };
-    }
+    const lb=list.getBoundingClientRect();box={left:lb.left+6,top:y,width:lb.width-12,height:2};
+  } else if(zone==="tab") {
+    const rows=[...$("tabs").children].filter(c=>c!==d.row);
+    rows.forEach(c=>{const r=c.getBoundingClientRect();if(r.top+r.height/2<y)idx++;});
+    const lb=$("tabs").getBoundingClientRect();box={left:lb.left+6,top:y,width:lb.width-12,height:2};
   }
   const folderGroup = d.kind === "folder" ? null : document.elementFromPoint(x, y)?.closest(".tab-folder");
   const folderTarget = folderGroup?.querySelector(".folder-head");
@@ -476,7 +462,7 @@ function endDrag(drop) {
   document.querySelectorAll(".folder-head").forEach((h) => h.classList.remove("drop-target"));
   if (drop && d.zone) {
     if (d.kind === "folder") {
-      if(d.zone==="pinned"||d.zone==="tab")send({cmd:"move_folder",id:d.id,pinned:d.zone==="pinned"});
+      if(d.zone==="pinned")send({cmd:"move_folder",id:d.id,index:d.idx});
     } else if (d.zone.startsWith("folder:")) send({cmd:"move_tab_to_folder",id:d.id,folder_id:d.zone.slice(7)});
     else { const to=d.zone==="pinned"?"pinned":d.zone==="fav"?"fav":"tab";send({cmd:"move_tab",id:d.id,to,index:d.idx}); }
   }
