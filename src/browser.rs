@@ -370,6 +370,7 @@ impl Browser {
             .replace(
                 "/*STYLES*/",
                 &format!("<style>{}</style>", [
+                    include_str!("../ui/theme.css"),
                     include_str!("../ui/styles/base.css"),
                     include_str!("../ui/styles/components.css"),
                     include_str!("../ui/styles/topbar.css"),
