@@ -21,6 +21,7 @@ use wry::{
 };
 
 const SIDEBAR_W: f64 = 280.0;
+const SIDEBAR_COLLAPSED_W: f64 = 56.0;
 const INSET: f64 = 8.0;
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
@@ -56,6 +57,9 @@ const INIT_JS: &str = r#"(function(){
   }
   addEventListener('DOMContentLoaded', function(){ meta(true); });
   addEventListener('load', function(){ meta(true); });
+  document.addEventListener('fullscreenchange', function(){
+    post({t:'fullscreen', active: !!document.fullscreenElement});
+  });
   setInterval(function(){ meta(false); }, 1500);
   addEventListener('keydown', function(e){
     if (!e.isTrusted || !e.ctrlKey) return;
@@ -86,6 +90,7 @@ pub struct Tab {
 #[serde(tag = "cmd", rename_all = "snake_case")]
 enum Cmd {
     Ready,
+    SidebarCollapsed { collapsed: bool },
     /// The sidebar is showing a full-area view (new tab bar, dialogs): hide/show the page.
     Overlay { open: bool },
     NewTab { input: String },
@@ -126,6 +131,7 @@ enum Cmd {
 enum PageMsg {
     Meta { u: Option<String>, f: Option<String> },
     Key { k: String },
+    Fullscreen { active: bool },
 }
 
 pub struct Browser {
@@ -143,6 +149,7 @@ pub struct Browser {
     active: HashMap<String, String>,
     visible: Option<String>,
     overlay: bool,
+    fullscreen: bool,
 }
 
 // ---------- geometry ----------
@@ -160,9 +167,13 @@ fn full_rect(w: &Window) -> Rect {
     let (ww, hh) = logical(w);
     rect(0.0, 0.0, ww, hh)
 }
-fn content_rect(w: &Window) -> Rect {
+fn content_rect(w: &Window, collapsed: bool, fullscreen: bool) -> Rect {
     let (ww, hh) = logical(w);
-    rect(SIDEBAR_W, INSET, ww - SIDEBAR_W - INSET, hh - 2.0 * INSET)
+    if fullscreen {
+        return full_rect(w);
+    }
+    let left = if collapsed { SIDEBAR_COLLAPSED_W } else { SIDEBAR_W };
+    rect(left, INSET, ww - left - INSET, hh - 2.0 * INSET)
 }
 
 // ---------- input helpers ----------
@@ -264,6 +275,7 @@ impl Browser {
             active: HashMap::new(),
             visible: None,
             overlay: false,
+            fullscreen: false,
         };
         b.apply_theme();
         b.preinstall();
@@ -422,6 +434,18 @@ impl Browser {
                     self.save();
                 }
             }
+            PageMsg::Fullscreen { active } => {
+                if self.visible.as_deref() == Some(tab) && self.fullscreen != active {
+                    self.fullscreen = active;
+                    self.window.set_fullscreen(if active {
+                        Some(tao::window::Fullscreen::Borderless(None))
+                    } else {
+                        None
+                    });
+                    let _ = self.sidebar.set_visible(!active);
+                    self.relayout();
+                }
+            }
             PageMsg::Key { k } => {
                 if self.visible.as_deref() != Some(tab) {
                     return;
@@ -453,6 +477,11 @@ impl Browser {
     fn run(&mut self, cmd: Cmd) -> Result<()> {
         match cmd {
             Cmd::Ready => {}
+            Cmd::SidebarCollapsed { collapsed } => {
+                self.p.sidebar_collapsed = collapsed;
+                self.save();
+                self.relayout();
+            }
             Cmd::Overlay { open } => {
                 self.overlay = open;
                 if open {
@@ -645,7 +674,7 @@ impl Browser {
         let id = self.tabs[idx].id.clone();
         let profile_id = self.tabs[idx].profile_id.clone();
         let url = self.tabs[idx].url.clone();
-        let rect = content_rect(&self.window);
+        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.fullscreen);
         let dir = self.root.join("profiles").join(&profile_id);
         let ctx = self
             .contexts
@@ -809,8 +838,9 @@ impl Browser {
             return; // minimized
         }
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
+        let _ = self.sidebar.set_visible(!self.fullscreen);
         if let Some(wv) = self.visible_webview() {
-            let _ = wv.set_bounds(content_rect(&self.window));
+            let _ = wv.set_bounds(content_rect(&self.window, self.p.sidebar_collapsed, self.fullscreen));
         }
     }
 
@@ -901,6 +931,7 @@ impl Browser {
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
+            "sidebar_collapsed": self.p.sidebar_collapsed,
         });
         let _ = self.sidebar.evaluate_script(&format!("window.__setState({state})"));
     }
