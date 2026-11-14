@@ -115,29 +115,9 @@ const INIT_JS: &str = r#"(function(){
       e.stopPropagation();
       return;
     }
-    // If focus is in the top document rather than a cross-origin player frame,
-    // fullscreen the embedded player frame from this trusted key event.
-    if (window.top === window) {
-      var frames = Array.prototype.slice.call(document.querySelectorAll('iframe'))
-        .filter(function(frame){
-          var r = frame.getBoundingClientRect();
-          return frame.allowFullscreen && frame.requestFullscreen &&
-            r.width > 0 && r.height > 0;
-        })
-        .sort(function(a,b){
-          var ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
-          return (br.width * br.height) - (ar.width * ar.height);
-        });
-      if (frames.length) {
-        // The top document cannot inspect a cross-origin player. Fullscreen
-        // its largest visible allowfullscreen iframe directly from this
-        // trusted key event, preserving the user activation required by the
-        // Fullscreen API even when the player frame has never been clicked.
-        frames[0].requestFullscreen().catch(function(){});
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    }
+    // Do not fullscreen the iframe from the top document: that exposes
+    // the site's outer player layers. Cross-origin video frames handle F
+    // themselves and fullscreen the video element directly.
   }, true);
   // The video element itself is the fullscreen surface. Its viewport-sized
   // box is black, while object-fit:contain keeps the complete video centered
