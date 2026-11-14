@@ -243,6 +243,7 @@ window.__setState = (s) => {
     label.ondblclick = (e) => { e.stopPropagation(); const name=prompt("Rename folder",f.name); if(name&&name.trim())send({cmd:"rename_folder",id:f.id,name:name.trim()}); };
     const count = el("span", "folder-count", String(members.length));
     head.append(toggle, glyph, label, count);
+    head.onclick = () => { if (!noClick) send({ cmd: "toggle_folder_collapsed", id: f.id }); };
     head.onpointerdown = (e) => watchFolderDrag(e, head, f);
     group.append(head);
     const preview = el("div", "folder-preview");
@@ -447,6 +448,8 @@ function updateDrag(ev) {
     (zone === "tab" && d.kind === "pin");
   $("line").classList.toggle("hot", changing);
   $("lineLbl").textContent =
+    zone && zone.startsWith("folder:") ? "Add to folder" :
+    d.kind === "folder" ? "Move folder" :
     zone === "pinned" ? "Release to pin" : "Release to unpin";
 }
 function endDrag(drop) {
