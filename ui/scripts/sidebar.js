@@ -437,7 +437,8 @@ function updateDrag(ev) {
       };
     }
   }
-  const folderTarget = d.kind === "folder" ? null : document.elementFromPoint(x, y)?.closest(".folder-head");
+  const folderGroup = d.kind === "folder" ? null : document.elementFromPoint(x, y)?.closest(".tab-folder");
+  const folderTarget = folderGroup?.querySelector(".folder-head");
   if (folderTarget?.dataset.folderId) zone = "folder:" + folderTarget.dataset.folderId;
   d.zone = zone;
   d.idx = idx;
