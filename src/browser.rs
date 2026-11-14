@@ -43,6 +43,9 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = r#"(function(){
   if (window.top !== window) return;
+  var scrollbarStyle = document.createElement('style');
+  scrollbarStyle.textContent = 'html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 28%,transparent) transparent!important}::-webkit-scrollbar{width:8px!important;height:8px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}';
+  (document.head || document.documentElement).appendChild(scrollbarStyle);
   var last = '';
   function post(o){ try { window.ipc.postMessage(JSON.stringify(o)); } catch(e){} }
   function icon(){
