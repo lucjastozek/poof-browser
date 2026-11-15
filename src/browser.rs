@@ -2206,7 +2206,8 @@ mod devtools_frontend_tests {
         assert!(script.contains("vertical: {size: 560}"));
         assert!(script.contains("horizontal: {size: 560}"));
         assert!(script.contains("setInspectedPageBounds"));
-        assert!(script.contains("shadow-split-widget-sidebar"));
+        assert!(script.contains("rootSplit.setSidebarSize(560)"));
+        assert!(script.contains("t: "panel_size""));
     }
 
     #[test]
@@ -2214,7 +2215,7 @@ mod devtools_frontend_tests {
         let script = super::devtools_init_script("top", 420.0);
         assert!(script.contains("JSON.stringify(\"bottom\")"));
         assert!(script.contains("setSecondIsSidebar(false)"));
-        assert!(script.contains("shadow-split-widget-sidebar"));
+        assert!(script.contains("rootSplit.setSidebarSize(420)"));
     }
 
     #[test]
