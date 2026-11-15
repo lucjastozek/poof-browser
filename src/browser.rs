@@ -363,6 +363,33 @@ fn rect(x: f64, y: f64, w: f64, h: f64) -> Rect {
         size: LogicalSize::new(w.max(1.0), h.max(1.0)).into(),
     }
 }
+
+/// Keep the inspected page inside DevTools' main pane, even if the frontend reports
+/// oversized or stale placeholder bounds.
+fn intersect_bounds(
+    pane: (f64, f64, f64, f64),
+    preview: (f64, f64, f64, f64),
+) -> Option<(f64, f64, f64, f64)> {
+    let (pane_x, pane_y, pane_width, pane_height) = pane;
+    let (preview_x, preview_y, preview_width, preview_height) = preview;
+    if ![pane_x, pane_y, pane_width, pane_height, preview_x, preview_y, preview_width, preview_height]
+        .iter()
+        .all(|value| value.is_finite())
+        || pane_width <= 0.0
+        || pane_height <= 0.0
+        || preview_width <= 0.0
+        || preview_height <= 0.0
+    {
+        return None;
+    }
+
+    let left = pane_x.max(preview_x);
+    let top = pane_y.max(preview_y);
+    let right = (pane_x + pane_width).min(preview_x + preview_width);
+    let bottom = (pane_y + pane_height).min(preview_y + preview_height);
+    (right > left && bottom > top).then_some((left, top, right - left, bottom - top))
+}
+
 fn full_rect(w: &Window) -> Rect {
     let (ww, hh) = logical(w);
     rect(0.0, 0.0, ww, hh)
@@ -1948,38 +1975,32 @@ impl Browser {
         let gap = 8.0;
         let size = self.p.devtools_size.clamp(240.0, 800.0);
         let position = self.p.devtools_position.as_str();
-        let (page, _tools) = match position {
+        let (page_area, _tools) = match position {
             "left" => {
                 let tools_w = size.min((width - gap - 1.0).max(1.0));
-                (rect(x + tools_w + gap, y, (width - tools_w - gap).max(1.0), height),
+                ((x + tools_w + gap, y, (width - tools_w - gap).max(1.0), height),
                  rect(x, y, tools_w, height))
             }
             "bottom" => {
                 let tools_h = size.min((height - gap - 1.0).max(1.0));
-                (rect(x, y, width, (height - tools_h - gap).max(1.0)),
+                ((x, y, width, (height - tools_h - gap).max(1.0)),
                  rect(x, y + height - tools_h, width, tools_h))
             }
             "top" => {
                 let tools_h = size.min((height - gap - 1.0).max(1.0));
-                (rect(x, y + tools_h + gap, width, (height - tools_h - gap).max(1.0)),
+                ((x, y + tools_h + gap, width, (height - tools_h - gap).max(1.0)),
                  rect(x, y, width, tools_h))
             }
             _ => {
                 let tools_w = size.min((width - gap - 1.0).max(1.0));
-                (rect(x, y, (width - tools_w - gap).max(1.0), height),
+                ((x, y, (width - tools_w - gap).max(1.0), height),
                  rect(x + width - tools_w, y, tools_w, height))
             }
         };
-        let page = if let Some((preview_x, preview_y, preview_width, preview_height)) = self.devtools_page_bounds {
-            let preview_x = preview_x.clamp(0.0, (width - 1.0).max(0.0));
-            let preview_y = preview_y.clamp(0.0, (height - 1.0).max(0.0));
-            let preview_width = preview_width.min(width - preview_x).max(1.0);
-            let preview_height = preview_height.min(height - preview_y).max(1.0);
-            rect(x + preview_x, y + preview_y, preview_width, preview_height)
-        } else {
-            page
-        };
-        (page, Some(base))
+        let (page_x, page_y, page_width, page_height) = self.devtools_page_bounds
+            .and_then(|preview| intersect_bounds(page_area, preview))
+            .unwrap_or(page_area);
+        (rect(page_x, page_y, page_width, page_height), Some(base))
     }
 
     pub fn relayout(&self) {
@@ -2254,6 +2275,32 @@ mod devtools_frontend_tests {
             super::DevToolsMsg::PanelSize { size } => assert!((size - 420.0).abs() < f64::EPSILON),
             super::DevToolsMsg::InspectedPageBounds { .. } => panic!("unexpected bounds message"),
         }
+    }
+
+    #[test]
+    fn inspected_page_bounds_cannot_cover_the_devtools_sidebar() {
+        let pane = (0.0, 0.0, 700.0, 800.0);
+        let oversized_preview = (-20.0, -10.0, 1200.0, 900.0);
+        assert_eq!(
+            super::intersect_bounds(pane, oversized_preview),
+            Some((0.0, 0.0, 700.0, 800.0))
+        );
+    }
+
+    #[test]
+    fn inspected_page_bounds_are_clipped_to_the_main_pane() {
+        let pane = (300.0, 0.0, 700.0, 800.0);
+        let preview = (250.0, 100.0, 500.0, 500.0);
+        assert_eq!(
+            super::intersect_bounds(pane, preview),
+            Some((300.0, 100.0, 450.0, 500.0))
+        );
+    }
+
+    #[test]
+    fn disjoint_or_invalid_preview_bounds_are_rejected() {
+        assert_eq!(super::intersect_bounds((0.0, 0.0, 100.0, 100.0), (200.0, 0.0, 20.0, 20.0)), None);
+        assert_eq!(super::intersect_bounds((0.0, 0.0, 100.0, 100.0), (0.0, 0.0, f64::NAN, 20.0)), None);
     }
 
     #[test]
