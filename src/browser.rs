@@ -211,7 +211,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   }} catch (_) {{}}
   {DEVTOOLS_BOUNDS_INIT_JS}
   const applyPanelLayout = () => {{
-    const rootSplit = window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget;
+    const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
     if (!rootSplit) return;
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
@@ -1380,7 +1380,7 @@ impl Browser {
   }} catch (_) {{}}
   const dockController = window.UI?.DockController?.DockController?.instance?.();
   dockController?.setDockSide?.("{dock_side}");
-  const rootSplit = window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget;
+  const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
   if (rootSplit) {{
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
