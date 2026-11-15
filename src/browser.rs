@@ -364,6 +364,7 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
         CallDevToolsProtocolMethodCompletedHandler,
         Microsoft::Web::WebView2::Win32::*,
     };
+    use windows::core::w;
 
     let core = unsafe { webview.controller().CoreWebView2()? };
     let result = Arc::new(Mutex::new(None));
@@ -371,7 +372,7 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
     unsafe {
         CallDevToolsProtocolMethodCompletedHandler::wait_for_async_operation(
             Box::new(move |handler| {
-                unsafe { core.CallDevToolsProtocolMethod("Target.getTargetInfo", "{}", &handler) }
+                unsafe { core.CallDevToolsProtocolMethod(w!("Target.getTargetInfo"), w!("{}"), &handler) }
             }),
             Box::new(move |status, value| {
                 status.ok()?;
@@ -1076,13 +1077,19 @@ impl Browser {
 
     fn attach_devtools(&mut self) -> Result<()> {
         let Some(tab_id) = self.visible.clone() else {
+            self.devtools_open = false;
+            self.relayout();
             self.toast("Open a page before opening Developer Tools.");
             return Ok(());
         };
         let Some(tab) = self.tabs.iter().find(|tab| tab.id == tab_id) else {
+            self.devtools_open = false;
+            self.relayout();
             return Ok(());
         };
         let Some(webview) = tab.webview.as_ref() else {
+            self.devtools_open = false;
+            self.relayout();
             return Ok(());
         };
         #[cfg(windows)]
@@ -1111,6 +1118,8 @@ impl Browser {
         }
         #[cfg(not(windows))]
         {
+            self.devtools_open = false;
+            self.relayout();
             self.toast("Embedded Developer Tools are available on Windows only.");
         }
         Ok(())
