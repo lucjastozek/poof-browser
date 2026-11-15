@@ -393,6 +393,9 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
 }
 
 #[cfg(any(windows, test))]
+const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=*";
+
+#[cfg(any(windows, test))]
 fn devtools_frontend_url(port: u16, target_id: &str) -> Result<String> {
     if port == 0
         || target_id.is_empty()
@@ -1320,7 +1323,7 @@ impl Browser {
                 // Keep Wry's defaults while enabling a random loopback CDP port
                 // for this isolated profile. The port is read from DevToolsActivePort.
                 .with_additional_browser_args(
-                    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-address=127.0.0.1 --remote-debugging-port=0",
+                    WEBVIEW2_BROWSER_ARGS,
                 )
         };
 
@@ -1964,6 +1967,13 @@ mod shortcut_tests {
 #[cfg(test)]
 mod devtools_frontend_tests {
     use super::devtools_frontend_url;
+
+    #[test]
+    fn enables_devtools_websocket_origins_for_the_embedded_frontend() {
+        assert!(super::WEBVIEW2_BROWSER_ARGS.contains("--remote-allow-origins=*"));
+        assert!(super::WEBVIEW2_BROWSER_ARGS.contains("--remote-debugging-address=127.0.0.1"));
+        assert!(super::WEBVIEW2_BROWSER_ARGS.contains("--remote-debugging-port=0"));
+    }
 
     #[test]
     fn builds_a_runtime_bundled_devtools_url_for_the_exact_page_target() {
