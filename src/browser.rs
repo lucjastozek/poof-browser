@@ -1350,6 +1350,8 @@ impl Browser {
             "bottom" | "top" => "bottom",
             _ => "right",
         };
+        let vertical = matches!(self.p.devtools_position.as_str(), "left" | "right");
+        let second_is_sidebar = matches!(self.p.devtools_position.as_str(), "right" | "bottom");
         let script = format!(
             r#"
 (() => {{
@@ -1362,6 +1364,12 @@ impl Browser {
   }} catch (_) {{}}
   const dockController = window.UI?.DockController?.DockController?.instance?.();
   dockController?.setDockSide("{dock_side}");
+  const rootSplit = window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget;
+  if (rootSplit) {{
+    rootSplit.setVertical({vertical});
+    rootSplit.setSecondIsSidebar({second_is_sidebar});
+    rootSplit.showBoth();
+  }}
   const findSplit = root => {{
     const direct = root.querySelector?.(".split-widget");
     if (direct) return direct;
@@ -1387,7 +1395,8 @@ impl Browser {
             size = size,
             dimension = if horizontal { "height" } else { "width" },
             dock_side = dock_side,
-            top = top,
+            vertical = vertical,
+            second_is_sidebar = second_is_sidebar,
         );
         let _ = devtools.evaluate_script(&script);
     }
