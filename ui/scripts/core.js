@@ -128,13 +128,8 @@ const FAVICON_CACHE_TAG = Date.now().toString(36);
 function freshFaviconUrl(src) {
   try {
     const url = new URL(src);
+    // Native WebView2 favicons are embedded PNGs and must not be rewritten.
     if (url.protocol === "data:") return src;
-    // Native PNG favicons are already immutable data.
-    // parameter that can interfere with CDN delivery or redirect handling.
-    if (url.hostname === "ssl.gstatic.com" &&
-        url.pathname === "/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico") {
-      return url.href;
-    }
     url.searchParams.set("_poof_icon_refresh", FAVICON_CACHE_TAG);
     return url.href;
   } catch (e) {
