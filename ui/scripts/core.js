@@ -139,7 +139,9 @@ function icon(t, guess = true) {
   const add = (src) => {
     if (src && !candidates.includes(src)) candidates.push(src);
   };
-  add(t.favicon);
+  // Older versions persisted WebView2's tiny PNG snapshot as a data URI.
+  // Prefer the source URL so lazy-loaded favourites do not keep showing it.
+  if (t.favicon && !t.favicon.startsWith("data:image/")) add(t.favicon);
   try {
     const site = new URL(t.url);
     if (guess) {
