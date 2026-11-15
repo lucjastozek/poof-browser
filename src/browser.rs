@@ -951,7 +951,7 @@ impl Browser {
                     let mut total = 0usize;
                     while total < size {
                         let mut read = 0u32;
-                        stream.Read(bytes[total..].as_mut_ptr() as *mut _, (size-total) as u32, Some(&mut read)).ok()?;
+                        stream.Read(bytes[total..].as_mut_ptr() as *mut _, (size-total) as u32, Some(&mut read)).ok().ok()?;
                         if read == 0 { break; }
                         total += read as usize;
                     }
