@@ -267,9 +267,26 @@ function buildSettings(v) {
     };
     devtoolsDock.append(option);
   });
+  const devtoolsSize = el("div", "seg");
+  [[320, "Narrow"], [420, "Default"], [560, "Wide"]].forEach(([value, label]) => {
+    const option = el("button", Number(S.devtools_size || 420) === value ? "on" : "", label);
+    option.type = "button";
+    option.setAttribute("aria-pressed", String(Number(S.devtools_size || 420) === value));
+    option.onclick = () => {
+      S.devtools_size = value;
+      send({ cmd: "devtools_size", size: value });
+      [...devtoolsSize.children].forEach((child) => {
+        const selected = child === option;
+        child.classList.toggle("on", selected);
+        child.setAttribute("aria-pressed", String(selected));
+      });
+    };
+    devtoolsSize.append(option);
+  });
   dialog(v, "Settings", [
     field("Appearance", seg),
     field("Developer tools · dock", devtoolsDock),
+    field("Developer tools · size", devtoolsSize),
     field("Browsing", sw),
     field("Sidebar", compact),
     field("Automatic cleanup", cleanup),
