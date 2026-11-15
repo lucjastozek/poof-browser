@@ -1030,7 +1030,7 @@ impl Browser {
                         is_down(0x10), // VK_SHIFT
                     );
                     if let Some(command) = command {
-                        args.Handled(BOOL(1))?;
+                        args.SetHandled(BOOL(1))?;
                         let body = json!({"t": "key", "k": command}).to_string();
                         let _ = shortcut_proxy.send_event(UserEvent::Page {
                             tab: shortcut_tab.clone(),
