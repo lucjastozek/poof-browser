@@ -2377,7 +2377,7 @@ mod devtools_frontend_tests {
                 assert!((width - 640.0).abs() < f64::EPSILON);
                 assert!((height - 480.0).abs() < f64::EPSILON);
             }
-            super::DevToolsMsg::PanelSize { .. } => panic!("unexpected panel-size message"),
+            _ => panic!("unexpected DevTools message"),
         }
 
         let size = serde_json::from_str::<super::DevToolsMsg>(
@@ -2391,6 +2391,12 @@ mod devtools_frontend_tests {
             }
             _ => panic!("unexpected DevTools message"),
         }
+
+        let responsive = serde_json::from_str::<super::DevToolsMsg>(
+            r#"{"t":"responsive_mode","active":true}"#,
+        )
+        .unwrap();
+        assert!(matches!(responsive, super::DevToolsMsg::ResponsiveMode { active: true }));
     }
 
     #[test]
