@@ -505,7 +505,7 @@ impl Browser {
         }
         let Ok(msg) = serde_json::from_str::<PageMsg>(body) else { return };
         match msg {
-            PageMsg::Meta { u, f } => {
+            PageMsg::Meta { u } => {
                 let mut persist = false;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     if let Some(u) = u.filter(|u| ok_url(u, 4096, false)) {
@@ -969,6 +969,8 @@ impl Browser {
             }
             let favicon_proxy = self.proxy.clone();
             let favicon_tab = id.clone();
+            let initial_proxy = favicon_proxy.clone();
+            let initial_tab = favicon_tab.clone();
             unsafe {
                 if let Ok(core) = wv.controller().CoreWebView2() {
                     if let Ok(core15) = core.cast::<ICoreWebView2_15>() {
@@ -995,8 +997,6 @@ impl Browser {
                         // The initial navigation may have started before this handler
                         // was attached. Fetch the current icon once as well as listening
                         // for subsequent changes.
-                        let initial_proxy = favicon_proxy.clone();
-                        let initial_tab = favicon_tab.clone();
                         let completed = GetFaviconCompletedHandler::create(Box::new(move |result, stream| {
                             let data_uri = result.ok()
                                 .and_then(|_| stream.as_ref().and_then(stream_to_png))
