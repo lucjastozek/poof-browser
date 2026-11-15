@@ -9,7 +9,8 @@ use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
+    thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tao::{
@@ -189,6 +190,9 @@ enum Cmd {
     Back,
     Forward,
     Reload,
+    DevToolsToggle,
+    DevToolsPosition { position: String },
+    DevToolsSize { size: f64 },
 }
 
 #[derive(Deserialize)]
@@ -217,6 +221,9 @@ pub struct Browser {
     overlay: bool,
     fullscreen: bool,
     closed_tabs: Vec<(String, String)>,
+    devtools_open: bool,
+    devtools: Option<WebView>,
+    devtools_tab: Option<String>,
 }
 
 // ---------- geometry ----------
@@ -333,6 +340,7 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
             0x35 => "tab_5", 0x36 => "tab_6", 0x37 => "tab_7", _ => "tab_8",
         }),
         0x39 => Some("tab_last"),
+        0x7B if !ctrl && !alt && !shift => Some("devtools_toggle"), // F12
         VK_TAB => Some("tab_next"),
         _ => None,
     }
@@ -344,6 +352,78 @@ fn clean_icon(s: &str) -> String {
 
 fn clip(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
+}
+
+#[cfg(windows)]
+fn devtools_target_id(webview: &WebView) -> Result<String> {
+    use std::sync::{Arc, Mutex};
+    use webview2_com::{
+        CallDevToolsProtocolMethodCompletedHandler,
+        Microsoft::Web::WebView2::Win32::*,
+    };
+
+    let core = unsafe { webview.controller().CoreWebView2()? };
+    let result = Arc::new(Mutex::new(None));
+    let result_slot = Arc::clone(&result);
+    unsafe {
+        CallDevToolsProtocolMethodCompletedHandler::wait_for_async_operation(
+            Box::new(move |handler| {
+                core.CallDevToolsProtocolMethod("Target.getTargetInfo", "{}", &handler)
+            }),
+            Box::new(move |status, value| {
+                status.ok()?;
+                let json = value.to_string()?;
+                *result_slot.lock().map_err(|_| anyhow::anyhow!("DevTools target result lock poisoned"))? = Some(json);
+                Ok(())
+            }),
+        )?;
+    }
+    let raw = result
+        .lock()
+        .map_err(|_| anyhow::anyhow!("DevTools target result lock poisoned"))?
+        .take()
+        .ok_or_else(|| anyhow::anyhow!("WebView2 returned no DevTools target"))?;
+    let parsed: Value = serde_json::from_str(&raw)?;
+    parsed["targetInfo"]["targetId"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| anyhow::anyhow!("WebView2 returned an invalid DevTools target ID"))
+}
+
+#[cfg(windows)]
+fn resolve_devtools_frontend(profile_dir: &Path, target_id: &str) -> Result<String> {
+    let port_file = [
+        profile_dir.join("EBWebView").join("DevToolsActivePort"),
+        profile_dir.join("DevToolsActivePort"),
+    ];
+    for _ in 0..100 {
+        for path in &port_file {
+            let Ok(contents) = fs::read_to_string(path) else { continue };
+            let Some(port) = contents.lines().next().and_then(|line| line.trim().parse::<u16>().ok()) else {
+                continue;
+            };
+            if port == 0 { continue; }
+            let endpoint = format!("http://127.0.0.1:{port}/json/list");
+            let Ok(response) = ureq::get(&endpoint)
+                .timeout(Duration::from_millis(400))
+                .call()
+            else { continue };
+            let Ok(body) = response.into_string() else { continue };
+            let Ok(targets) = serde_json::from_str::<Vec<Value>>(&body) else { continue };
+            let Some(target) = targets.iter().find(|item| item["id"].as_str() == Some(target_id)) else {
+                continue;
+            };
+            let Some(frontend) = target["devtoolsFrontendUrl"]
+                .as_str()
+                .or_else(|| target["devtoolsFrontendUrlCompat"].as_str())
+            else { continue };
+            if frontend.starts_with("/devtools/inspector.html") {
+                return Ok(format!("http://127.0.0.1:{port}{frontend}"));
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    anyhow::bail!("WebView2 DevTools endpoint did not become ready for the active tab")
 }
 
 #[cfg(windows)]
@@ -486,6 +566,9 @@ impl Browser {
             overlay: false,
             fullscreen: false,
             closed_tabs: Vec::new(),
+            devtools_open: false,
+            devtools: None,
+            devtools_tab: None,
         };
         b.apply_theme();
         b.preinstall();
@@ -548,6 +631,12 @@ impl Browser {
     pub fn on_user_event(&mut self, ev: UserEvent) {
         match ev {
             UserEvent::CloseWindow => {},
+            UserEvent::DevToolsReady { tab, url } => self.show_devtools(&tab, &url),
+            UserEvent::DevToolsFailed { tab, message } => {
+                if self.devtools_open && self.visible.as_deref() == Some(tab.as_str()) {
+                    self.toast(&message);
+                }
+            }
             UserEvent::Ui(raw) => self.handle_ui(&raw),
             UserEvent::Page { tab, body } => self.handle_page(&tab, &body),
             UserEvent::Fullscreen { tab, active } => self.handle_fullscreen(&tab, active),
@@ -710,6 +799,7 @@ impl Browser {
                     }
                     "print" => { self.eval_visible("window.print()"); Ok(()) },
                     "favorite" => { self.set_kind(tab, Kind::Favorite); Ok(()) },
+                    "devtools_toggle" => self.toggle_devtools(),
                     _ => Ok(()),
                 };
                 if let Err(e) = r {
@@ -752,9 +842,17 @@ impl Browser {
                     if let Some(wv) = self.visible_webview() {
                         let _ = wv.set_visible(false);
                     }
+                    if let Some(devtools) = self.devtools.as_ref() {
+                        let _ = devtools.set_visible(false);
+                    }
                 } else if let Some(wv) = self.visible_webview() {
                     let _ = wv.set_visible(true);
                     let _ = wv.focus();
+                    if self.devtools_open {
+                        if let Some(devtools) = self.devtools.as_ref() {
+                            let _ = devtools.set_visible(true);
+                        }
+                    }
                 }
             }
             Cmd::NewTab { input } => self.new_tab(&normalize(&input))?,
@@ -931,8 +1029,107 @@ impl Browser {
             Cmd::Back => self.eval_visible("history.back()"),
             Cmd::Forward => self.eval_visible("history.forward()"),
             Cmd::Reload => self.eval_visible("location.reload()"),
+            Cmd::DevToolsToggle => self.toggle_devtools()?,
+            Cmd::DevToolsPosition { position } => {
+                if matches!(position.as_str(), "right" | "left" | "bottom" | "top") {
+                    self.p.devtools_position = position;
+                    self.save();
+                    self.relayout();
+                }
+            }
+            Cmd::DevToolsSize { size } => {
+                if size.is_finite() {
+                    self.p.devtools_size = size.clamp(240.0, 800.0);
+                    self.save();
+                    self.relayout();
+                }
+            }
         }
         Ok(())
+    }
+
+    fn toggle_devtools(&mut self) -> Result<()> {
+        if self.devtools_open {
+            self.devtools_open = false;
+            self.devtools_tab = None;
+            if let Some(devtools) = self.devtools.as_ref() {
+                let _ = devtools.set_visible(false);
+            }
+            self.relayout();
+            return Ok(());
+        }
+        self.devtools_open = true;
+        self.relayout();
+        self.attach_devtools()
+    }
+
+    fn attach_devtools(&mut self) -> Result<()> {
+        let Some(tab_id) = self.visible.clone() else {
+            self.toast("Open a page before opening Developer Tools.");
+            return Ok(());
+        };
+        let Some(tab) = self.tabs.iter().find(|tab| tab.id == tab_id) else {
+            return Ok(());
+        };
+        let Some(webview) = tab.webview.as_ref() else {
+            return Ok(());
+        };
+        #[cfg(windows)]
+        {
+            let target_id = devtools_target_id(webview)?;
+            let profile_dir = self.root.join("profiles").join(&tab.profile_id);
+            let proxy = self.proxy.clone();
+            thread::spawn(move || {
+                let event = match resolve_devtools_frontend(&profile_dir, &target_id) {
+                    Ok(url) => UserEvent::DevToolsReady { tab: tab_id, url },
+                    Err(error) => UserEvent::DevToolsFailed {
+                        tab: tab_id,
+                        message: format!("Developer Tools could not attach: {error}"),
+                    },
+                };
+                let _ = proxy.send_event(event);
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            self.toast("Embedded Developer Tools are available on Windows only.");
+        }
+        Ok(())
+    }
+
+    fn show_devtools(&mut self, tab: &str, url: &str) {
+        if !self.devtools_open || self.visible.as_deref() != Some(tab) {
+            return;
+        }
+        let result = if let Some(devtools) = self.devtools.as_ref() {
+            devtools.load_url(url)
+        } else {
+            let (page_bounds, tools_bounds) = self.layout_rects();
+            let bounds = tools_bounds.unwrap_or(page_bounds);
+            match WebViewBuilder::new_with_web_context(&mut self._ui_ctx)
+                .with_bounds(bounds)
+                .with_visible(false)
+                .with_url(url)
+                .build_as_child(&self.window)
+            {
+                Ok(devtools) => {
+                    self.devtools = Some(devtools);
+                    Ok(())
+                }
+                Err(error) => Err(error),
+            }
+        };
+        match result {
+            Ok(()) => {
+                self.devtools_tab = Some(tab.to_string());
+                self.relayout();
+                if let Some(devtools) = self.devtools.as_ref() {
+                    let _ = devtools.set_visible(true);
+                    let _ = devtools.focus();
+                }
+            }
+            Err(error) => self.toast(&format!("Could not open Developer Tools: {error}")),
+        }
     }
 
     // ---------- model helpers ----------
@@ -1068,7 +1265,13 @@ impl Browser {
         #[cfg(windows)]
         let builder = {
             use wry::WebViewBuilderExtWindows;
-            builder.with_browser_extensions_enabled(true)
+            builder
+                .with_browser_extensions_enabled(true)
+                // Keep Wry's defaults while enabling a random loopback CDP port
+                // for this isolated profile. The port is read from DevToolsActivePort.
+                .with_additional_browser_args(
+                    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=0",
+                )
         };
 
         let wv = builder.build_as_child(&self.window)?;
@@ -1195,6 +1398,9 @@ impl Browser {
             }
             let _ = wv.set_visible(false);
         }
+        if let Some(devtools) = self.devtools.as_ref() {
+            let _ = devtools.set_visible(false);
+        }
     }
 
     fn activate(&mut self, id: &str) -> Result<()> {
@@ -1207,7 +1413,7 @@ impl Browser {
         }
         self.hide_visible();
         self.ensure_webview(idx)?;
-        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
+        let (rect, _) = self.layout_rects();
         self.overlay = false;
         if let Some(wv) = &self.tabs[idx].webview {
             apply_webview_bounds(wv, rect, self.window.scale_factor())?;
@@ -1231,6 +1437,9 @@ impl Browser {
         }
         self.visible = Some(id.to_string());
         self.active.insert(self.p.current_space.clone(), id.to_string());
+        if self.devtools_open {
+            self.attach_devtools()?;
+        }
         Ok(())
     }
 
@@ -1242,6 +1451,9 @@ impl Browser {
             self.visible = None;
             if let Some(wv) = &self.tabs[idx].webview {
                 let _ = wv.set_visible(false);
+            }
+            if let Some(devtools) = self.devtools.as_ref() {
+                let _ = devtools.set_visible(false);
             }
         }
         if self.tabs[idx].kind == Kind::Normal {
@@ -1440,6 +1652,57 @@ impl Browser {
     }
 
     // ---------- output ----------
+    fn layout_rects(&self) -> (Rect, Option<Rect>) {
+        let base = content_rect(
+            &self.window,
+            self.p.sidebar_collapsed,
+            self.p.sidebar_compact,
+            self.p.sidebar_width,
+            self.fullscreen,
+        );
+        if !self.devtools_open || self.fullscreen {
+            return (base, None);
+        }
+        let (window_w, window_h) = logical(&self.window);
+        let sidebar = if self.p.sidebar_collapsed {
+            0.0
+        } else if self.p.sidebar_compact {
+            SIDEBAR_COMPACT_W
+        } else {
+            self.p.sidebar_width
+        };
+        let x = sidebar + INSET;
+        let y = TOPBAR_H;
+        let width = (window_w - sidebar - 2.0 * INSET).max(1.0);
+        let height = (window_h - TOPBAR_H - INSET).max(1.0);
+        let gap = 4.0;
+        let size = self.p.devtools_size.clamp(240.0, 800.0);
+        let position = self.p.devtools_position.as_str();
+        let (page, tools) = match position {
+            "left" => {
+                let tools_w = size.min((width - gap - 1.0).max(1.0));
+                (rect(x + tools_w + gap, y, (width - tools_w - gap).max(1.0), height),
+                 rect(x, y, tools_w, height))
+            }
+            "bottom" => {
+                let tools_h = size.min((height - gap - 1.0).max(1.0));
+                (rect(x, y, width, (height - tools_h - gap).max(1.0)),
+                 rect(x, y + height - tools_h, width, tools_h))
+            }
+            "top" => {
+                let tools_h = size.min((height - gap - 1.0).max(1.0));
+                (rect(x, y + tools_h + gap, width, (height - tools_h - gap).max(1.0)),
+                 rect(x, y, width, tools_h))
+            }
+            _ => {
+                let tools_w = size.min((width - gap - 1.0).max(1.0));
+                (rect(x, y, (width - tools_w - gap).max(1.0), height),
+                 rect(x + width - tools_w, y, tools_w, height))
+            }
+        };
+        (page, Some(tools))
+    }
+
     pub fn relayout(&self) {
         let (w, h) = logical(&self.window);
         if w < 1.0 || h < 1.0 {
@@ -1447,9 +1710,9 @@ impl Browser {
         }
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
         let _ = self.sidebar.set_visible(!self.fullscreen);
+        let (page_bounds, devtools_bounds) = self.layout_rects();
         if let Some(wv) = self.visible_webview() {
-            let bounds = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
-            if let Err(error) = apply_webview_bounds(wv, bounds, self.window.scale_factor()) {
+            if let Err(error) = apply_webview_bounds(wv, page_bounds, self.window.scale_factor()) {
                 log::warn!("resizing content WebView failed: {error:#}");
             }
             #[cfg(windows)]
@@ -1460,9 +1723,15 @@ impl Browser {
                     w - left - 2.0 * INSET,
                     h - TOPBAR_H - INSET,
                     self.window.scale_factor(),
-                    !self.fullscreen,
+                    !self.fullscreen && !self.devtools_open,
                 );
             }
+        }
+        if let (Some(devtools), Some(bounds)) = (self.devtools.as_ref(), devtools_bounds) {
+            if let Err(error) = apply_webview_bounds(devtools, bounds, self.window.scale_factor()) {
+                log::warn!("resizing DevTools WebView failed: {error:#}");
+            }
+            let _ = devtools.set_visible(self.devtools_open && !self.fullscreen && !self.overlay);
         }
     }
 
@@ -1558,6 +1827,9 @@ impl Browser {
             "sidebar_collapsed": self.p.sidebar_collapsed,
             "sidebar_width": self.p.sidebar_width,
             "sidebar_compact": self.p.sidebar_compact,
+            "devtools_open": self.devtools_open,
+            "devtools_position": self.p.devtools_position,
+            "devtools_size": self.p.devtools_size,
             "profile_cleanup": self.p.profiles.iter()
                 .find(|p| p.id == sp.profile_id)
                 .map(|p| json!({
