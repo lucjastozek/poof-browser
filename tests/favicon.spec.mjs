@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const script = await readFile("src/browser/init_script.js", "utf8");
 const browser = await chromium.launch({ headless: true });
+await mkdir("artifacts", { recursive: true });
 
 async function faviconFor(url, requestedUrl, html) {
   const context = await browser.newContext();
@@ -27,6 +28,7 @@ async function faviconFor(url, requestedUrl, html) {
   await page.addScriptTag({ content: script });
   await page.evaluate(() => window.dispatchEvent(new Event("load")));
   await page.waitForFunction(() => window.__poofMessages.some((m) => m.t === "meta"));
+  await page.screenshot({ path: `artifacts/${new URL(url).hostname}.png`, fullPage: true });
   const message = await page.evaluate(() => window.__poofMessages.find((m) => m.t === "meta"));
   await context.close();
   return message.f;
