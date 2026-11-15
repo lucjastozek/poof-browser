@@ -152,14 +152,9 @@ function icon(t, guess = true) {
     if (src && !candidates.includes(src)) candidates.push(src);
   };
   add(t.favicon);
-  // If the tab has Gmail's explicit product icon, never silently replace it
-  // with Google's generic account icon after an image-load failure.
-  const hasGmailProductIcon =
-    typeof t.favicon === "string" &&
-    t.favicon.startsWith("https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico");
   try {
     const site = new URL(t.url);
-    if (guess && !hasGmailProductIcon) {
+    if (guess) {
       add(new URL("/favicon.ico", site).href);
       add(new URL("/apple-touch-icon.png", site).href);
       add(
