@@ -196,11 +196,14 @@ fn devtools_init_script(position: &str, size: f64) -> String {
         r#"
 (() => {{
   try {{
-    localStorage.setItem("currentDockState", JSON.stringify("{dock_side}"));
-    localStorage.setItem("inspector-view.split-view-state", JSON.stringify({{
-      vertical: {{size: {size}}},
-      horizontal: {{size: {size}}}
-    }}));
+    if (localStorage.getItem("__poofDevToolsLayoutInitialized") !== "1") {{
+      localStorage.setItem("currentDockState", JSON.stringify("{dock_side}"));
+      localStorage.setItem("inspector-view.split-view-state", JSON.stringify({{
+        vertical: {{size: {size}}},
+        horizontal: {{size: {size}}}
+      }}));
+      localStorage.setItem("__poofDevToolsLayoutInitialized", "1");
+    }}
   }} catch (_) {{}}
   {DEVTOOLS_BOUNDS_INIT_JS}
   const applyPanelLayout = () => {{
@@ -209,7 +212,6 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
     rootSplit.showBoth();
-    rootSplit.setSidebarSize({size});
     const resizer = rootSplit.resizerElement();
     let resizingPanel = false;
     resizer.addEventListener("pointerdown", () => {{ resizingPanel = true; }});
@@ -2212,7 +2214,7 @@ mod devtools_frontend_tests {
         assert!(script.contains("vertical: {size: 560}"));
         assert!(script.contains("horizontal: {size: 560}"));
         assert!(script.contains("setInspectedPageBounds"));
-        assert!(script.contains("rootSplit.setSidebarSize(560)"));
+        assert!(script.contains("__poofDevToolsLayoutInitialized"));
         assert!(script.contains(r#"t: "panel_size""#));
     }
 
@@ -2221,7 +2223,7 @@ mod devtools_frontend_tests {
         let script = super::devtools_init_script("top", 420.0);
         assert!(script.contains("JSON.stringify(\"bottom\")"));
         assert!(script.contains("setSecondIsSidebar(false)"));
-        assert!(script.contains("rootSplit.setSidebarSize(420)"));
+        assert!(script.contains("rootSplit.setSecondIsSidebar(false)"));
     }
 
     #[test]
