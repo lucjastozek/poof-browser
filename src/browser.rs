@@ -1285,7 +1285,7 @@ impl Browser {
                 .with_bounds(bounds)
                 .with_visible(false)
                 .with_devtools(false)
-                .with_initialization_script_for_main_only(&init_script, false)
+                .with_initialization_script_for_main_only(init_script.clone(), false)
                 .with_ipc_handler(move |request| {
                     let Ok(message) = serde_json::from_str::<DevToolsMsg>(request.into_body().as_str()) else {
                         return;
