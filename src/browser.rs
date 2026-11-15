@@ -534,9 +534,8 @@ impl Browser {
                 if persist {
                     self.save();
                 }
-                // Meta messages carry the favicon used by the sidebar. Updating
-                // Tab alone is not enough: the sidebar is a separate WebView and
-                // only sees changes when its serialized state is pushed.
+                // The sidebar is a separate WebView and only sees tab changes
+                // when its serialized state is pushed.
                 self.push_state();
             }
             PageMsg::Favicon { f } => {
@@ -1002,7 +1001,7 @@ impl Browser {
                             let data_uri = result.ok()
                                 .and_then(|_| stream.as_ref().and_then(stream_to_png))
                                 .map(|bytes| format!("data:image/png;base64,{}", STANDARD.encode(bytes)));
-                            let body = serde_json::to_string(&PageMsg::Favicon { f: data_uri }).unwrap_or_default();
+                            let body = json!({"t": "favicon", "f": data_uri}).to_string();
                             let _ = initial_proxy.send_event(UserEvent::Page { tab: initial_tab.clone(), body });
                             Ok(())
                         }));
