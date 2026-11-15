@@ -217,6 +217,7 @@ pub struct Browser {
     visible: Option<String>,
     overlay: bool,
     fullscreen: bool,
+    closed_tabs: Vec<(String, String)>,
 }
 
 // ---------- geometry ----------
@@ -361,6 +362,7 @@ impl Browser {
             visible: None,
             overlay: false,
             fullscreen: false,
+            closed_tabs: Vec::new(),
         };
         b.apply_theme();
         b.preinstall();
@@ -567,8 +569,20 @@ impl Browser {
                         Ok(())
                     }
                     "close" => self.close_tab(tab),
+                    "reopen" => self.reopen_closed_tab(),
+                    "back" => { self.eval_visible("history.back()"); Ok(()) },
+                    "forward" => { self.eval_visible("history.forward()"); Ok(()) },
+                    "reload" => { self.eval_visible("location.reload()"); Ok(()) },
                     "space_next" => self.cycle_space(1),
                     "space_prev" => self.cycle_space(-1),
+                    "tab_next" => self.cycle_tab(1),
+                    "tab_prev" => self.cycle_tab(-1),
+                    "tab_1" | "tab_2" | "tab_3" | "tab_4" | "tab_5" | "tab_6" | "tab_7" | "tab_8" | "tab_last" => {
+                        let index = if k == "tab_last" { usize::MAX } else { k[4..].parse::<usize>().unwrap_or(1).saturating_sub(1) };
+                        self.activate_tab_index(index)
+                    }
+                    "print" => { self.eval_visible("window.print()"); Ok(()) },
+                    "favorite" => { self.set_kind(tab, Kind::Favorite); Ok(()) },
                     _ => Ok(()),
                 };
                 if let Err(e) = r {
@@ -1119,6 +1133,8 @@ impl Browser {
             }
         }
         if self.tabs[idx].kind == Kind::Normal {
+            self.closed_tabs.insert(0, (self.tabs[idx].url.clone(), self.tabs[idx].space_id.clone().unwrap_or_else(|| self.p.current_space.clone())));
+            self.closed_tabs.truncate(25);
             self.tabs.remove(idx); // drops the WebView
         } else {
             // Pinned / favorite: unload and reset to its home URL, keep the entry.
@@ -1132,6 +1148,31 @@ impl Browser {
         }
         self.save();
         Ok(())
+    }
+
+    fn reopen_closed_tab(&mut self) -> Result<()> {
+        let Some((url, _space)) = self.closed_tabs.first().cloned() else { return Ok(()) };
+        self.closed_tabs.remove(0);
+        self.new_tab(&url)
+    }
+
+    fn cycle_tab(&mut self, direction: i32) -> Result<()> {
+        let ids: Vec<String> = self.tabs.iter()
+            .filter(|t| t.space_id.as_deref() == Some(self.p.current_space.as_str()) || t.kind == Kind::Favorite)
+            .map(|t| t.id.clone()).collect();
+        if ids.len() < 2 { return Ok(()); }
+        let current = self.visible.as_ref().and_then(|id| ids.iter().position(|x| x == id)).unwrap_or(0) as i32;
+        let next = (current + direction).rem_euclid(ids.len() as i32) as usize;
+        self.activate(&ids[next])
+    }
+
+    fn activate_tab_index(&mut self, index: usize) -> Result<()> {
+        let ids: Vec<String> = self.tabs.iter()
+            .filter(|t| t.space_id.as_deref() == Some(self.p.current_space.as_str()) || t.kind == Kind::Favorite)
+            .map(|t| t.id.clone()).collect();
+        if ids.is_empty() { return Ok(()); }
+        let target = if index == usize::MAX { ids.len() - 1 } else { index.min(ids.len() - 1) };
+        self.activate(&ids[target])
     }
 
     // ---------- spaces ----------
