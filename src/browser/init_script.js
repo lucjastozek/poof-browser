@@ -277,7 +277,9 @@
       // instead of their own product icon. Ask each product host for its own
       // favicon endpoint rather than trusting that generic link.
       if (appHost === "mail.google.com") {
-        return "https://gmail.google.com/favicon.ico";
+        // Use Google's actual Gmail icon asset, not the hostname's generic
+        // favicon endpoint (which can resolve to the shared Google G).
+        return "https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico";
       }
       var googleProductHosts = [
         "calendar.google.com",
