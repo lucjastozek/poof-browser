@@ -33,15 +33,21 @@ try {
   // Test the production URL normalizer used by the sidebar's actual icon loader.
   const uiSource = await readFile("ui/scripts/core.js", "utf8");
   const sidebarCss = await readFile("ui/styles/sidebar.css", "utf8");
-  assert.match(sidebarCss, /#favs\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s,
-    "Favorite tiles must use equal-width grid columns");
-  assert.match(sidebarCss, /\.tile\s*\{[^}]*height:\s*46px/s,
-    "Favorite tiles must keep a consistent height");
-  assert.match(sidebarCss, /\.tile \.ico img\s*\{[^}]*width:\s*18px;[^}]*height:\s*18px;[^}]*object-fit:\s*contain;/s,
-    "Favorite favicons must stay small and preserve their aspect ratio");
+  assert.match(sidebarCss, /#favs\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/s,
+    "Favorite tiles must retain their original wrapping layout");
+  assert.match(sidebarCss, /\.tile\s*\{[^}]*flex:\s*1 1 calc\(\(100% - 18px\) \/ 4\);[^}]*height:\s*46px/s,
+    "Favorite tiles must retain their original dimensions");
+  assert.match(sidebarCss, /\.tile \.ico img\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px/s,
+    "Only the favorite favicon images should be reduced in size");
+  assert.ok(uiSource.indexOf("add(t.favicon);") <
+    uiSource.indexOf('add(new URL("/favicon.ico", site).href)'),
+    "The browser-provided site favicon must remain the first choice");
+  assert.ok(uiSource.indexOf('add(new URL("/favicon.ico", site).href)') <
+    uiSource.indexOf('add(new URL("/apple-touch-icon.png", site).href)'),
+    "Site-specific favicon files must be tried before generic fallbacks");
   assert.ok(uiSource.indexOf('add(new URL("/apple-touch-icon.png", site).href)') <
-    uiSource.indexOf("add(t.favicon);"),
-    "Higher-resolution touch icons must be tried before low-resolution native favicons");
+    uiSource.indexOf("https://www.google.com/s2/favicons"),
+    "Google's generic favicon service must remain the final fallback");
   const freshFn = uiSource.match(/function freshFaviconUrl\(src\) \{[\s\S]*?\n\}/)?.[0];
   assert.ok(freshFn, "Could not extract the production favicon URL normalizer");
   assert.ok(uiSource.includes("i.src = freshFaviconUrl(candidates[index]);"),
