@@ -210,12 +210,21 @@
       if (!e.isTrusted || !e.ctrlKey) return;
       var key = e.key.toLowerCase(),
         k = null;
-      if (e.altKey && e.key === "ArrowRight") k = "space_next";
-      else if (e.altKey && e.key === "ArrowLeft") k = "space_prev";
-      else if (!e.altKey && !e.shiftKey) {
+      if (e.altKey && !e.ctrlKey && e.key === "ArrowRight") k = "forward";
+      else if (e.altKey && !e.ctrlKey && e.key === "ArrowLeft") k = "back";
+      else if (e.ctrlKey && !e.altKey && e.shiftKey && key === "t") k = "reopen";
+      else if (e.ctrlKey && !e.altKey && e.shiftKey && key === "r") k = "reload";
+      else if (e.ctrlKey && !e.altKey && e.shiftKey && e.key === "Tab") k = "tab_prev";
+      else if (e.ctrlKey && !e.altKey && e.key === "Tab") k = "tab_next";
+      else if (e.ctrlKey && !e.altKey && !e.shiftKey) {
         if (key === "t") k = "new_tab";
         else if (key === "w") k = "close";
         else if (key === "l") k = "focus_url";
+        else if (key === "r") k = "reload";
+        else if (key === "p") k = "print";
+        else if (key === "d") k = "favorite";
+        else if (/^[1-8]$/.test(key)) k = "tab_" + key;
+        else if (key === "9") k = "tab_last";
       }
       if (k) {
         e.preventDefault();
