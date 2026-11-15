@@ -163,6 +163,7 @@ const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
     };
     Object.defineProperty(value, "__poofBoundsPatched", {value: true});
   };
+  patch(host);
   try {
     Object.defineProperty(window, "InspectorFrontendHost", {
       configurable: true,
@@ -170,7 +171,6 @@ const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
       get: () => host,
       set: value => { host = value; patch(value); }
     });
-    patch(host);
   } catch (error) {
     console.error("Poof could not install the DevTools page-bounds bridge", error);
   }
