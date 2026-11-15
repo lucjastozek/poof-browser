@@ -984,7 +984,7 @@ impl Browser {
                                 let data_uri = result.ok()
                                     .and_then(|_| stream.as_ref().and_then(stream_to_png))
                                     .map(|bytes| format!("data:image/png;base64,{}", STANDARD.encode(bytes)));
-                                let body = serde_json::to_string(&PageMsg::Favicon { f: data_uri }).unwrap_or_default();
+                                let body = json!({"t": "favicon", "f": data_uri}).to_string();
                                 let _ = callback_proxy.send_event(UserEvent::Page { tab: callback_tab.clone(), body });
                                 Ok(())
                             }));
