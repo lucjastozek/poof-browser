@@ -94,7 +94,6 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
     }
 }
 
-const SIDEBAR_W: f64 = 280.0;
 const SIDEBAR_MIN_W: f64 = 180.0;
 const SIDEBAR_MAX_W: f64 = 480.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
@@ -1003,7 +1002,7 @@ impl Browser {
             use webview2_com::{
                 AcceleratorKeyPressedEventHandler, Microsoft::Web::WebView2::Win32::*,
             };
-            use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
+            use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 
             let shortcut_proxy = self.proxy.clone();
             let shortcut_tab = id.clone();
@@ -1022,7 +1021,7 @@ impl Browser {
                         args.KeyEventLParam(&mut key_event_lparam)?;
                         let mut virtual_key = 0;
                         args.VirtualKey(&mut virtual_key)?;
-                        let is_down = |virtual_key| GetKeyState(virtual_key) < 0;
+                        let is_down = |virtual_key| GetAsyncKeyState(virtual_key) < 0;
                         let command = browser_shortcut(
                             virtual_key,
                             is_down(0x11), // VK_CONTROL
@@ -1144,7 +1143,7 @@ impl Browser {
                         let handler = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
                             let Some(sender) = sender else { return Ok(()) };
                             let mut contains = BOOL::default();
-                            if let Err(error) = unsafe { sender.ContainsFullScreenElement(&mut contains) } {
+                            if let Err(error) = sender.ContainsFullScreenElement(&mut contains) {
                                 log::warn!("reading WebView2 fullscreen state failed: {error}");
                                 return Ok(());
                             }
