@@ -366,21 +366,19 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
     let core = unsafe { webview.controller().CoreWebView2()? };
     let result = Arc::new(Mutex::new(None));
     let result_slot = Arc::clone(&result);
-    unsafe {
-        CallDevToolsProtocolMethodCompletedHandler::wait_for_async_operation(
-            Box::new(move |handler| unsafe {
-                core.CallDevToolsProtocolMethod(w!("Target.getTargetInfo"), w!("{}"), &handler)?;
-                Ok(())
-            }),
-            Box::new(move |status, value| {
-                status?;
-                if let Ok(mut slot) = result_slot.lock() {
-                    *slot = Some(value);
-                }
-                Ok(())
-            }),
-        )?;
-    }
+    CallDevToolsProtocolMethodCompletedHandler::wait_for_async_operation(
+        Box::new(move |handler| unsafe {
+            core.CallDevToolsProtocolMethod(w!("Target.getTargetInfo"), w!("{}"), &handler)?;
+            Ok(())
+        }),
+        Box::new(move |status, value| {
+            status?;
+            if let Ok(mut slot) = result_slot.lock() {
+                *slot = Some(value);
+            }
+            Ok(())
+        }),
+    )?;
     let raw = result
         .lock()
         .map_err(|_| anyhow::anyhow!("DevTools target result lock poisoned"))?
