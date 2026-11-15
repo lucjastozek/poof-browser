@@ -5,8 +5,6 @@ import { chromium } from "playwright";
 const browser = await chromium.launch({ headless: true });
 await mkdir("artifacts", { recursive: true });
 try {
-  // The injected page script now reports navigation metadata only. Favicons
-  // are supplied by WebView2's native FaviconChanged/GetFavicon API.
   const init = await readFile("src/browser/init_script.js", "utf8");
   const context = await browser.newContext();
   await context.addInitScript(() => {
@@ -32,34 +30,28 @@ try {
     "Old URL-scraping favicon implementation must be removed");
   await context.close();
 
-  // Exercise the real sidebar loader with the same PNG data URI emitted by
-  // the native WebView2 GetFavicon callback.
+  // Test the production URL normalizer used by the sidebar's actual icon loader.
   const uiSource = await readFile("ui/scripts/core.js", "utf8");
   const freshFn = uiSource.match(/function freshFaviconUrl\(src\) \{[\s\S]*?\n\}/)?.[0];
-  const iconFn = uiSource.match(/function icon\(t, guess = true\) \{[\s\S]*?\n\}\nconst pretty/)?.[0]?.replace(/\nconst pretty$/, "");
-  assert.ok(freshFn && iconFn, "Could not extract the production sidebar icon loader");
+  assert.ok(freshFn, "Could not extract the production favicon URL normalizer");
+  assert.ok(uiSource.includes("i.src = freshFaviconUrl(candidates[index]);"),
+    "Sidebar icon loader must use the production favicon URL normalizer");
   const uiPage = await browser.newPage();
   await uiPage.setContent("<html><body></body></html>");
-  await uiPage.addScriptTag({ content: `
-    const FAVICON_CACHE_TAG = "ci";
-    const el = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
-    const ic = () => document.createElement("span");
-    ${freshFn}
-    ${iconFn}
-    window.__poofIcon = icon;
-  `);
+  await uiPage.addScriptTag({ content: freshFn + "\nwindow.__freshFaviconUrl = freshFaviconUrl;" });
   const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
   await uiPage.evaluate(src => {
-    const node = window.__poofIcon({ favicon: src, url: "https://example.test/" });
-    node.id = "native-favicon";
-    document.body.append(node);
+    const img = new Image();
+    img.id = "native-favicon";
+    img.src = window.__freshFaviconUrl(src);
+    document.body.append(img);
   }, png);
   await uiPage.waitForFunction(() => {
-    const img = document.querySelector("#native-favicon img");
+    const img = document.querySelector("#native-favicon");
     return img && img.complete;
   });
   const loaded = await uiPage.evaluate(() => {
-    const img = document.querySelector("#native-favicon img");
+    const img = document.querySelector("#native-favicon");
     return { src: img.src, width: img.naturalWidth, height: img.naturalHeight };
   });
   assert.equal(loaded.src, png, "Sidebar must preserve native favicon data without URL rewriting");
@@ -78,11 +70,11 @@ try {
     "WebView2 GetFavicon must retrieve the engine-decoded image");
   assert.ok(rust.includes("COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG"),
     "WebView2 must normalize ICO and SVG favicons to PNG");
-  assert.ok(rust.includes("data:image/png;base64,"),
-    "Native PNG bytes must be passed to the sidebar as an embedded image");
+  assert.equal(rust.split('json!({"t": "favicon", "f": data_uri}).to_string()').length - 1, 2,
+    "Both initial and changed favicons must use the native IPC payload");
   assert.ok(rust.includes("body.len() > 700_000"),
     "IPC size limit must allow bounded embedded favicon data");
-  console.log("PASS: native WebView2 favicon handoff and production sidebar image loader");
+  console.log("PASS: native WebView2 favicon handoff and sidebar PNG handling");
 } finally {
   await browser.close();
 }
