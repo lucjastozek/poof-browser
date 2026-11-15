@@ -269,9 +269,11 @@ mod devtools_state_tests {
 
     #[test]
     fn invalid_devtools_preferences_are_sanitized() {
-        let mut state = Persisted::default();
-        state.devtools_position = "floating".into();
-        state.devtools_size = f64::NAN;
+        let mut state = Persisted {
+            devtools_position: "floating".into(),
+            devtools_size: f64::NAN,
+            ..Persisted::default()
+        };
         state.sanitize_devtools_preferences();
         assert_eq!(state.devtools_position, "right");
         assert_eq!(state.devtools_size, 420.0);
