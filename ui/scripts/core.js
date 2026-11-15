@@ -124,18 +124,6 @@ mq.addEventListener("change", () => applyMode(pref));
 applyMode("system");
 
 /* ---------- state ---------- */
-const FAVICON_CACHE_TAG = Date.now().toString(36);
-function freshFaviconUrl(src) {
-  try {
-    const url = new URL(src);
-    // Native WebView2 favicons are embedded PNGs and must not be rewritten.
-    if (url.protocol === "data:") return src;
-    url.searchParams.set("_poof_icon_refresh", FAVICON_CACHE_TAG);
-    return url.href;
-  } catch (e) {
-    return src;
-  }
-}
 let S = null,
   prevIdx = -1,
   ov = null,
@@ -178,14 +166,14 @@ function icon(t, guess = true) {
   let index = 0;
   i.onerror = () => {
     index += 1;
-    if (index < candidates.length) i.src = freshFaviconUrl(candidates[index]);
+    if (index < candidates.length) i.src = candidates[index];
     else showFallback();
   };
   i.onload = () => {
     if (!i.naturalWidth || !i.naturalHeight) i.onerror();
   };
   w.appendChild(i);
-  i.src = freshFaviconUrl(candidates[index]);
+  i.src = candidates[index];
   return w;
 }
 const pretty = (u) => {
