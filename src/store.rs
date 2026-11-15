@@ -19,8 +19,7 @@ pub const PREINSTALL: &[&str] = &["ohahllgiabjaoigichmmfljhkcfikeof"];
 pub fn parse_id(input: &str) -> Option<String> {
     input
         .split(|c: char| !c.is_ascii_alphanumeric())
-        .filter(|t| t.len() == 32 && t.bytes().all(|b| (b'a'..=b'p').contains(&b)))
-        .next_back()
+        .rfind(|t| t.len() == 32 && t.bytes().all(|b| (b'a'..=b'p').contains(&b)))
         .map(str::to_string)
 }
 
