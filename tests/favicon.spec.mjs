@@ -41,7 +41,7 @@ try {
     "https://mail.google.com/",
     '<title>Gmail</title>' + genericGoogleIcon,
   );
-  assert.equal(gmail, "https://gmail.google.com/favicon.ico",
+  assert.equal(gmail, "https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico",
     "Gmail must use its product favicon, not the generic Google icon");
 
   const redirectedLogin = await faviconFor(
@@ -49,7 +49,7 @@ try {
     "https://mail.google.com/",
     '<title>Sign in</title><form action="/signin"><input autocomplete="username"></form>' + genericGoogleIcon,
   );
-  assert.equal(redirectedLogin, "https://gmail.google.com/favicon.ico",
+  assert.equal(redirectedLogin, "https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico",
     "Gmail login redirects must retain the requested app favicon");
 
   for (const [host, expected] of [
@@ -65,6 +65,42 @@ try {
     assert.equal(actual, expected,
       `${host} must use its product-host favicon endpoint, not Google's generic icon`);
   }
+
+  // Exercise the actual sidebar icon loader against the official Gmail asset.
+  const uiSource = await readFile("ui/scripts/core.js", "utf8");
+  const freshFn = uiSource.match(/function freshFaviconUrl\\(src\\) \\{[\\s\\S]*?\\n\\}/)?.[0];
+  const iconFn = uiSource.match(/function icon\\(t, guess = true\\) \\{[\\s\\S]*?\\n\\}\\nconst pretty/)?.[0]?.replace(/\\nconst pretty$/, "");
+  assert.ok(freshFn && iconFn, "Could not extract the production sidebar icon loader");
+  const uiPage = await browser.newPage();
+  await uiPage.setContent("<html><body></body></html>");
+  await uiPage.addScriptTag({ content: `
+    const FAVICON_CACHE_TAG = "ci";
+    const el = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+    const ic = () => document.createElement("span");
+    ${freshFn}
+    ${iconFn}
+    window.__poofIcon = icon;
+  `});
+  const gmailAsset = "https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico";
+  await uiPage.evaluate((src) => {
+    const node = window.__poofIcon({ favicon: src, url: "https://accounts.google.com/" });
+    node.id = "gmail-icon-test";
+    document.body.append(node);
+  }, gmailAsset);
+  await uiPage.waitForFunction(() => {
+    const img = document.querySelector("#gmail-icon-test img");
+    return img && img.complete;
+  }, { timeout: 30000 });
+  const loadedIcon = await uiPage.evaluate(() => {
+    const img = document.querySelector("#gmail-icon-test img");
+    return { src: img.src, width: img.naturalWidth, height: img.naturalHeight };
+  });
+  assert.equal(loadedIcon.src, gmailAsset,
+    "Sidebar must request the direct Gmail asset without cache-busting parameters");
+  assert.ok(loadedIcon.width > 0 && loadedIcon.height > 0,
+    "Official Gmail favicon must actually load as an image");
+  await uiPage.screenshot({ path: "artifacts/gmail-sidebar-icon.png" });
+  await uiPage.close();
 
   // Regression guard for the native-to-sidebar handoff: updating Tab.favicon
   // must be followed by pushing the new state to the separate sidebar WebView.
