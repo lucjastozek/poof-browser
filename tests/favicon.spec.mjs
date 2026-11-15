@@ -67,7 +67,7 @@ try {
   await uiPage.close();
 
   const rust = await readFile("src/browser.rs", "utf8");
-  const metaBranch = rust.match(/PageMsg::Meta \{ u, f \} => \{([\s\S]*?)\n            \}\n            PageMsg::Favicon/);
+  const metaBranch = rust.match(/PageMsg::Meta \{ u \} => \{([\s\S]*?)\n            \}\n            PageMsg::Favicon/);
   assert.ok(metaBranch, "Rust page metadata handler must remain discoverable");
   assert.match(metaBranch[1], /self\.push_state\(\)/,
     "Page metadata must be pushed to the separate sidebar WebView");
