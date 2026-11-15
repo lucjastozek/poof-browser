@@ -405,12 +405,12 @@ window.__setState = (s) => {
     );
   }
   document.body.classList.toggle("has-page", !!s.active);
-  updateDevtoolsResizeHandle();
   document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
   document.body.classList.toggle(
     "compact",
     !!s.sidebar_compact && !s.sidebar_collapsed,
   );
+  updateDevtoolsResizeHandle();
   const isCollapsed = !!s.sidebar_collapsed;
   collapseBtn.title = isCollapsed ? "Expand sidebar" : "Collapse sidebar";
   collapseBtn.setAttribute("aria-label", collapseBtn.title);
