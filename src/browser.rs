@@ -278,6 +278,55 @@ fn ok_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// Map WebView2 accelerator keys to browser commands. Virtual-key values are
+/// the Win32 VK_* constants so this logic can be tested without a WebView.
+fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'static str> {
+    const VK_TAB: u32 = 0x09;
+    const VK_LEFT: u32 = 0x25;
+    const VK_RIGHT: u32 = 0x27;
+
+    if ctrl && alt && !shift {
+        return match key {
+            VK_LEFT => Some("space_prev"),
+            VK_RIGHT => Some("space_next"),
+            _ => None,
+        };
+    }
+    if alt && !ctrl && !shift {
+        return match key {
+            VK_LEFT => Some("back"),
+            VK_RIGHT => Some("forward"),
+            _ => None,
+        };
+    }
+    if !ctrl || alt {
+        return None;
+    }
+    if shift {
+        return match key {
+            0x54 => Some("reopen"), // T
+            0x52 => Some("reload"), // R
+            VK_TAB => Some("tab_prev"),
+            _ => None,
+        };
+    }
+    match key {
+        0x54 => Some("new_tab"),   // T
+        0x57 => Some("close"),     // W
+        0x4C => Some("focus_url"), // L
+        0x52 => Some("reload"),    // R
+        0x50 => Some("print"),     // P
+        0x44 => Some("favorite"),  // D
+        0x31..=0x38 => Some(match key {
+            0x31 => "tab_1", 0x32 => "tab_2", 0x33 => "tab_3", 0x34 => "tab_4",
+            0x35 => "tab_5", 0x36 => "tab_6", 0x37 => "tab_7", _ => "tab_8",
+        }),
+        0x39 => Some("tab_last"),
+        VK_TAB => Some("tab_next"),
+        _ => None,
+    }
+}
+
 fn clean_icon(s: &str) -> String {
     if valid_icon(s) { s.to_string() } else { "house".into() }
 }
@@ -946,6 +995,57 @@ impl Browser {
 
         let wv = builder.build_as_child(&self.window)?;
 
+        // Browser shortcuts must be handled by WebView2's native accelerator
+        // event. Chromium does not reliably dispatch browser-level Ctrl/Alt
+        // combinations to page JavaScript keydown listeners.
+        #[cfg(windows)]
+        {
+            use webview2_com::{
+                AcceleratorKeyPressedEventHandler,
+                Microsoft::Web::WebView2::Win32::*,
+            };
+            use windows::core::BOOL;
+            use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
+
+            let shortcut_proxy = self.proxy.clone();
+            let shortcut_tab = id.clone();
+            unsafe {
+                let handler = AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
+                    let Some(args) = args else { return Ok(()) };
+                    let kind = args.KeyEventKind()?;
+                    if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
+                        && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
+                    {
+                        return Ok(());
+                    }
+                    // Bit 30 is set when this key was already down, i.e. a repeat.
+                    if args.KeyEventLParam()? & (1 << 30) != 0 {
+                        return Ok(());
+                    }
+                    let is_down = |virtual_key| GetKeyState(virtual_key) < 0;
+                    let command = browser_shortcut(
+                        args.VirtualKey()?,
+                        is_down(0x11), // VK_CONTROL
+                        is_down(0x12), // VK_MENU
+                        is_down(0x10), // VK_SHIFT
+                    );
+                    if let Some(command) = command {
+                        args.Handled(BOOL(1))?;
+                        let body = json!({"t": "key", "k": command}).to_string();
+                        let _ = shortcut_proxy.send_event(UserEvent::Page {
+                            tab: shortcut_tab.clone(),
+                            body,
+                        });
+                    }
+                    Ok(())
+                }));
+                let mut token = 0;
+                if let Err(error) = wv.controller().add_AcceleratorKeyPressed(&handler, &mut token) {
+                    log::warn!("registering WebView2 keyboard shortcuts failed: {error}");
+                }
+            }
+        }
+
         // WebView2 owns favicon discovery and retrieval; no guessed URL requests.
         #[cfg(windows)]
         {
@@ -1457,5 +1557,35 @@ impl Browser {
                 .unwrap_or_else(|| json!({})),
         });
         let _ = self.sidebar.evaluate_script(&format!("window.__setState({state})"));
+    }
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::browser_shortcut;
+
+    #[test]
+    fn maps_common_browser_shortcuts() {
+        assert_eq!(browser_shortcut(0x54, true, false, false), Some("new_tab"));
+        assert_eq!(browser_shortcut(0x57, true, false, false), Some("close"));
+        assert_eq!(browser_shortcut(0x4C, true, false, false), Some("focus_url"));
+        assert_eq!(browser_shortcut(0x54, true, false, true), Some("reopen"));
+        assert_eq!(browser_shortcut(0x52, true, false, true), Some("reload"));
+        assert_eq!(browser_shortcut(0x09, true, false, false), Some("tab_next"));
+        assert_eq!(browser_shortcut(0x09, true, false, true), Some("tab_prev"));
+        assert_eq!(browser_shortcut(0x31, true, false, false), Some("tab_1"));
+        assert_eq!(browser_shortcut(0x39, true, false, false), Some("tab_last"));
+        assert_eq!(browser_shortcut(0x25, false, true, false), Some("back"));
+        assert_eq!(browser_shortcut(0x27, false, true, false), Some("forward"));
+        assert_eq!(browser_shortcut(0x25, true, true, false), Some("space_prev"));
+        assert_eq!(browser_shortcut(0x27, true, true, false), Some("space_next"));
+    }
+
+    #[test]
+    fn leaves_unhandled_and_unmodified_keys_alone() {
+        assert_eq!(browser_shortcut(0x41, false, false, false), None);
+        assert_eq!(browser_shortcut(0x46, true, false, false), None);
+        assert_eq!(browser_shortcut(0x25, false, false, false), None);
+        assert_eq!(browser_shortcut(0x54, true, true, false), None);
     }
 }
