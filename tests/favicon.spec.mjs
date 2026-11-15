@@ -39,8 +39,8 @@ try {
     "Favorite tiles must not retain the obsolete grid layout declaration");
   assert.match(sidebarCss, /\.tile\s*\{[^}]*flex:\s*1 1 calc\(\(100% - 18px\) \/ 4\);[^}]*height:\s*46px/s,
     "Favorite tiles must retain their original dimensions");
-  assert.match(sidebarCss, /\.tile \.ico img\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px/s,
-    "Only the favorite favicon images should be reduced in size");
+  assert.match(sidebarCss, /\.tile \.ico img\s*\{[^}]*width:\s*20px;[^}]*height:\s*20px/s,
+    "Favorite favicon images must retain the original 20px display size");
   assert.ok(uiSource.indexOf("add(t.favicon);") <
     uiSource.indexOf('add(new URL("/favicon.ico", site).href)'),
     "The browser-provided site favicon must remain the first choice");
