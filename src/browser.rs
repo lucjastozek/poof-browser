@@ -896,7 +896,7 @@ impl Browser {
         // redirects. The page script uses it only while the current document
         // looks like an authentication screen on a different host.
         let init_script = format!(
-            "window.__poofRequestedUrl = {};\\n{}",
+            "window.__poofRequestedUrl = {};\n{}",
             serde_json::to_string(&url)?,
             INIT_JS
         );
