@@ -190,46 +190,64 @@
   var last = "";
   function icon() {
     try {
+      var pageUrl = new URL(location.href);
+      var pageHost = pageUrl.hostname.toLowerCase();
       var links = Array.prototype.slice
         .call(document.querySelectorAll('link[rel~="icon" i]'))
         .map(function (link) {
           var href = link.getAttribute("href");
           if (!href) return null;
           try {
+            var url = new URL(href, pageUrl.href);
+            if (url.protocol !== "http:" && url.protocol !== "https:") return null;
             return {
-              url: new URL(href, location.href),
+              url: url,
               sizes: link.getAttribute("sizes") || "",
+              type: link.getAttribute("type") || "",
             };
           } catch (e) {
             return null;
           }
         })
         .filter(Boolean);
-      var pageHost = location.hostname.toLowerCase();
-      var isGoogleApp =
-        pageHost === "google.com" || pageHost.endsWith(".google.com");
-      // Google properties sometimes expose Google's generic favicon before
-      // their own app icon. Prefer an icon hosted by the actual page origin.
-      // This keeps Gmail, Calendar and Drive distinct instead of inheriting
-      // www.google.com/favicon.ico.
+
+      // A subdomain is often a separate web app (mail.example.com,
+      // calendar.example.com, drive.example.com). Do not let a sibling or
+      // parent site's generic favicon override the app's own icon.
       links.sort(function (a, b) {
-        var aLocal = a.url.origin === location.origin ? 1 : 0;
-        var bLocal = b.url.origin === location.origin ? 1 : 0;
-        if (isGoogleApp && aLocal !== bLocal) return bLocal - aLocal;
+        var aExactHost = a.url.hostname.toLowerCase() === pageHost ? 1 : 0;
+        var bExactHost = b.url.hostname.toLowerCase() === pageHost ? 1 : 0;
+        if (aExactHost !== bExactHost) return bExactHost - aExactHost;
+
+        var aSameOrigin = a.url.origin === pageUrl.origin ? 1 : 0;
+        var bSameOrigin = b.url.origin === pageUrl.origin ? 1 : 0;
+        if (aSameOrigin !== bSameOrigin) return bSameOrigin - aSameOrigin;
+
         var aSized = a.sizes && a.sizes.toLowerCase() !== "any" ? 1 : 0;
         var bSized = b.sizes && b.sizes.toLowerCase() !== "any" ? 1 : 0;
-        return bSized - aSized;
+        if (aSized !== bSized) return bSized - aSized;
+
+        var aPng = /png|svg|webp/i.test(a.type + " " + a.url.pathname) ? 1 : 0;
+        var bPng = /png|svg|webp/i.test(b.type + " " + b.url.pathname) ? 1 : 0;
+        return bPng - aPng;
       });
+
       var selected = links.length ? links[0].url : null;
-      if (
-        isGoogleApp &&
-        selected &&
-        selected.hostname.toLowerCase() === "www.google.com" &&
-        /favicon\.ico$/i.test(selected.pathname)
-      ) {
-        selected = null;
+      var selectedHost = selected && selected.hostname.toLowerCase();
+      var isSubdomain = pageHost.split(".").length > 2;
+      var selectedIsParentOrSibling =
+        selectedHost &&
+        selectedHost !== pageHost &&
+        (pageHost.endsWith("." + selectedHost) ||
+          selectedHost.endsWith("." + pageHost.split(".").slice(-2).join(".")));
+
+      // If the only declared icon belongs to a parent/sibling host, try the
+      // current app host's conventional favicon endpoint first. This is
+      // intentionally generic and applies to every multi-host web service.
+      if (isSubdomain && selectedIsParentOrSibling) {
+        return new URL("/favicon.ico", pageUrl.origin).href;
       }
-      return (selected || new URL("/favicon.ico", location.href)).href;
+      return (selected || new URL("/favicon.ico", pageUrl.origin)).href;
     } catch (e) {
       return null;
     }
