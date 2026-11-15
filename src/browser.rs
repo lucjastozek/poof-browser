@@ -2207,7 +2207,7 @@ mod devtools_frontend_tests {
         assert!(script.contains("horizontal: {size: 560}"));
         assert!(script.contains("setInspectedPageBounds"));
         assert!(script.contains("rootSplit.setSidebarSize(560)"));
-        assert!(script.contains("t: "panel_size""));
+        assert!(script.contains(r#"t: "panel_size""#));
     }
 
     #[test]
