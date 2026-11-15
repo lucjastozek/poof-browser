@@ -151,19 +151,19 @@ function icon(t, guess = true) {
   const add = (src) => {
     if (src && !candidates.includes(src)) candidates.push(src);
   };
+  add(t.favicon);
   try {
     const site = new URL(t.url);
     if (guess) {
+      add(new URL("/favicon.ico", site).href);
       add(new URL("/apple-touch-icon.png", site).href);
       add(
         "https://www.google.com/s2/favicons?domain=" +
           encodeURIComponent(site.hostname) +
           "&sz=64",
       );
-      add(new URL("/favicon.ico", site).href);
     }
   } catch (e) {}
-  add(t.favicon);
   const showFallback = () => {
     w.replaceChildren(ic("globe", 16));
     w.setAttribute("aria-label", "Website");
