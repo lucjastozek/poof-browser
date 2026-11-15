@@ -2227,6 +2227,24 @@ mod devtools_frontend_tests {
     }
 
     #[test]
+    fn parses_devtools_host_messages() {
+        let bounds = serde_json::from_str::<super::DevToolsMsg>(
+            r#"{"t":"inspected_page_bounds","x":12.0,"y":24.0,"width":640.0,"height":480.0}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            bounds,
+            super::DevToolsMsg::InspectedPageBounds { x: 12.0, y: 24.0, width: 640.0, height: 480.0 }
+        ));
+
+        let size = serde_json::from_str::<super::DevToolsMsg>(
+            r#"{"t":"panel_size","size":420.0}"#,
+        )
+        .unwrap();
+        assert!(matches!(size, super::DevToolsMsg::PanelSize { size: 420.0 }));
+    }
+
+    #[test]
     fn rejects_invalid_devtools_endpoint_values() {
         assert!(devtools_frontend_url(0, "A1B2C3").is_err());
         assert!(devtools_frontend_url(43123, "").is_err());
