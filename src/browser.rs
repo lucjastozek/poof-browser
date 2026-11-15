@@ -826,6 +826,9 @@ impl Browser {
             }
             UserEvent::DevToolsPageBounds { x, y, width, height } => {
                 if self.devtools_open && self.visible.is_some() {
+                    log::debug!(
+                        "DevTools inspected-page bounds: x={x:.1}, y={y:.1}, width={width:.1}, height={height:.1}"
+                    );
                     self.devtools_page_bounds = if [x, y, width, height].iter().all(|value| value.is_finite())
                         && width > 0.0 && height > 0.0
                     {
