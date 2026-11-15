@@ -1978,29 +1978,29 @@ impl Browser {
         let (page_area, _tools) = match position {
             "left" => {
                 let tools_w = size.min((width - gap - 1.0).max(1.0));
-                ((x + tools_w + gap, y, (width - tools_w - gap).max(1.0), height),
+                ((tools_w + gap, 0.0, (width - tools_w - gap).max(1.0), height),
                  rect(x, y, tools_w, height))
             }
             "bottom" => {
                 let tools_h = size.min((height - gap - 1.0).max(1.0));
-                ((x, y, width, (height - tools_h - gap).max(1.0)),
+                ((0.0, 0.0, width, (height - tools_h - gap).max(1.0)),
                  rect(x, y + height - tools_h, width, tools_h))
             }
             "top" => {
                 let tools_h = size.min((height - gap - 1.0).max(1.0));
-                ((x, y + tools_h + gap, width, (height - tools_h - gap).max(1.0)),
+                ((0.0, tools_h + gap, width, (height - tools_h - gap).max(1.0)),
                  rect(x, y, width, tools_h))
             }
             _ => {
                 let tools_w = size.min((width - gap - 1.0).max(1.0));
-                ((x, y, (width - tools_w - gap).max(1.0), height),
+                ((0.0, 0.0, (width - tools_w - gap).max(1.0), height),
                  rect(x + width - tools_w, y, tools_w, height))
             }
         };
         let (page_x, page_y, page_width, page_height) = self.devtools_page_bounds
             .and_then(|preview| intersect_bounds(page_area, preview))
             .unwrap_or(page_area);
-        (rect(page_x, page_y, page_width, page_height), Some(base))
+        (rect(x + page_x, y + page_y, page_width, page_height), Some(base))
     }
 
     pub fn relayout(&self) {
