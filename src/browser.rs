@@ -2232,16 +2232,21 @@ mod devtools_frontend_tests {
             r#"{"t":"inspected_page_bounds","x":12.0,"y":24.0,"width":640.0,"height":480.0}"#,
         )
         .unwrap();
-        assert!(matches!(
-            bounds,
-            super::DevToolsMsg::InspectedPageBounds { x: 12.0, y: 24.0, width: 640.0, height: 480.0 }
-        ));
+        match bounds {
+            super::DevToolsMsg::InspectedPageBounds { x, y, width, height } => {
+                assert_eq!((x, y, width, height), (12.0, 24.0, 640.0, 480.0));
+            }
+            super::DevToolsMsg::PanelSize { .. } => panic!("unexpected panel-size message"),
+        }
 
         let size = serde_json::from_str::<super::DevToolsMsg>(
             r#"{"t":"panel_size","size":420.0}"#,
         )
         .unwrap();
-        assert!(matches!(size, super::DevToolsMsg::PanelSize { size: 420.0 }));
+        match size {
+            super::DevToolsMsg::PanelSize { size } => assert_eq!(size, 420.0),
+            super::DevToolsMsg::InspectedPageBounds { .. } => panic!("unexpected bounds message"),
+        }
     }
 
     #[test]
