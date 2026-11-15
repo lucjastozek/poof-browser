@@ -64,6 +64,3 @@ Press **F12** or **Ctrl+Shift+I**, or use the code icon in the toolbar to open t
 ## Shortcuts
 
 Ctrl+T new tab · Ctrl+L address bar · Ctrl+W close · Ctrl+Shift+T reopen closed tab · Ctrl+Tab / Ctrl+Shift+Tab cycle tabs · Ctrl+1–8 / Ctrl+9 select tab · Ctrl+R reload · Alt+←/→ back/forward · Ctrl+Alt+←/→ switch space · Ctrl+P print · Ctrl+D favorite · Esc close dialog / cancel drag.
-# poof-browser
-
-
