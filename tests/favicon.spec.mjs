@@ -1,72 +1,38 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
-const script = await readFile("src/browser/init_script.js", "utf8");
 const browser = await chromium.launch({ headless: true });
-await mkdir("artifacts", { recursive: true });
-
-async function faviconFor(url, requestedUrl, html) {
-  const context = await browser.newContext();
-  await context.addInitScript((requested) => {
-    window.__poofRequestedUrl = requested;
-    window.__poofMessages = [];
-    window.ipc = {
-      postMessage(message) {
-        try { window.__poofMessages.push(JSON.parse(message)); } catch {}
-      },
-    };
-  }, requestedUrl);
-
-  const page = await context.newPage();
-  await page.route(url, (route) => route.fulfill({
-    status: 200,
-    contentType: "text/html",
-    body: html,
-  }));
-  await page.goto(url);
-  await page.addScriptTag({ content: script });
-  await page.evaluate(() => window.dispatchEvent(new Event("load")));
-  await page.waitForFunction(() => window.__poofMessages.some((m) => m.t === "meta"));
-  await page.screenshot({ path: `artifacts/${new URL(url).hostname}.png`, fullPage: true });
-  const message = await page.evaluate(() => window.__poofMessages.find((m) => m.t === "meta"));
-  await context.close();
-  return message.f;
-}
-
 try {
-  const genericGoogleIcon = '<link rel="icon" href="https://www.gstatic.com/images/branding/product/1x/gsa_64dp.png">';
-  const gmail = await faviconFor(
-    "https://mail.google.com/",
-    "https://mail.google.com/",
-    '<title>Gmail</title>' + genericGoogleIcon,
-  );
-  assert.equal(gmail, "https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico",
-    "Gmail must use its product favicon, not the generic Google icon");
+  // The injected page script now reports navigation metadata only. Favicons
+  // are supplied by WebView2's native FaviconChanged/GetFavicon API.
+  const init = await readFile("src/browser/init_script.js", "utf8");
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    window.__poofMessages = [];
+    window.ipc = { postMessage(message) {
+      try { window.__poofMessages.push(JSON.parse(message)); } catch {}
+    }};
+  });
+  const page = await context.newPage();
+  await page.route("https://example.test/**", route => route.fulfill({
+    status: 200, contentType: "text/html",
+    body: "<title>Example</title><link rel='icon' href='/favicon.ico'>",
+  }));
+  await page.goto("https://example.test/");
+  await page.addScriptTag({ content: init });
+  await page.evaluate(() => window.dispatchEvent(new Event("load")));
+  await page.waitForFunction(() => window.__poofMessages.some(m => m.t === "meta"));
+  const meta = await page.evaluate(() => window.__poofMessages.find(m => m.t === "meta"));
+  assert.equal(meta.u, "https://example.test/");
+  assert.equal(Object.hasOwn(meta, "f"), false,
+    "Page JavaScript must not overwrite the browser-native favicon");
+  assert.equal(init.includes("function icon()"), false,
+    "Old URL-scraping favicon implementation must be removed");
+  await context.close();
 
-  const redirectedLogin = await faviconFor(
-    "https://accounts.google.com/v3/signin/identifier",
-    "https://mail.google.com/",
-    '<title>Sign in</title><form action="/signin"><input autocomplete="username"></form>' + genericGoogleIcon,
-  );
-  assert.equal(redirectedLogin, "https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico",
-    "Gmail login redirects must retain the requested app favicon");
-
-  for (const [host, expected] of [
-    ["calendar.google.com", "https://calendar.google.com/favicon.ico"],
-    ["drive.google.com", "https://drive.google.com/favicon.ico"],
-    ["docs.google.com", "https://docs.google.com/favicon.ico"],
-  ]) {
-    const actual = await faviconFor(
-      `https://${host}/`,
-      `https://${host}/`,
-      `<title>${host}</title>` + genericGoogleIcon,
-    );
-    assert.equal(actual, expected,
-      `${host} must use its product-host favicon endpoint, not Google's generic icon`);
-  }
-
-  // Exercise the actual sidebar icon loader against the official Gmail asset.
+  // Exercise the real sidebar loader with the same PNG data URI emitted by
+  // the native WebView2 GetFavicon callback.
   const uiSource = await readFile("ui/scripts/core.js", "utf8");
   const freshFn = uiSource.match(/function freshFaviconUrl\(src\) \{[\s\S]*?\n\}/)?.[0];
   const iconFn = uiSource.match(/function icon\(t, guess = true\) \{[\s\S]*?\n\}\nconst pretty/)?.[0]?.replace(/\nconst pretty$/, "");
@@ -80,40 +46,42 @@ try {
     ${freshFn}
     ${iconFn}
     window.__poofIcon = icon;
-  `});
-  const gmailAsset = "https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico";
-  await uiPage.evaluate((src) => {
-    const node = window.__poofIcon({ favicon: src, url: "https://accounts.google.com/" });
-    node.id = "gmail-icon-test";
+  `);
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+  await uiPage.evaluate(src => {
+    const node = window.__poofIcon({ favicon: src, url: "https://example.test/" });
+    node.id = "native-favicon";
     document.body.append(node);
-  }, gmailAsset);
+  }, png);
   await uiPage.waitForFunction(() => {
-    const img = document.querySelector("#gmail-icon-test img");
+    const img = document.querySelector("#native-favicon img");
     return img && img.complete;
-  }, { timeout: 30000 });
-  const loadedIcon = await uiPage.evaluate(() => {
-    const img = document.querySelector("#gmail-icon-test img");
+  });
+  const loaded = await uiPage.evaluate(() => {
+    const img = document.querySelector("#native-favicon img");
     return { src: img.src, width: img.naturalWidth, height: img.naturalHeight };
   });
-  assert.equal(loadedIcon.src, gmailAsset,
-    "Sidebar must request the direct Gmail asset without cache-busting parameters");
-  assert.ok(loadedIcon.width > 0 && loadedIcon.height > 0,
-    "Official Gmail favicon must actually load as an image");
-  await uiPage.screenshot({ path: "artifacts/gmail-sidebar-icon.png" });
+  assert.equal(loaded.src, png, "Sidebar must preserve native favicon data without URL rewriting");
+  assert.ok(loaded.width > 0 && loaded.height > 0, "Sidebar must decode the native PNG data URI");
+  await uiPage.screenshot({ path: "artifacts/native-favicon-sidebar.png" });
   await uiPage.close();
 
-  // Regression guard for the native-to-sidebar handoff: updating Tab.favicon
-  // must be followed by pushing the new state to the separate sidebar WebView.
   const rust = await readFile("src/browser.rs", "utf8");
-  const metaBranch = rust.match(/PageMsg::Meta \{ u, f \} => \{([\s\S]*?)\n            \}\n            PageMsg::Fullscreen/);
-  assert.ok(metaBranch, "Rust PageMsg::Meta handler must remain discoverable");
+  const metaBranch = rust.match(/PageMsg::Meta \{ u, f \} => \{([\s\S]*?)\n            \}\n            PageMsg::Favicon/);
+  assert.ok(metaBranch, "Rust page metadata handler must remain discoverable");
   assert.match(metaBranch[1], /self\.push_state\(\)/,
-    "Rust must push updated page metadata to the sidebar");
-  assert.ok(rust.includes("FaviconChangedEventHandler::create"), "WebView2 favicon changes must drive the icon");
-  assert.ok(rust.includes("GetFaviconCompletedHandler::create"), "WebView2 must retrieve its decoded favicon");
-  assert.ok(rust.includes("COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG"), "WebView2 must normalize favicon formats to PNG");
-
-  console.log("PASS: Gmail, Calendar, Drive, Docs and native sidebar state handoff");
+    "Page metadata must be pushed to the separate sidebar WebView");
+  assert.ok(rust.includes("FaviconChangedEventHandler::create"),
+    "WebView2 FaviconChanged must drive favicon updates");
+  assert.ok(rust.includes("GetFaviconCompletedHandler::create"),
+    "WebView2 GetFavicon must retrieve the engine-decoded image");
+  assert.ok(rust.includes("COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG"),
+    "WebView2 must normalize ICO and SVG favicons to PNG");
+  assert.ok(rust.includes("data:image/png;base64,"),
+    "Native PNG bytes must be passed to the sidebar as an embedded image");
+  assert.ok(rust.includes("body.len() > 700_000"),
+    "IPC size limit must allow bounded embedded favicon data");
+  console.log("PASS: native WebView2 favicon handoff and production sidebar image loader");
 } finally {
   await browser.close();
 }
