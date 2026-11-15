@@ -274,7 +274,7 @@ function buildSettings(v) {
     option.setAttribute("aria-pressed", String(Number(S.devtools_size || 420) === value));
     option.onclick = () => {
       S.devtools_size = value;
-      send({ cmd: "devtools_size", size: value });
+      send({ cmd: "devtools_size", size: value, persist: true });
       [...devtoolsSize.children].forEach((child) => {
         const selected = child === option;
         child.classList.toggle("on", selected);
