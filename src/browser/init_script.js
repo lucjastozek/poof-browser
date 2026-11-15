@@ -191,7 +191,31 @@
   function icon() {
     try {
       var pageUrl = new URL(location.href);
-      var pageHost = pageUrl.hostname.toLowerCase();
+
+      // Authentication gateways often replace the app URL with a login URL.
+      // Recover the intended app from standard return/continue parameters so
+      // its favicon does not become the identity provider's generic logo.
+      function appUrlFromRedirect(url) {
+        var keys = [
+          "continue", "redirect_uri", "redirect", "return", "return_to",
+          "returnurl", "returnUrl", "service_url", "target"
+        ];
+        for (var i = 0; i < keys.length; i++) {
+          var value = url.searchParams.get(keys[i]);
+          if (!value) continue;
+          try {
+            var candidate = new URL(value, url.href);
+            if (
+              (candidate.protocol === "https:" || candidate.protocol === "http:") &&
+              candidate.hostname.toLowerCase() !== url.hostname.toLowerCase()
+            ) return candidate;
+          } catch (e) {}
+        }
+        return null;
+      }
+
+      var appUrl = appUrlFromRedirect(pageUrl) || pageUrl;
+      var appHost = appUrl.hostname.toLowerCase();
       var links = Array.prototype.slice
         .call(document.querySelectorAll('link[rel~="icon" i]'))
         .map(function (link) {
@@ -211,43 +235,43 @@
         })
         .filter(Boolean);
 
-      // A subdomain is often a separate web app (mail.example.com,
-      // calendar.example.com, drive.example.com). Do not let a sibling or
-      // parent site's generic favicon override the app's own icon.
+      // A declared icon is relevant only when it belongs to the intended app
+      // host (or its CDN). Do not accept the login page's generic favicon.
       links.sort(function (a, b) {
-        var aExactHost = a.url.hostname.toLowerCase() === pageHost ? 1 : 0;
-        var bExactHost = b.url.hostname.toLowerCase() === pageHost ? 1 : 0;
+        var aExactHost = a.url.hostname.toLowerCase() === appHost ? 1 : 0;
+        var bExactHost = b.url.hostname.toLowerCase() === appHost ? 1 : 0;
         if (aExactHost !== bExactHost) return bExactHost - aExactHost;
 
-        var aSameOrigin = a.url.origin === pageUrl.origin ? 1 : 0;
-        var bSameOrigin = b.url.origin === pageUrl.origin ? 1 : 0;
+        var aSameOrigin = a.url.origin === appUrl.origin ? 1 : 0;
+        var bSameOrigin = b.url.origin === appUrl.origin ? 1 : 0;
         if (aSameOrigin !== bSameOrigin) return bSameOrigin - aSameOrigin;
 
         var aSized = a.sizes && a.sizes.toLowerCase() !== "any" ? 1 : 0;
         var bSized = b.sizes && b.sizes.toLowerCase() !== "any" ? 1 : 0;
         if (aSized !== bSized) return bSized - aSized;
 
-        var aPng = /png|svg|webp/i.test(a.type + " " + a.url.pathname) ? 1 : 0;
-        var bPng = /png|svg|webp/i.test(b.type + " " + b.url.pathname) ? 1 : 0;
-        return bPng - aPng;
+        var aVector = /svg|png|webp/i.test(a.type + " " + a.url.pathname) ? 1 : 0;
+        var bVector = /svg|png|webp/i.test(b.type + " " + b.url.pathname) ? 1 : 0;
+        return bVector - aVector;
       });
 
       var selected = links.length ? links[0].url : null;
       var selectedHost = selected && selected.hostname.toLowerCase();
-      var canonicalPageHost = pageHost.replace(/^www\\./, "");
-      var canonicalSelectedHost = selectedHost && selectedHost.replace(/^www\\./, "");
-      var selectedIsParent =
-        canonicalSelectedHost &&
-        canonicalSelectedHost !== canonicalPageHost &&
-        canonicalPageHost.endsWith("." + canonicalSelectedHost);
+      var selectedBelongsToApp =
+        selectedHost &&
+        (selectedHost === appHost || selectedHost.endsWith("." + appHost));
 
-      // If the only declared icon belongs to a parent site (including its
-      // www alias), try the current app host's conventional favicon endpoint.
-      // This applies to subdomain apps across providers, not a provider list.
-      if (selectedIsParent) {
-        return new URL("/favicon.ico", pageUrl.origin).href;
+      if (selectedBelongsToApp) return selected.href;
+
+      // Some services expose their product icon through a canonical favicon
+      // host rather than the web-app hostname. Gmail is one such case.
+      if (appHost === "mail.google.com") {
+        return "https://gmail.google.com/favicon.ico";
       }
-      return (selected || new URL("/favicon.ico", pageUrl.origin)).href;
+
+      // Generic fallback for any app subdomain, including pages redirected
+      // to an identity provider. The browser follows favicon endpoint redirects.
+      return new URL("/favicon.ico", appUrl.origin).href;
     } catch (e) {
       return null;
     }
