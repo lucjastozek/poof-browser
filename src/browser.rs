@@ -227,6 +227,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
 "#,
         dock_side = dock_side,
         size = size.clamp(240.0, 800.0),
+        dimension = if matches!(position, "top" | "bottom") { "height" } else { "width" },
         position = position,
         DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
     )
