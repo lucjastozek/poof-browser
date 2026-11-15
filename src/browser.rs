@@ -254,14 +254,14 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     let dragging = false;
     resizeHandle.addEventListener("pointerdown", event => {{
       dragging = true;
-      start = isVertical() ? event.clientX : event.clientY;
+      start = isVertical() ? event.screenX : event.screenY;
       initial = panelSize;
       resizeHandle.setPointerCapture(event.pointerId);
       event.preventDefault();
     }});
     resizeHandle.addEventListener("pointermove", event => {{
       if (!dragging) return;
-      const current = isVertical() ? event.clientX : event.clientY;
+      const current = isVertical() ? event.screenX : event.screenY;
       const delta = current - start;
       const growsWithPositiveDelta = panelPosition === "left" || panelPosition === "top";
       panelSize = Math.max(240, Math.min(800, initial + (growsWithPositiveDelta ? delta : -delta)));
