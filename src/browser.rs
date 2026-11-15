@@ -364,29 +364,30 @@ fn rect(x: f64, y: f64, w: f64, h: f64) -> Rect {
     }
 }
 
-/// Keep the inspected page inside DevTools' main pane, even if the frontend reports
-/// oversized or stale placeholder bounds.
-fn intersect_bounds(
-    pane: (f64, f64, f64, f64),
+/// Clamp the frontend's inspected-page bounds to the DevTools WebView viewport.
+/// Do not fall back to a guessed split-pane rectangle: that can cover the inspector
+/// when Chromium's actual split size differs from Poof's persisted preference.
+fn clamp_preview_bounds(
+    viewport_width: f64,
+    viewport_height: f64,
     preview: (f64, f64, f64, f64),
 ) -> Option<(f64, f64, f64, f64)> {
-    let (pane_x, pane_y, pane_width, pane_height) = pane;
-    let (preview_x, preview_y, preview_width, preview_height) = preview;
-    if ![pane_x, pane_y, pane_width, pane_height, preview_x, preview_y, preview_width, preview_height]
+    let (x, y, width, height) = preview;
+    if ![viewport_width, viewport_height, x, y, width, height]
         .iter()
         .all(|value| value.is_finite())
-        || pane_width <= 0.0
-        || pane_height <= 0.0
-        || preview_width <= 0.0
-        || preview_height <= 0.0
+        || viewport_width <= 0.0
+        || viewport_height <= 0.0
+        || width <= 0.0
+        || height <= 0.0
     {
         return None;
     }
 
-    let left = pane_x.max(preview_x);
-    let top = pane_y.max(preview_y);
-    let right = (pane_x + pane_width).min(preview_x + preview_width);
-    let bottom = (pane_y + pane_height).min(preview_y + preview_height);
+    let left = x.clamp(0.0, viewport_width);
+    let top = y.clamp(0.0, viewport_height);
+    let right = (x + width).min(viewport_width);
+    let bottom = (y + height).min(viewport_height);
     (right > left && bottom > top).then_some((left, top, right - left, bottom - top))
 }
 
@@ -803,10 +804,7 @@ impl Browser {
                 }
             }
             UserEvent::DevToolsPageBounds { x, y, width, height } => {
-                if self.devtools_open && self.visible.is_some()
-                    && [x, y, width, height].iter().all(|value| value.is_finite())
-                    && width > 0.0 && height > 0.0
-                {
+                if self.devtools_open && self.visible.is_some() {
                     self.devtools_page_bounds = Some((x, y, width, height));
                     self.relayout();
                 }
@@ -1972,35 +1970,13 @@ impl Browser {
         let y = TOPBAR_H;
         let width = (window_w - sidebar - 2.0 * INSET).max(1.0);
         let height = (window_h - TOPBAR_H - INSET).max(1.0);
-        let gap = 8.0;
-        let size = self.p.devtools_size.clamp(240.0, 800.0);
-        let position = self.p.devtools_position.as_str();
-        let (page_area, _tools) = match position {
-            "left" => {
-                let tools_w = size.min((width - gap - 1.0).max(1.0));
-                ((tools_w + gap, 0.0, (width - tools_w - gap).max(1.0), height),
-                 rect(x, y, tools_w, height))
-            }
-            "bottom" => {
-                let tools_h = size.min((height - gap - 1.0).max(1.0));
-                ((0.0, 0.0, width, (height - tools_h - gap).max(1.0)),
-                 rect(x, y + height - tools_h, width, tools_h))
-            }
-            "top" => {
-                let tools_h = size.min((height - gap - 1.0).max(1.0));
-                ((0.0, tools_h + gap, width, (height - tools_h - gap).max(1.0)),
-                 rect(x, y, width, tools_h))
-            }
-            _ => {
-                let tools_w = size.min((width - gap - 1.0).max(1.0));
-                ((0.0, 0.0, (width - tools_w - gap).max(1.0), height),
-                 rect(x + width - tools_w, y, tools_w, height))
-            }
-        };
-        let (page_x, page_y, page_width, page_height) = self.devtools_page_bounds
-            .and_then(|preview| intersect_bounds(page_area, preview))
-            .unwrap_or(page_area);
-        (rect(x + page_x, y + page_y, page_width, page_height), Some(base))
+        let page = self.devtools_page_bounds
+            .and_then(|preview| clamp_preview_bounds(width, height, preview))
+            .map(|(preview_x, preview_y, preview_width, preview_height)| {
+                rect(x + preview_x, y + preview_y, preview_width, preview_height)
+            })
+            .unwrap_or_else(|| rect(x, y, 1.0, 1.0));
+        (page, Some(base))
     }
 
     pub fn relayout(&self) {
@@ -2015,6 +1991,9 @@ impl Browser {
             if let Err(error) = apply_webview_bounds(wv, page_bounds, self.window.scale_factor()) {
                 log::warn!("resizing content WebView failed: {error:#}");
             }
+            let page_visible = !self.overlay
+                && (!self.devtools_open || self.fullscreen || self.devtools_page_bounds.is_some());
+            let _ = wv.set_visible(page_visible);
             #[cfg(windows)]
             {
                 let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { self.p.sidebar_width };
@@ -2038,7 +2017,7 @@ impl Browser {
             }
         }
         #[cfg(windows)]
-        if self.devtools_open {
+        if self.devtools_open && self.devtools_page_bounds.is_some() && !self.fullscreen && !self.overlay {
             if let Some(wv) = self.visible_webview() {
                 raise_webview(wv);
             }
@@ -2278,29 +2257,26 @@ mod devtools_frontend_tests {
     }
 
     #[test]
-    fn inspected_page_bounds_cannot_cover_the_devtools_sidebar() {
-        let pane = (0.0, 0.0, 700.0, 800.0);
-        let oversized_preview = (-20.0, -10.0, 1200.0, 900.0);
+    fn inspected_page_bounds_are_clamped_to_the_devtools_viewport() {
         assert_eq!(
-            super::intersect_bounds(pane, oversized_preview),
-            Some((0.0, 0.0, 700.0, 800.0))
+            super::clamp_preview_bounds(1000.0, 800.0, (-20.0, 100.0, 500.0, 900.0)),
+            Some((0.0, 100.0, 480.0, 700.0))
         );
     }
 
     #[test]
-    fn inspected_page_bounds_are_clipped_to_the_main_pane() {
-        let pane = (300.0, 0.0, 700.0, 800.0);
-        let preview = (250.0, 100.0, 500.0, 500.0);
+    fn inspected_page_bounds_keep_the_frontends_actual_position() {
         assert_eq!(
-            super::intersect_bounds(pane, preview),
-            Some((300.0, 100.0, 450.0, 500.0))
+            super::clamp_preview_bounds(1000.0, 800.0, (560.0, 40.0, 440.0, 700.0)),
+            Some((560.0, 40.0, 440.0, 700.0))
         );
     }
 
     #[test]
-    fn disjoint_or_invalid_preview_bounds_are_rejected() {
-        assert_eq!(super::intersect_bounds((0.0, 0.0, 100.0, 100.0), (200.0, 0.0, 20.0, 20.0)), None);
-        assert_eq!(super::intersect_bounds((0.0, 0.0, 100.0, 100.0), (0.0, 0.0, f64::NAN, 20.0)), None);
+    fn missing_disjoint_or_invalid_preview_bounds_do_not_create_a_fallback_pane() {
+        assert_eq!(super::clamp_preview_bounds(100.0, 100.0, (200.0, 0.0, 20.0, 20.0)), None);
+        assert_eq!(super::clamp_preview_bounds(100.0, 100.0, (0.0, 0.0, f64::NAN, 20.0)), None);
+        assert_eq!(super::clamp_preview_bounds(100.0, 100.0, (0.0, 0.0, 0.0, 20.0)), None);
     }
 
     #[test]
