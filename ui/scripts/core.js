@@ -176,7 +176,7 @@ function icon(t, guess = true) {
   let index = 0;
   i.onerror = () => {
     index += 1;
-    if (index < candidates.length) i.src = candidates[index];
+    if (index < candidates.length) i.src = freshFaviconUrl(candidates[index]);
     else showFallback();
   };
   i.onload = () => {
@@ -184,12 +184,6 @@ function icon(t, guess = true) {
   };
   w.appendChild(i);
   i.src = freshFaviconUrl(candidates[index]);
-  const nextIcon = i.onerror;
-  i.onerror = () => {
-    index += 1;
-    if (index < candidates.length) i.src = freshFaviconUrl(candidates[index]);
-    else showFallback();
-  };
   return w;
 }
 const pretty = (u) => {
