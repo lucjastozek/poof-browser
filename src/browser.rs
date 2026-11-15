@@ -1379,7 +1379,7 @@ impl Browser {
     }}));
   }} catch (_) {{}}
   const dockController = window.UI?.DockController?.DockController?.instance?.();
-  dockController?.setDockSide("{dock_side}");
+  dockController?.setDockSide?.("{dock_side}");
   const rootSplit = window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget;
   if (rootSplit) {{
     rootSplit.setVertical({vertical});
