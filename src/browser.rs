@@ -1132,8 +1132,9 @@ impl Browser {
         if self.devtools_tab.as_deref() == Some(tab) && self.devtools.is_some() {
             self.relayout();
             if let Some(devtools) = self.devtools.as_ref() {
-                let _ = devtools.set_visible(true);
-                let _ = devtools.focus();
+                let visible = !self.fullscreen && !self.overlay;
+                let _ = devtools.set_visible(visible);
+                if visible { let _ = devtools.focus(); }
             }
             return;
         }
@@ -1160,8 +1161,9 @@ impl Browser {
                 self.devtools_tab = Some(tab.to_string());
                 self.relayout();
                 if let Some(devtools) = self.devtools.as_ref() {
-                    let _ = devtools.set_visible(true);
-                    let _ = devtools.focus();
+                    let visible = !self.fullscreen && !self.overlay;
+                    let _ = devtools.set_visible(visible);
+                    if visible { let _ = devtools.focus(); }
                 }
             }
             Err(error) => self.toast(&format!("Could not open Developer Tools: {error}")),
@@ -1462,7 +1464,7 @@ impl Browser {
                     window_w - left - 2.0 * INSET,
                     window_h - TOPBAR_H - INSET,
                     self.window.scale_factor(),
-                    !self.fullscreen,
+                    !self.fullscreen && !self.devtools_open,
                 );
             }
             wv.set_visible(true)?;
