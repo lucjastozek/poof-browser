@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const browser = await chromium.launch({ headless: true });
+await mkdir("artifacts", { recursive: true });
 try {
   // The injected page script now reports navigation metadata only. Favicons
   // are supplied by WebView2's native FaviconChanged/GetFavicon API.
