@@ -192,14 +192,14 @@ function go(cmd) {
   if (ov) {
     ov = null;
     $("stage").hidden = true;
-        send({ cmd: "overlay", open: false });
+    send({ cmd: "overlay", open: false });
   }
   send(cmd);
 }
 function openView(name) {
   ov = name;
   $("stage").hidden = false;
-    send({ cmd: "overlay", open: true });
+  send({ cmd: "overlay", open: true });
   build(name);
 }
 function closeView() {
@@ -210,6 +210,6 @@ function closeView() {
   }
   ov = null;
   $("stage").hidden = true;
-    applyColor(curSpace().color);
+  applyColor(curSpace().color);
   send({ cmd: "overlay", open: false });
 }
