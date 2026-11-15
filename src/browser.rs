@@ -1536,6 +1536,7 @@ impl Browser {
 "#,
             size = size,
             dock_side = dock_side,
+            position = position,
             vertical = vertical,
             second_is_sidebar = second_is_sidebar,
         );
