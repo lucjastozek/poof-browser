@@ -417,11 +417,12 @@ fn resolve_devtools_frontend(profile_dir: &Path, target_id: &str) -> Result<Stri
             let Some(target) = targets.iter().find(|item| item["id"].as_str() == Some(target_id)) else {
                 continue;
             };
-            let Some(frontend) = target["devtoolsFrontendUrl"]
+            let Some(frontend) = target["devtoolsFrontendUrlCompat"]
                 .as_str()
-                .or_else(|| target["devtoolsFrontendUrlCompat"].as_str())
+                .or_else(|| target["devtoolsFrontendUrl"].as_str())
             else { continue };
             if frontend.starts_with("/devtools/inspector.html") {
+                let frontend = frontend.replace("ws=localhost:", "ws=127.0.0.1:");
                 return Ok(format!("http://127.0.0.1:{port}{frontend}"));
             }
         }
