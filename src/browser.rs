@@ -360,10 +360,7 @@ fn clip(s: &str, n: usize) -> String {
 #[cfg(windows)]
 fn devtools_target_id(webview: &WebView) -> Result<String> {
     use std::sync::{Arc, Mutex};
-    use webview2_com::{
-        CallDevToolsProtocolMethodCompletedHandler,
-        Microsoft::Web::WebView2::Win32::*,
-    };
+    use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
     use windows::core::w;
 
     let core = unsafe { webview.controller().CoreWebView2()? };
@@ -371,8 +368,9 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
     let result_slot = Arc::clone(&result);
     unsafe {
         CallDevToolsProtocolMethodCompletedHandler::wait_for_async_operation(
-            Box::new(move |handler| {
-                unsafe { core.CallDevToolsProtocolMethod(w!("Target.getTargetInfo"), w!("{}"), &handler) }
+            Box::new(move |handler| unsafe {
+                core.CallDevToolsProtocolMethod(w!("Target.getTargetInfo"), w!("{}"), &handler)?;
+                Ok(())
             }),
             Box::new(move |status, value| {
                 status?;
