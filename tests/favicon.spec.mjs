@@ -108,7 +108,10 @@ try {
   const metaBranch = rust.match(/PageMsg::Meta \{ u, f \} => \{([\s\S]*?)\n            \}\n            PageMsg::Fullscreen/);
   assert.ok(metaBranch, "Rust PageMsg::Meta handler must remain discoverable");
   assert.match(metaBranch[1], /self\.push_state\(\)/,
-    "Rust must push updated favicon metadata to the sidebar");
+    "Rust must push updated page metadata to the sidebar");
+  assert.ok(rust.includes("FaviconChangedEventHandler::create"), "WebView2 favicon changes must drive the icon");
+  assert.ok(rust.includes("GetFaviconCompletedHandler::create"), "WebView2 must retrieve its decoded favicon");
+  assert.ok(rust.includes("COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG"), "WebView2 must normalize favicon formats to PNG");
 
   console.log("PASS: Gmail, Calendar, Drive, Docs and native sidebar state handoff");
 } finally {
