@@ -195,7 +195,7 @@ enum Cmd {
 #[derive(Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 enum PageMsg {
-    Meta { u: Option<String>, f: Option<String> },
+    Meta { u: Option<String> },
     Favicon { f: Option<String> },
     Key { k: String },
     Fullscreen { active: bool },
@@ -992,6 +992,20 @@ impl Browser {
                         if let Err(error) = core15.add_FaviconChanged(&handler, &mut token) {
                             log::warn!("registering WebView2 favicon handler failed: {error}");
                         }
+                        // The initial navigation may have started before this handler
+                        // was attached. Fetch the current icon once as well as listening
+                        // for subsequent changes.
+                        let initial_proxy = favicon_proxy.clone();
+                        let initial_tab = favicon_tab.clone();
+                        let completed = GetFaviconCompletedHandler::create(Box::new(move |result, stream| {
+                            let data_uri = result.ok()
+                                .and_then(|_| stream.as_ref().and_then(stream_to_png))
+                                .map(|bytes| format!("data:image/png;base64,{}", STANDARD.encode(bytes)));
+                            let body = serde_json::to_string(&PageMsg::Favicon { f: data_uri }).unwrap_or_default();
+                            let _ = initial_proxy.send_event(UserEvent::Page { tab: initial_tab.clone(), body });
+                            Ok(())
+                        }));
+                        let _ = core15.GetFavicon(COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG, &completed);
                     } else {
                         log::warn!("WebView2 runtime lacks native favicon support (ICoreWebView2_15)");
                     }
