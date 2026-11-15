@@ -211,8 +211,6 @@ fn devtools_init_script(position: &str, size: f64) -> String {
         "bottom" | "top" => "bottom",
         _ => "right",
     };
-    let vertical = matches!(position, "left" | "right");
-    let second_is_sidebar = matches!(position, "right" | "bottom");
     format!(
         r#"
 (() => {{
