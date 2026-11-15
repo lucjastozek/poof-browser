@@ -181,6 +181,7 @@ const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
 #[serde(tag = "t", rename_all = "snake_case")]
 enum DevToolsMsg {
     InspectedPageBounds { x: f64, y: f64, width: f64, height: f64 },
+    PanelSize { size: f64 },
 }
 
 fn devtools_init_script(position: &str, size: f64) -> String {
@@ -761,6 +762,16 @@ impl Browser {
         match ev {
             UserEvent::CloseWindow => {},
             UserEvent::DevToolsReady { tab, url } => self.show_devtools(&tab, &url),
+            UserEvent::DevToolsPanelSize { size } => {
+                if self.devtools_open && size.is_finite() {
+                    let size = size.clamp(240.0, 800.0);
+                    if (self.p.devtools_size - size).abs() >= 1.0 {
+                        self.p.devtools_size = size;
+                        self.save();
+                        self.push_state();
+                    }
+                }
+            }
             UserEvent::DevToolsPageBounds { x, y, width, height } => {
                 if self.devtools_open && self.visible.is_some()
                     && [x, y, width, height].iter().all(|value| value.is_finite())
@@ -1301,6 +1312,9 @@ impl Browser {
                             let _ = bounds_proxy.send_event(UserEvent::DevToolsPageBounds {
                                 x, y, width, height,
                             });
+                        }
+                        DevToolsMsg::PanelSize { size } => {
+                            let _ = bounds_proxy.send_event(UserEvent::DevToolsPanelSize { size });
                         }
                     }
                 })
