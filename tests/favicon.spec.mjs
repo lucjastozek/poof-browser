@@ -52,7 +52,29 @@ try {
   assert.equal(redirectedLogin, "https://gmail.google.com/favicon.ico",
     "Gmail login redirects must retain the requested app favicon");
 
-  console.log("PASS: Gmail favicon selection on app and Google sign-in pages");
+  for (const [host, expected] of [
+    ["calendar.google.com", "https://calendar.google.com/favicon.ico"],
+    ["drive.google.com", "https://drive.google.com/favicon.ico"],
+    ["docs.google.com", "https://docs.google.com/favicon.ico"],
+  ]) {
+    const actual = await faviconFor(
+      `https://${host}/`,
+      `https://${host}/`,
+      `<title>${host}</title>` + genericGoogleIcon,
+    );
+    assert.equal(actual, expected,
+      `${host} must use its product-host favicon endpoint, not Google's generic icon`);
+  }
+
+  // Regression guard for the native-to-sidebar handoff: updating Tab.favicon
+  // must be followed by pushing the new state to the separate sidebar WebView.
+  const rust = await readFile("src/browser.rs", "utf8");
+  const metaBranch = rust.match(/PageMsg::Meta \\{ u, f \\} => \\{([\\s\\S]*?)\\n            \\}\\n            PageMsg::Fullscreen/);
+  assert.ok(metaBranch, "Rust PageMsg::Meta handler must remain discoverable");
+  assert.match(metaBranch[1], /self\\.push_state\\(\\)/,
+    "Rust must push updated favicon metadata to the sidebar");
+
+  console.log("PASS: Gmail, Calendar, Drive, Docs and native sidebar state handoff");
 } finally {
   await browser.close();
 }
