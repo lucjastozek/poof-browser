@@ -1001,8 +1001,7 @@ impl Browser {
         #[cfg(windows)]
         {
             use webview2_com::{
-                AcceleratorKeyPressedEventHandler,
-                Microsoft::Web::WebView2::Win32::*,
+                AcceleratorKeyPressedEventHandler, Microsoft::Web::WebView2::Win32::*,
             };
             use windows::core::BOOL;
             use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
@@ -1010,39 +1009,43 @@ impl Browser {
             let shortcut_proxy = self.proxy.clone();
             let shortcut_tab = id.clone();
             unsafe {
-                let handler = AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
-                    let Some(args) = args else { return Ok(()) };
-                    let kind = args.KeyEventKind()?;
-                    if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
-                        && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
-                    {
-                        return Ok(());
-                    }
-                    let key_event_lparam = args.KeyEventLParam()?;
-                    let is_down = |virtual_key| GetKeyState(virtual_key) < 0;
-                    let command = browser_shortcut(
-                        args.VirtualKey()?,
-                        is_down(0x11), // VK_CONTROL
-                        is_down(0x12), // VK_MENU
-                        is_down(0x10), // VK_SHIFT
-                    );
-                    if let Some(command) = command {
-                        // Always suppress WebView2's default action, including repeats.
-                        args.SetHandled(BOOL(1))?;
-                        // Bit 30 is set when this key was already down, i.e. a repeat.
-                        if key_event_lparam & (1 << 30) != 0 {
+                let handler =
+                    AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
+                        let Some(args) = args else { return Ok(()) };
+                        let kind = args.KeyEventKind()?;
+                        if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
+                            && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
+                        {
                             return Ok(());
                         }
-                        let body = json!({"t": "key", "k": command}).to_string();
-                        let _ = shortcut_proxy.send_event(UserEvent::Page {
-                            tab: shortcut_tab.clone(),
-                            body,
-                        });
-                    }
-                    Ok(())
-                }));
+                        let key_event_lparam = args.KeyEventLParam()?;
+                        let is_down = |virtual_key| GetKeyState(virtual_key) < 0;
+                        let command = browser_shortcut(
+                            args.VirtualKey()?,
+                            is_down(0x11), // VK_CONTROL
+                            is_down(0x12), // VK_MENU
+                            is_down(0x10), // VK_SHIFT
+                        );
+                        if let Some(command) = command {
+                            // Always suppress WebView2's default action, including repeats.
+                            args.SetHandled(BOOL(1))?;
+                            // Bit 30 is set when this key was already down, i.e. a repeat.
+                            if key_event_lparam & (1 << 30) != 0 {
+                                return Ok(());
+                            }
+                            let body = json!({"t": "key", "k": command}).to_string();
+                            let _ = shortcut_proxy.send_event(UserEvent::Page {
+                                tab: shortcut_tab.clone(),
+                                body,
+                            });
+                        }
+                        Ok(())
+                    }));
                 let mut token = 0;
-                if let Err(error) = wv.controller().add_AcceleratorKeyPressed(&handler, &mut token) {
+                if let Err(error) = wv
+                    .controller()
+                    .add_AcceleratorKeyPressed(&handler, &mut token)
+                {
                     log::warn!("registering WebView2 keyboard shortcuts failed: {error}");
                 }
             }
