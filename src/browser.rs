@@ -273,6 +273,18 @@ fn ok_url(s: &str, max: usize, allow_data: bool) -> bool {
             || (allow_data && s.starts_with("data:image/")))
 }
 
+/// Keep the last usable icon when WebView2 reports a transient empty result.
+fn update_favicon(current: &mut Option<String>, incoming: Option<String>) -> bool {
+    let Some(favicon) = incoming.filter(|value| ok_url(value, 512_000, true)) else {
+        return false;
+    };
+    if current.as_deref() == Some(favicon.as_str()) {
+        return false;
+    }
+    *current = Some(favicon);
+    true
+}
+
 fn ok_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
@@ -656,9 +668,13 @@ impl Browser {
             PageMsg::Favicon { f } => {
                 let mut persist = false;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
-                    t.favicon = f.filter(|value| ok_url(value, 512_000, true));
-                    if let Some(s) = self.p.sites.get_mut(&t.host) { s.favicon = t.favicon.clone(); }
-                    persist = t.kind != Kind::Normal;
+                    let changed = update_favicon(&mut t.favicon, f);
+                    if changed {
+                        if let Some(s) = self.p.sites.get_mut(&t.host) {
+                            s.favicon = t.favicon.clone();
+                        }
+                        persist = t.kind != Kind::Normal;
+                    }
                 }
                 if persist { self.save(); }
                 self.push_state();
@@ -1578,6 +1594,29 @@ impl Browser {
 #[cfg(test)]
 mod shortcut_tests {
     use super::browser_shortcut;
+
+    #[test]
+    fn favicon_updates_preserve_existing_icon_on_empty_or_invalid_results() {
+        let original = "data:image/png;base64,aGVsbG8=".to_string();
+        let mut current = Some(original.clone());
+
+        assert!(!super::update_favicon(&mut current, None));
+        assert_eq!(current.as_deref(), Some(original.as_str()));
+
+        assert!(!super::update_favicon(&mut current, Some("javascript:alert(1)".into())));
+        assert_eq!(current.as_deref(), Some(original.as_str()));
+    }
+
+    #[test]
+    fn favicon_updates_replace_icon_only_when_a_new_valid_value_arrives() {
+        let original = "data:image/png;base64,aGVsbG8=".to_string();
+        let replacement = "https://example.test/favicon.png".to_string();
+        let mut current = Some(original);
+
+        assert!(!super::update_favicon(&mut current, Some("data:image/png;base64,aGVsbG8=".into())));
+        assert!(super::update_favicon(&mut current, Some(replacement.clone())));
+        assert_eq!(current.as_deref(), Some(replacement.as_str()));
+    }
 
     #[test]
     fn maps_common_browser_shortcuts() {
