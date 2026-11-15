@@ -534,6 +534,10 @@ impl Browser {
                 if persist {
                     self.save();
                 }
+                // Meta messages carry the favicon used by the sidebar. Updating
+                // Tab alone is not enough: the sidebar is a separate WebView and
+                // only sees changes when its serialized state is pushed.
+                self.push_state();
             }
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
             PageMsg::Key { k } => {
