@@ -9,8 +9,7 @@ use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    path::{Path, PathBuf},
-    thread,
+    path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tao::{
@@ -22,6 +21,8 @@ use wry::{
     NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder,
 };
 
+#[cfg(windows)]
+use std::{path::Path, thread};
 #[cfg(windows)]
 use wry::WebViewExtWindows;
 
@@ -303,6 +304,9 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
     const VK_LEFT: u32 = 0x25;
     const VK_RIGHT: u32 = 0x27;
 
+    if key == 0x7B && !ctrl && !alt && !shift {
+        return Some("devtools_toggle");
+    }
     if ctrl && alt && !shift {
         return match key {
             VK_LEFT => Some("space_prev"),
@@ -340,7 +344,6 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
             0x35 => "tab_5", 0x36 => "tab_6", 0x37 => "tab_7", _ => "tab_8",
         }),
         0x39 => Some("tab_last"),
-        0x7B if !ctrl && !alt && !shift => Some("devtools_toggle"), // F12
         VK_TAB => Some("tab_next"),
         _ => None,
     }
@@ -634,6 +637,9 @@ impl Browser {
             UserEvent::DevToolsReady { tab, url } => self.show_devtools(&tab, &url),
             UserEvent::DevToolsFailed { tab, message } => {
                 if self.devtools_open && self.visible.as_deref() == Some(tab.as_str()) {
+                    self.devtools_open = false;
+                    self.devtools_tab = None;
+                    self.relayout();
                     self.toast(&message);
                 }
             }
@@ -1060,7 +1066,12 @@ impl Browser {
         }
         self.devtools_open = true;
         self.relayout();
-        self.attach_devtools()
+        if let Err(error) = self.attach_devtools() {
+            self.devtools_open = false;
+            self.relayout();
+            return Err(error);
+        }
+        Ok(())
     }
 
     fn attach_devtools(&mut self) -> Result<()> {
@@ -1076,7 +1087,15 @@ impl Browser {
         };
         #[cfg(windows)]
         {
-            let target_id = devtools_target_id(webview)?;
+            let target_id = match devtools_target_id(webview) {
+                Ok(target_id) => target_id,
+                Err(error) => {
+                    self.devtools_open = false;
+                    self.relayout();
+                    self.toast(&format!("Could not identify the active DevTools target: {error}"));
+                    return Ok(());
+                }
+            };
             let profile_dir = self.root.join("profiles").join(&tab.profile_id);
             let proxy = self.proxy.clone();
             thread::spawn(move || {
@@ -1099,6 +1118,14 @@ impl Browser {
 
     fn show_devtools(&mut self, tab: &str, url: &str) {
         if !self.devtools_open || self.visible.as_deref() != Some(tab) {
+            return;
+        }
+        if self.devtools_tab.as_deref() == Some(tab) && self.devtools.is_some() {
+            self.relayout();
+            if let Some(devtools) = self.devtools.as_ref() {
+                let _ = devtools.set_visible(true);
+                let _ = devtools.focus();
+            }
             return;
         }
         let result = if let Some(devtools) = self.devtools.as_ref() {
@@ -1270,7 +1297,7 @@ impl Browser {
                 // Keep Wry's defaults while enabling a random loopback CDP port
                 // for this isolated profile. The port is read from DevToolsActivePort.
                 .with_additional_browser_args(
-                    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=0",
+                    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-address=127.0.0.1 --remote-debugging-port=0",
                 )
         };
 
@@ -1727,11 +1754,15 @@ impl Browser {
                 );
             }
         }
-        if let (Some(devtools), Some(bounds)) = (self.devtools.as_ref(), devtools_bounds) {
-            if let Err(error) = apply_webview_bounds(devtools, bounds, self.window.scale_factor()) {
-                log::warn!("resizing DevTools WebView failed: {error:#}");
+        if let Some(devtools) = self.devtools.as_ref() {
+            if let Some(bounds) = devtools_bounds {
+                if let Err(error) = apply_webview_bounds(devtools, bounds, self.window.scale_factor()) {
+                    log::warn!("resizing DevTools WebView failed: {error:#}");
+                }
+                let _ = devtools.set_visible(self.devtools_open && !self.fullscreen && !self.overlay);
+            } else {
+                let _ = devtools.set_visible(false);
             }
-            let _ = devtools.set_visible(self.devtools_open && !self.fullscreen && !self.overlay);
         }
     }
 
@@ -1882,6 +1913,8 @@ mod shortcut_tests {
         assert_eq!(browser_shortcut(0x09, true, false, true), Some("tab_prev"));
         assert_eq!(browser_shortcut(0x31, true, false, false), Some("tab_1"));
         assert_eq!(browser_shortcut(0x39, true, false, false), Some("tab_last"));
+        assert_eq!(browser_shortcut(0x7B, false, false, false), Some("devtools_toggle"));
+        assert_eq!(browser_shortcut(0x7B, true, false, false), None);
         assert_eq!(browser_shortcut(0x25, false, true, false), Some("back"));
         assert_eq!(browser_shortcut(0x27, false, true, false), Some("forward"));
         assert_eq!(browser_shortcut(0x25, true, true, false), Some("space_prev"));
