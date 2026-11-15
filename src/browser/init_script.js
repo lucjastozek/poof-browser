@@ -271,12 +271,11 @@
       });
 
       var selected = links.length ? links[0].url : null;
-      var selectedHost = selected && selected.hostname.toLowerCase();
-      var selectedBelongsToApp =
-        selectedHost &&
-        (selectedHost === appHost || selectedHost.endsWith("." + appHost));
+      var pageIsAppHost = pageUrl.hostname.toLowerCase() === appHost;
 
-      if (selected && (!redirectAppUrl || selectedBelongsToApp)) return selected.href;
+      // On the real app page, accept its declared icon even when hosted by a
+      // product CDN. On a different-host login page, never adopt the IdP icon.
+      if (selected && pageIsAppHost) return selected.href;
 
       // Some services expose their product icon through a canonical favicon
       // host rather than the web-app hostname. Gmail is one such case.
