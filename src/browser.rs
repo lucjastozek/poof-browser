@@ -1314,6 +1314,7 @@ impl Browser {
             Ok(()) => {
                 self.devtools_tab = Some(tab.to_string());
                 self.relayout();
+                self.sync_devtools_panel_size();
                 if let Some(devtools) = self.devtools.as_ref() {
                     let visible = !self.fullscreen && !self.overlay;
                     let _ = devtools.set_visible(visible);
@@ -1967,10 +1968,6 @@ impl Browser {
                 log::warn!("resizing content WebView failed: {error:#}");
             }
             #[cfg(windows)]
-            if self.devtools_open && self.devtools.is_some() {
-                raise_webview(wv);
-            }
-            #[cfg(windows)]
             {
                 let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { self.p.sidebar_width };
                 apply_webview_radius(
@@ -1990,6 +1987,12 @@ impl Browser {
                 let _ = devtools.set_visible(self.devtools_open && !self.fullscreen && !self.overlay);
             } else {
                 let _ = devtools.set_visible(false);
+            }
+        }
+        #[cfg(windows)]
+        if self.devtools_open {
+            if let Some(wv) = self.visible_webview() {
+                raise_webview(wv);
             }
         }
     }
@@ -2179,6 +2182,24 @@ mod devtools_frontend_tests {
             devtools_frontend_url(43123, "A1B2C3").unwrap(),
             "devtools://devtools/bundled/inspector.html?ws=127.0.0.1:43123/devtools/page/A1B2C3"
         );
+    }
+
+    #[test]
+    fn devtools_startup_script_uses_the_configured_dock_and_panel_size() {
+        let script = super::devtools_init_script("left", 560.0);
+        assert!(script.contains("JSON.stringify(\"left\")"));
+        assert!(script.contains("vertical: {size: 560}"));
+        assert!(script.contains("horizontal: {size: 560}"));
+        assert!(script.contains("setInspectedPageBounds"));
+        assert!(script.contains("shadow-split-widget-sidebar"));
+    }
+
+    #[test]
+    fn devtools_startup_script_maps_top_docking_to_a_top_sidebar() {
+        let script = super::devtools_init_script("top", 420.0);
+        assert!(script.contains("JSON.stringify(\"bottom\")"));
+        assert!(script.contains("setSecondIsSidebar(false)"));
+        assert!(script.contains("shadow-split-widget-sidebar"));
     }
 
     #[test]
