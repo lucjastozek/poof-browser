@@ -52,6 +52,8 @@ try {
     "Google's generic favicon service must remain the final fallback");
   assert.ok(uiSource.includes("i.src = candidates[index];"),
     "Sidebar icon loader must use the original favicon source URL");
+  assert.ok(uiSource.includes('!t.favicon.startsWith("data:image/")'),
+    "Legacy low-resolution PNG data URIs must not override the original site icon");
   assert.doesNotMatch(uiSource, /_poof_icon_refresh|freshFaviconUrl/,
     "Favicon source URLs must not be rewritten with cache-busting query parameters");
   const rust = await readFile("src/browser.rs", "utf8");
