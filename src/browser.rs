@@ -211,14 +211,20 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     rootSplit.showBoth();
     rootSplit.setSidebarSize({size});
     const resizer = rootSplit.resizerElement();
-    const persistPanelSize = () => requestAnimationFrame(() => {{
-      window.ipc?.postMessage(JSON.stringify({{
-        t: "panel_size",
-        size: rootSplit.sidebarSize()
-      }}));
-    }});
-    resizer.addEventListener("pointerup", persistPanelSize);
-    resizer.addEventListener("pointercancel", persistPanelSize);
+    let resizingPanel = false;
+    resizer.addEventListener("pointerdown", () => {{ resizingPanel = true; }});
+    const persistPanelSize = () => {{
+      if (!resizingPanel) return;
+      resizingPanel = false;
+      requestAnimationFrame(() => {{
+        window.ipc?.postMessage(JSON.stringify({{
+          t: "panel_size",
+          size: rootSplit.sidebarSize()
+        }}));
+      }});
+    }};
+    document.addEventListener("pointerup", persistPanelSize, true);
+    document.addEventListener("pointercancel", persistPanelSize, true);
   }};
   window.addEventListener("load", applyPanelLayout, {{once: true}});
 }})();
