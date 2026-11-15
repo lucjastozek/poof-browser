@@ -234,6 +234,10 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   const postPanelSize = (persist) => window.ipc?.postMessage(JSON.stringify({{
     t: "panel_size", size: panelSize, persist
   }}));
+  window.__poofSetPanelSize = value => {{
+    panelSize = Math.max(240, Math.min(800, Number(value) || {size}));
+    document.documentElement.dataset.poofPanelSize = String(panelSize);
+  }};
   const installPanelResizer = () => {{
     if (resizeHandle || responsiveMode) return;
     resizeHandle = document.createElement("div");
@@ -312,8 +316,16 @@ fn devtools_init_script(position: &str, size: f64) -> String {
         size = size.clamp(240.0, 800.0),
         vertical = vertical,
         second_is_sidebar = second_is_sidebar,
-        handle_css = position === "right" ? "left:0;top:0;width:8px;height:100vh;" : position === "left" ? "right:0;top:0;width:8px;height:100vh;" : position === "bottom" ? "left:0;top:0;width:100vw;height:8px;" : "left:0;bottom:0;width:100vw;height:8px;",
-        grow_direction = position === "left" || position === "top" ? "positive" : "negative",
+        handle_css = if position == "right" {
+            "left:0;top:0;width:8px;height:100vh;"
+        } else if position == "left" {
+            "right:0;top:0;width:8px;height:100vh;"
+        } else if position == "bottom" {
+            "left:0;top:0;width:100vw;height:8px;"
+        } else {
+            "left:0;bottom:0;width:100vw;height:8px;"
+        },
+        grow_direction = if position == "left" || position == "top" { "positive" } else { "negative" },
         DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
     )
 }
@@ -1503,6 +1515,7 @@ impl Browser {
   }} catch (_) {{}}
   const dockController = window.UI?.DockController?.DockController?.instance?.();
   dockController?.setDockSide?.("{dock_side}");
+  window.__poofSetPanelSize?.({size});
   const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
   if (rootSplit) {{
     rootSplit.setVertical({vertical});
@@ -2332,6 +2345,9 @@ mod devtools_frontend_tests {
         assert!(script.contains(r#"t: "panel_size""#));
         assert!(script.contains("requestAnimationFrame(applyPanelLayout)"));
         assert!(script.contains("rootSplit.setSidebarSize(560)"));
+        assert!(script.contains("rootSplit.hideMain()"));
+        assert!(script.contains("responsive_mode"));
+        assert!(script.contains("__poof_devtools_panel_resizer"));
     }
 
     #[test]
@@ -2359,12 +2375,15 @@ mod devtools_frontend_tests {
         }
 
         let size = serde_json::from_str::<super::DevToolsMsg>(
-            r#"{"t":"panel_size","size":420.0}"#,
+            r#"{"t":"panel_size","size":420.0,"persist":false}"#,
         )
         .unwrap();
         match size {
-            super::DevToolsMsg::PanelSize { size } => assert!((size - 420.0).abs() < f64::EPSILON),
-            super::DevToolsMsg::InspectedPageBounds { .. } => panic!("unexpected bounds message"),
+            super::DevToolsMsg::PanelSize { size, persist } => {
+                assert!((size - 420.0).abs() < f64::EPSILON);
+                assert!(!persist);
+            }
+            _ => panic!("unexpected DevTools message"),
         }
     }
 
