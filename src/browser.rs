@@ -65,6 +65,31 @@ fn apply_webview_bounds(wv: &WebView, bounds: Rect, _scale: f64) -> Result<()> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn raise_webview(wv: &WebView) {
+    use windows::Win32::{
+        Foundation::HWND,
+        UI::WindowsAndMessaging::{
+            SetWindowPos, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+        },
+    };
+
+    let mut hwnd = HWND::default();
+    unsafe {
+        if wv.controller().ParentWindow(&mut hwnd).is_ok() && !hwnd.0.is_null() {
+            let _ = SetWindowPos(
+                hwnd,
+                Some(HWND_TOP),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOSIZE,
+            );
+        }
+    }
+}
+
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
         Foundation::HWND,
@@ -1787,7 +1812,7 @@ impl Browser {
         let gap = 8.0;
         let size = self.p.devtools_size.clamp(240.0, 800.0);
         let position = self.p.devtools_position.as_str();
-        let (page, tools) = match position {
+        let (page, _tools) = match position {
             "left" => {
                 let tools_w = size.min((width - gap - 1.0).max(1.0));
                 (rect(x + tools_w + gap, y, (width - tools_w - gap).max(1.0), height),
@@ -1809,7 +1834,16 @@ impl Browser {
                  rect(x + width - tools_w, y, tools_w, height))
             }
         };
-        (page, Some(tools))
+        let page = if let Some((preview_x, preview_y, preview_width, preview_height)) = self.devtools_page_bounds {
+            let preview_x = preview_x.clamp(0.0, (width - 1.0).max(0.0));
+            let preview_y = preview_y.clamp(0.0, (height - 1.0).max(0.0));
+            let preview_width = preview_width.min(width - preview_x).max(1.0);
+            let preview_height = preview_height.min(height - preview_y).max(1.0);
+            rect(x + preview_x, y + preview_y, preview_width, preview_height)
+        } else {
+            page
+        };
+        (page, Some(base))
     }
 
     pub fn relayout(&self) {
@@ -1823,6 +1857,10 @@ impl Browser {
         if let Some(wv) = self.visible_webview() {
             if let Err(error) = apply_webview_bounds(wv, page_bounds, self.window.scale_factor()) {
                 log::warn!("resizing content WebView failed: {error:#}");
+            }
+            #[cfg(windows)]
+            if self.devtools_open && self.devtools.is_some() {
+                raise_webview(wv);
             }
             #[cfg(windows)]
             {
