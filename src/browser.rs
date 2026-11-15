@@ -1168,7 +1168,15 @@ impl Browser {
                     if visible { let _ = devtools.focus(); }
                 }
             }
-            Err(error) => self.toast(&format!("Could not open Developer Tools: {error}")),
+            Err(error) => {
+                self.devtools_open = false;
+                self.devtools_tab = None;
+                if let Some(devtools) = self.devtools.as_ref() {
+                    let _ = devtools.set_visible(false);
+                }
+                self.relayout();
+                self.toast(&format!("Could not open Developer Tools: {error}"));
+            }
         }
     }
 
@@ -1556,6 +1564,10 @@ impl Browser {
         });
         if let Some(id) = pick {
             self.activate(&id)?;
+        } else if self.devtools_open {
+            self.devtools_open = false;
+            self.devtools_tab = None;
+            self.relayout();
         }
         Ok(())
     }
