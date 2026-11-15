@@ -84,6 +84,7 @@ $("copyLink").onclick = async () => {
   }
 };
 $("pageToolbar").append(ib("puzzle", "Extensions", () => openView("ext")));
+$("pageToolbar").append(ib("code", "Developer tools (F12)", () => send({ cmd: "devtools_toggle" })));
 $("winMin").onclick = () => send({ cmd: "window_minimize" });
 $("winMax").onclick = () => send({ cmd: "window_toggle_maximize" });
 $("winClose").onclick = () => send({ cmd: "window_close" });
