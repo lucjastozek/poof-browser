@@ -128,6 +128,12 @@ const FAVICON_CACHE_TAG = Date.now().toString(36);
 function freshFaviconUrl(src) {
   try {
     const url = new URL(src);
+    // Google's versioned Gmail asset is immutable. Do not append a query
+    // parameter that can interfere with CDN delivery or redirect handling.
+    if (url.hostname === "ssl.gstatic.com" &&
+        url.pathname === "/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico") {
+      return url.href;
+    }
     url.searchParams.set("_poof_icon_refresh", FAVICON_CACHE_TAG);
     return url.href;
   } catch (e) {
@@ -150,9 +156,14 @@ function icon(t, guess = true) {
     if (src && !candidates.includes(src)) candidates.push(src);
   };
   add(t.favicon);
+  // If the tab has Gmail's explicit product icon, never silently replace it
+  // with Google's generic account icon after an image-load failure.
+  const hasGmailProductIcon =
+    typeof t.favicon === "string" &&
+    t.favicon.startsWith("https://ssl.gstatic.com/ui/v1/icons/mail/images/favicon_gmail_2026_v2.ico");
   try {
     const site = new URL(t.url);
-    if (guess) {
+    if (guess && !hasGmailProductIcon) {
       add(new URL("/favicon.ico", site).href);
       add(new URL("/apple-touch-icon.png", site).href);
       add(
