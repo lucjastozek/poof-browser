@@ -35,6 +35,8 @@ try {
   const sidebarCss = await readFile("ui/styles/sidebar.css", "utf8");
   assert.match(sidebarCss, /#favs\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/s,
     "Favorite tiles must retain their original wrapping layout");
+  assert.doesNotMatch(sidebarCss.match(/#favs\s*\{[^}]*\}/s)?.[0] || "", /display:\s*grid/,
+    "Favorite tiles must not retain the obsolete grid layout declaration");
   assert.match(sidebarCss, /\.tile\s*\{[^}]*flex:\s*1 1 calc\(\(100% - 18px\) \/ 4\);[^}]*height:\s*46px/s,
     "Favorite tiles must retain their original dimensions");
   assert.match(sidebarCss, /\.tile \.ico img\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px/s,
