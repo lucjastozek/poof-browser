@@ -320,7 +320,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     rootSplit.setSidebarSize(panelSize);
     rootSplit.hideMain();
     installPanelResizer();
-    const model = window.Emulation?.DeviceModeModel?.instance?.();
+    const model = window.Emulation?.AdvancedApp?.instance?.()?.deviceModeView?.model;
     const updateMode = () => reportResponsiveMode(Boolean(model?.isDeviceModeOn?.()));
     updateMode();
     model?.addEventListener?.("Updated", updateMode);
@@ -1529,7 +1529,7 @@ impl Browser {
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
     rootSplit.setSidebarSize({size});
-    if (window.Emulation?.DeviceModeModel?.instance?.()?.isDeviceModeOn?.()) rootSplit.showBoth();
+    if (window.Emulation?.AdvancedApp?.instance?.()?.deviceModeView?.model?.isDeviceModeOn?.()) rootSplit.showBoth();
     else rootSplit.hideMain();
   }}
 }})();
