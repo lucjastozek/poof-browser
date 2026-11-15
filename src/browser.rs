@@ -606,11 +606,7 @@ impl Browser {
                     return;
                 }
                 let r = match k.as_str() {
-                    "new_tab" => {
-                        let _ = self.sidebar.focus();
-                        let _ = self.sidebar.evaluate_script("window.__openNew && window.__openNew()");
-                        Ok(())
-                    }
+                    "new_tab" => self.new_tab("about:blank"),
                     "focus_url" => {
                         let _ = self.sidebar.focus();
                         let _ = self.sidebar.evaluate_script("window.__focusUrl && window.__focusUrl()");
