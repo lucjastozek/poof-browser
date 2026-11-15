@@ -69,9 +69,9 @@ try {
   // Regression guard for the native-to-sidebar handoff: updating Tab.favicon
   // must be followed by pushing the new state to the separate sidebar WebView.
   const rust = await readFile("src/browser.rs", "utf8");
-  const metaBranch = rust.match(/PageMsg::Meta \\{ u, f \\} => \\{([\\s\\S]*?)\\n            \\}\\n            PageMsg::Fullscreen/);
+  const metaBranch = rust.match(/PageMsg::Meta \{ u, f \} => \{([\s\S]*?)\n            \}\n            PageMsg::Fullscreen/);
   assert.ok(metaBranch, "Rust PageMsg::Meta handler must remain discoverable");
-  assert.match(metaBranch[1], /self\\.push_state\\(\\)/,
+  assert.match(metaBranch[1], /self\.push_state\(\)/,
     "Rust must push updated favicon metadata to the sidebar");
 
   console.log("PASS: Gmail, Calendar, Drive, Docs and native sidebar state handoff");
