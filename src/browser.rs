@@ -230,14 +230,12 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   let layoutAttempts = 0;
   let responsiveMode = false;
   let resizeHandle = null;
+  let panelPosition = "{position}";
   let panelSize = {size};
-  const postPanelSize = (persist) => window.ipc?.postMessage(JSON.stringify({{
+  const isVertical = () => panelPosition === "left" || panelPosition === "right";
+  const postPanelSize = persist => window.ipc?.postMessage(JSON.stringify({{
     t: "panel_size", size: panelSize, persist
   }}));
-  window.__poofSetPanelSize = value => {{
-    panelSize = Math.max(240, Math.min(800, Number(value) || {size}));
-    document.documentElement.dataset.poofPanelSize = String(panelSize);
-  }};
   const installPanelResizer = () => {{
     if (resizeHandle || responsiveMode) return;
     resizeHandle = document.createElement("div");
@@ -245,25 +243,28 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     Object.assign(resizeHandle.style, {{
       position: "fixed", zIndex: "2147483647", touchAction: "none",
       background: "transparent",
-      cursor: {vertical} ? "col-resize" : "row-resize",
-      {handle_css}
+      cursor: isVertical() ? "col-resize" : "row-resize"
     }});
+    if (panelPosition === "right") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"8px",height:"100vh"}});
+    if (panelPosition === "left") Object.assign(resizeHandle.style, {{right:"0",top:"0",width:"8px",height:"100vh"}});
+    if (panelPosition === "bottom") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"100vw",height:"8px"}});
+    if (panelPosition === "top") Object.assign(resizeHandle.style, {{left:"0",bottom:"0",width:"100vw",height:"8px"}});
     let start = 0;
     let initial = panelSize;
     let dragging = false;
     resizeHandle.addEventListener("pointerdown", event => {{
       dragging = true;
-      start = {vertical} ? event.clientX : event.clientY;
+      start = isVertical() ? event.clientX : event.clientY;
       initial = panelSize;
       resizeHandle.setPointerCapture(event.pointerId);
       event.preventDefault();
     }});
     resizeHandle.addEventListener("pointermove", event => {{
       if (!dragging) return;
-      const current = {vertical} ? event.clientX : event.clientY;
+      const current = isVertical() ? event.clientX : event.clientY;
       const delta = current - start;
-      const direction = "{grow_direction}";
-      panelSize = Math.max(240, Math.min(800, initial + (direction === "positive" ? delta : -delta)));
+      const growsWithPositiveDelta = panelPosition === "left" || panelPosition === "top";
+      panelSize = Math.max(240, Math.min(800, initial + (growsWithPositiveDelta ? delta : -delta)));
       document.documentElement.dataset.poofPanelSize = String(panelSize);
       postPanelSize(false);
     }});
@@ -275,6 +276,21 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     resizeHandle.addEventListener("pointerup", finish);
     resizeHandle.addEventListener("pointercancel", finish);
     document.documentElement.appendChild(resizeHandle);
+  }};
+  window.__poofSetPanelLayout = (position, size) => {{
+    panelPosition = ["left", "right", "top", "bottom"].includes(position) ? position : "right";
+    panelSize = Math.max(240, Math.min(800, Number(size) || {size}));
+    resizeHandle?.remove();
+    resizeHandle = null;
+    const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
+    if (rootSplit) {{
+      rootSplit.setVertical(isVertical());
+      rootSplit.setSecondIsSidebar(panelPosition === "right" || panelPosition === "bottom");
+      rootSplit.setSidebarSize(panelSize);
+      if (responsiveMode) rootSplit.showBoth();
+      else rootSplit.hideMain();
+    }}
+    installPanelResizer();
   }};
   const reportResponsiveMode = active => {{
     if (responsiveMode === active) return;
@@ -299,8 +315,8 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       if (++layoutAttempts < 120) requestAnimationFrame(applyPanelLayout);
       return;
     }}
-    rootSplit.setVertical({vertical});
-    rootSplit.setSecondIsSidebar({second_is_sidebar});
+    rootSplit.setVertical(isVertical());
+    rootSplit.setSecondIsSidebar(panelPosition === "right" || panelPosition === "bottom");
     rootSplit.setSidebarSize(panelSize);
     rootSplit.hideMain();
     installPanelResizer();
@@ -314,18 +330,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
 "#,
         dock_side = dock_side,
         size = size.clamp(240.0, 800.0),
-        vertical = vertical,
-        second_is_sidebar = second_is_sidebar,
-        handle_css = if position == "right" {
-            "left:0;top:0;width:8px;height:100vh;"
-        } else if position == "left" {
-            "right:0;top:0;width:8px;height:100vh;"
-        } else if position == "bottom" {
-            "left:0;top:0;width:100vw;height:8px;"
-        } else {
-            "left:0;bottom:0;width:100vw;height:8px;"
-        },
-        grow_direction = if position == "left" || position == "top" { "positive" } else { "negative" },
+        position = position,
         DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
     )
 }
@@ -1518,7 +1523,7 @@ impl Browser {
   }} catch (_) {{}}
   const dockController = window.UI?.DockController?.DockController?.instance?.();
   dockController?.setDockSide?.("{dock_side}");
-  window.__poofSetPanelSize?.({size});
+  window.__poofSetPanelLayout?.("{position}", {size});
   const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
   if (rootSplit) {{
     rootSplit.setVertical({vertical});
