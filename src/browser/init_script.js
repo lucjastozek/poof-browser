@@ -273,15 +273,15 @@
       var selected = links.length ? links[0].url : null;
       var pageIsAppHost = pageUrl.hostname.toLowerCase() === appHost;
 
-      // On the real app page, accept its declared icon even when hosted by a
-      // product CDN. On a different-host login page, never adopt the IdP icon.
-      if (selected && pageIsAppHost) return selected.href;
-
-      // Some services expose their product icon through a canonical favicon
-      // host rather than the web-app hostname. Gmail is one such case.
+      // Gmail's page can declare Google's generic account/product icon.
+      // Prefer Gmail's canonical product favicon before considering page links.
       if (appHost === "mail.google.com") {
         return "https://gmail.google.com/favicon.ico";
       }
+
+      // On the real app page, accept its declared icon even when hosted by a
+      // product CDN. On a different-host login page, never adopt the IdP icon.
+      if (selected && pageIsAppHost) return selected.href;
 
       // Generic fallback for any app subdomain, including pages redirected
       // to an identity provider. The browser follows favicon endpoint redirects.
