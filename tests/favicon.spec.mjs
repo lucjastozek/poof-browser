@@ -50,33 +50,10 @@ try {
   assert.ok(uiSource.indexOf('add(new URL("/apple-touch-icon.png", site).href)') <
     uiSource.indexOf("https://www.google.com/s2/favicons"),
     "Google's generic favicon service must remain the final fallback");
-  const freshFn = uiSource.match(/function freshFaviconUrl\(src\) \{[\s\S]*?\n\}/)?.[0];
-  assert.ok(freshFn, "Could not extract the production favicon URL normalizer");
-  assert.ok(uiSource.includes("i.src = freshFaviconUrl(candidates[index]);"),
-    "Sidebar icon loader must use the production favicon URL normalizer");
-  const uiPage = await browser.newPage();
-  await uiPage.setContent("<html><body></body></html>");
-  await uiPage.addScriptTag({ content: freshFn + "\nwindow.__freshFaviconUrl = freshFaviconUrl;" });
-  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
-  await uiPage.evaluate(src => {
-    const img = new Image();
-    img.id = "native-favicon";
-    img.src = window.__freshFaviconUrl(src);
-    document.body.append(img);
-  }, png);
-  await uiPage.waitForFunction(() => {
-    const img = document.querySelector("#native-favicon");
-    return img && img.complete;
-  });
-  const loaded = await uiPage.evaluate(() => {
-    const img = document.querySelector("#native-favicon");
-    return { src: img.src, width: img.naturalWidth, height: img.naturalHeight };
-  });
-  assert.equal(loaded.src, png, "Sidebar must preserve native favicon data without URL rewriting");
-  assert.ok(loaded.width > 0 && loaded.height > 0, "Sidebar must decode the native PNG data URI");
-  await uiPage.screenshot({ path: "artifacts/native-favicon-sidebar.png" });
-  await uiPage.close();
-
+  assert.ok(uiSource.includes("i.src = candidates[index];"),
+    "Sidebar icon loader must use the original favicon source URL");
+  assert.doesNotMatch(uiSource, /_poof_icon_refresh|freshFaviconUrl/,
+    "Favicon source URLs must not be rewritten with cache-busting query parameters");
   const rust = await readFile("src/browser.rs", "utf8");
   const metaBranch = rust.match(/PageMsg::Meta \{ u \} => \{([\s\S]*?)\n            \}\n            PageMsg::Favicon/);
   assert.ok(metaBranch, "Rust page metadata handler must remain discoverable");
@@ -94,7 +71,7 @@ try {
     "Both initial and changed favicons must use the original URI IPC payload");
   assert.ok(rust.includes("body.len() > 700_000"),
     "IPC size limit must allow bounded embedded favicon data");
-  console.log("PASS: native WebView2 favicon handoff and sidebar PNG handling");
+  console.log("PASS: native WebView2 favicon URI handoff and original-source rendering");
 } finally {
   await browser.close();
 }
