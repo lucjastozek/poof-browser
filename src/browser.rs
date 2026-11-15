@@ -204,36 +204,27 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   }} catch (_) {{}}
   {DEVTOOLS_BOUNDS_INIT_JS}
   const applyPanelLayout = () => {{
-    const findSplit = root => {{
-      const direct = root.querySelector?.(".split-widget");
-      if (direct) return direct;
-      for (const element of root.querySelectorAll?.("*") || []) {{
-        if (element.shadowRoot) {{
-          const nested = findSplit(element.shadowRoot);
-          if (nested) return nested;
-        }}
-      }}
-      return null;
-    }};
-    const split = findSplit(document);
-    const sidebar = split?.shadowRoot?.querySelector(".shadow-split-widget-sidebar");
-    if (sidebar) {{
-      sidebar.style.setProperty("flex-basis", "{size}px", "important");
-      sidebar.style.setProperty("{dimension}", "{size}px", "important");
-    }}
     const rootSplit = window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget;
-    if (rootSplit) {{
-      rootSplit.setVertical({vertical});
-      rootSplit.setSecondIsSidebar({second_is_sidebar});
-      rootSplit.showBoth();
-    }}
+    if (!rootSplit) return;
+    rootSplit.setVertical({vertical});
+    rootSplit.setSecondIsSidebar({second_is_sidebar});
+    rootSplit.showBoth();
+    rootSplit.setSidebarSize({size});
+    const resizer = rootSplit.resizerElement();
+    const persistPanelSize = () => requestAnimationFrame(() => {{
+      window.ipc?.postMessage(JSON.stringify({{
+        t: "panel_size",
+        size: rootSplit.sidebarSize()
+      }}));
+    }});
+    resizer.addEventListener("pointerup", persistPanelSize);
+    resizer.addEventListener("pointercancel", persistPanelSize);
   }};
   window.addEventListener("load", applyPanelLayout, {{once: true}});
 }})();
 "#,
         dock_side = dock_side,
         size = size.clamp(240.0, 800.0),
-        dimension = if matches!(position, "top" | "bottom") { "height" } else { "width" },
         vertical = vertical,
         second_is_sidebar = second_is_sidebar,
         DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
@@ -1357,14 +1348,14 @@ impl Browser {
     fn sync_devtools_panel_size(&self) {
         let Some(devtools) = self.devtools.as_ref() else { return };
         let size = self.p.devtools_size.clamp(240.0, 800.0);
-        let horizontal = matches!(self.p.devtools_position.as_str(), "top" | "bottom");
-        let dock_side = match self.p.devtools_position.as_str() {
+        let position = self.p.devtools_position.as_str();
+        let dock_side = match position {
             "left" => "left",
             "bottom" | "top" => "bottom",
             _ => "right",
         };
-        let vertical = matches!(self.p.devtools_position.as_str(), "left" | "right");
-        let second_is_sidebar = matches!(self.p.devtools_position.as_str(), "right" | "bottom");
+        let vertical = matches!(position, "left" | "right");
+        let second_is_sidebar = matches!(position, "right" | "bottom");
         let script = format!(
             r#"
 (() => {{
@@ -1382,28 +1373,11 @@ impl Browser {
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
     rootSplit.showBoth();
-  }}
-  const findSplit = root => {{
-    const direct = root.querySelector?.(".split-widget");
-    if (direct) return direct;
-    for (const element of root.querySelectorAll?.("*") || []) {{
-      if (element.shadowRoot) {{
-        const nested = findSplit(element.shadowRoot);
-        if (nested) return nested;
-      }}
-    }}
-    return null;
-  }};
-  const split = findSplit(document);
-  const sidebar = split?.shadowRoot?.querySelector(".shadow-split-widget-sidebar");
-  if (sidebar) {{
-    sidebar.style.setProperty("flex-basis", "{size}px", "important");
-    sidebar.style.setProperty("{dimension}", "{size}px", "important");
+    rootSplit.setSidebarSize({size});
   }}
 }})();
 "#,
             size = size,
-            dimension = if horizontal { "height" } else { "width" },
             dock_side = dock_side,
             vertical = vertical,
             second_is_sidebar = second_is_sidebar,
