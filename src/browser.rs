@@ -1338,9 +1338,23 @@ impl Browser {
         let size = self.p.devtools_size.clamp(240.0, 800.0);
         let horizontal = matches!(self.p.devtools_position.as_str(), "top" | "bottom");
         let top = self.p.devtools_position == "top";
+        let dock_side = match self.p.devtools_position.as_str() {
+            "left" => "left",
+            "bottom" | "top" => "bottom",
+            _ => "right",
+        };
         let script = format!(
             r#"
 (() => {{
+  try {{
+    localStorage.setItem("currentDockState", JSON.stringify("{dock_side}"));
+    localStorage.setItem("inspector-view.split-view-state", JSON.stringify({{
+      vertical: {{size: {size}}},
+      horizontal: {{size: {size}}}
+    }}));
+  }} catch (_) {{}}
+  const dockController = window.UI?.DockController?.DockController?.instance?.();
+  dockController?.setDockSide("{dock_side}");
   const findSplit = root => {{
     const direct = root.querySelector?.(".split-widget");
     if (direct) return direct;
@@ -1365,6 +1379,7 @@ impl Browser {
 "#,
             size = size,
             dimension = if horizontal { "height" } else { "width" },
+            dock_side = dock_side,
             top = top,
         );
         let _ = devtools.evaluate_script(&script);
