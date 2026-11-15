@@ -1344,7 +1344,6 @@ impl Browser {
         let Some(devtools) = self.devtools.as_ref() else { return };
         let size = self.p.devtools_size.clamp(240.0, 800.0);
         let horizontal = matches!(self.p.devtools_position.as_str(), "top" | "bottom");
-        let top = self.p.devtools_position == "top";
         let dock_side = match self.p.devtools_position.as_str() {
             "left" => "left",
             "bottom" | "top" => "bottom",
@@ -1386,9 +1385,6 @@ impl Browser {
   if (sidebar) {{
     sidebar.style.setProperty("flex-basis", "{size}px", "important");
     sidebar.style.setProperty("{dimension}", "{size}px", "important");
-  }}
-  if ({top}) {{
-    window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget?.setSecondIsSidebar(false);
   }}
 }})();
 "#,
