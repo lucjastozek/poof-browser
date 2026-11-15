@@ -120,6 +120,44 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = include_str!("browser/init_script.js");
 
+/// The hosted DevTools frontend normally leaves this embedder hook empty.
+/// Forward its inspected-page placeholder bounds to the native WebView host.
+const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
+(() => {
+  let host = window.InspectorFrontendHost;
+  const report = bounds => {
+    if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) return;
+    window.ipc?.postMessage(JSON.stringify({t: "inspected_page_bounds", ...bounds}));
+  };
+  const patch = value => {
+    if (!value || value.__poofBoundsPatched || typeof value.setInspectedPageBounds !== "function") return;
+    const original = value.setInspectedPageBounds;
+    value.setInspectedPageBounds = function(bounds) {
+      report(bounds);
+      return original.call(this, bounds);
+    };
+    Object.defineProperty(value, "__poofBoundsPatched", {value: true});
+  };
+  try {
+    Object.defineProperty(window, "InspectorFrontendHost", {
+      configurable: true,
+      enumerable: true,
+      get: () => host,
+      set: value => { host = value; patch(value); }
+    });
+    patch(host);
+  } catch (error) {
+    console.error("Poof could not install the DevTools page-bounds bridge", error);
+  }
+})();
+"#;
+
+#[derive(Deserialize)]
+#[serde(tag = "t", rename_all = "snake_case")]
+enum DevToolsMsg {
+    InspectedPageBounds { x: f64, y: f64, width: f64, height: f64 },
+}
+
 pub struct Tab {
     pub id: String,
     pub profile_id: String,
@@ -225,6 +263,8 @@ pub struct Browser {
     devtools_open: bool,
     devtools: Option<WebView>,
     devtools_tab: Option<String>,
+    /// Preview bounds relative to the full DevTools frontend surface.
+    devtools_page_bounds: Option<(f64, f64, f64, f64)>,
 }
 
 // ---------- geometry ----------
@@ -576,6 +616,7 @@ impl Browser {
             devtools_open: false,
             devtools: None,
             devtools_tab: None,
+            devtools_page_bounds: None,
         };
         b.apply_theme();
         b.preinstall();
@@ -639,6 +680,15 @@ impl Browser {
         match ev {
             UserEvent::CloseWindow => {},
             UserEvent::DevToolsReady { tab, url } => self.show_devtools(&tab, &url),
+            UserEvent::DevToolsPageBounds { tab, x, y, width, height } => {
+                if self.devtools_open && self.visible.as_deref() == Some(tab.as_str())
+                    && [x, y, width, height].iter().all(|value| value.is_finite())
+                    && width > 0.0 && height > 0.0
+                {
+                    self.devtools_page_bounds = Some((x, y, width, height));
+                    self.relayout();
+                }
+            }
             UserEvent::DevToolsFailed { tab, message } => {
                 if self.devtools_open && self.visible.as_deref() == Some(tab.as_str()) {
                     self.devtools_open = false;
@@ -1062,6 +1112,7 @@ impl Browser {
         if self.devtools_open {
             self.devtools_open = false;
             self.devtools_tab = None;
+            self.devtools_page_bounds = None;
             if let Some(devtools) = self.devtools.as_ref() {
                 let _ = devtools.set_visible(false);
             }
@@ -1141,6 +1192,7 @@ impl Browser {
             }
             return;
         }
+        self.devtools_page_bounds = None;
         let result = if let Some(devtools) = self.devtools.as_ref() {
             devtools.load_url(url)
         } else {
