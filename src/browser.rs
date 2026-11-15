@@ -1275,7 +1275,6 @@ impl Browser {
             self.p.devtools_size,
         );
         let bounds_proxy = self.proxy.clone();
-        let bounds_tab = tab.to_string();
         let result = if let Some(devtools) = self.devtools.as_ref() {
             devtools.load_url(url)
         } else {
@@ -1293,7 +1292,7 @@ impl Browser {
                     match message {
                         DevToolsMsg::InspectedPageBounds { x, y, width, height } => {
                             let _ = bounds_proxy.send_event(UserEvent::DevToolsPageBounds {
-                                tab: bounds_tab.clone(), x, y, width, height,
+                                x, y, width, height,
                             });
                         }
                     }
