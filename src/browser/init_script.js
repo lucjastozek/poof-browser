@@ -190,9 +190,46 @@
   var last = "";
   function icon() {
     try {
-      var l = document.querySelector('link[rel~="icon" i]');
-      return new URL(l ? l.getAttribute("href") : "/favicon.ico", location.href)
-        .href;
+      var links = Array.prototype.slice
+        .call(document.querySelectorAll('link[rel~="icon" i]'))
+        .map(function (link) {
+          var href = link.getAttribute("href");
+          if (!href) return null;
+          try {
+            return {
+              url: new URL(href, location.href),
+              sizes: link.getAttribute("sizes") || "",
+            };
+          } catch (e) {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      var pageHost = location.hostname.toLowerCase();
+      var isGoogleApp =
+        pageHost === "google.com" || pageHost.endsWith(".google.com");
+      // Google properties sometimes expose Google's generic favicon before
+      // their own app icon. Prefer an icon hosted by the actual page origin.
+      // This keeps Gmail, Calendar and Drive distinct instead of inheriting
+      // www.google.com/favicon.ico.
+      links.sort(function (a, b) {
+        var aLocal = a.url.origin === location.origin ? 1 : 0;
+        var bLocal = b.url.origin === location.origin ? 1 : 0;
+        if (isGoogleApp && aLocal !== bLocal) return bLocal - aLocal;
+        var aSized = a.sizes && a.sizes.toLowerCase() !== "any" ? 1 : 0;
+        var bSized = b.sizes && b.sizes.toLowerCase() !== "any" ? 1 : 0;
+        return bSized - aSized;
+      });
+      var selected = links.length ? links[0].url : null;
+      if (
+        isGoogleApp &&
+        selected &&
+        selected.hostname.toLowerCase() === "www.google.com" &&
+        /favicon\\.ico$/i.test(selected.pathname)
+      ) {
+        selected = null;
+      }
+      return (selected || new URL("/favicon.ico", location.href)).href;
     } catch (e) {
       return null;
     }
