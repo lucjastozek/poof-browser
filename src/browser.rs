@@ -885,9 +885,12 @@ impl Browser {
             UserEvent::DevToolsPanelSize { size, persist } => {
                 if self.devtools_open && size.is_finite() {
                     let size = size.clamp(240.0, 800.0);
-                    if (self.p.devtools_size - size).abs() >= 1.0 {
-                        self.p.devtools_size = size;
-                        if persist { self.save(); }
+                    let changed = (self.p.devtools_size - size).abs() >= 1.0;
+                    self.p.devtools_size = size;
+                    if persist {
+                        self.save();
+                    }
+                    if changed {
                         self.relayout();
                         self.push_state();
                     }
@@ -2345,6 +2348,9 @@ mod devtools_frontend_tests {
         assert!(script.contains(r#"t: "panel_size""#));
         assert!(script.contains("requestAnimationFrame(applyPanelLayout)"));
         assert!(script.contains("rootSplit.setSidebarSize(560)"));
+        assert!(script.contains("rootSplit.hideMain()"));
+        assert!(script.contains("responsive_mode"));
+        assert!(script.contains("__poof_devtools_panel_resizer"));
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
