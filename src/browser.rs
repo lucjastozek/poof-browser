@@ -183,6 +183,37 @@ enum DevToolsMsg {
     InspectedPageBounds { x: f64, y: f64, width: f64, height: f64 },
 }
 
+fn devtools_init_script(position: &str, size: f64) -> String {
+    let dock_side = match position {
+        "left" => "left",
+        "bottom" | "top" => "bottom",
+        _ => "right",
+    };
+    format!(
+        r#"
+(() => {{
+  try {{
+    localStorage.setItem("currentDockState", JSON.stringify("{dock_side}"));
+    localStorage.setItem("inspector-view.split-view-state", JSON.stringify({{
+      vertical: {{size: {size}}},
+      horizontal: {{size: {size}}}
+    }}));
+  }} catch (_) {{}}
+  {DEVTOOLS_BOUNDS_INIT_JS}
+  if ("{position}" === "top") {{
+    window.addEventListener("load", () => {{
+      window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget?.setSecondIsSidebar(false);
+    }}, {{once: true}});
+  }}
+}})();
+"#,
+        dock_side = dock_side,
+        size = size.clamp(240.0, 800.0),
+        position = position,
+        DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
+    )
+}
+
 pub struct Tab {
     pub id: String,
     pub profile_id: String,
@@ -1280,6 +1311,43 @@ impl Browser {
                 self.toast(&format!("Could not open Developer Tools: {error}"));
             }
         }
+    }
+
+    fn sync_devtools_panel_size(&self) {
+        let Some(devtools) = self.devtools.as_ref() else { return };
+        let size = self.p.devtools_size.clamp(240.0, 800.0);
+        let horizontal = matches!(self.p.devtools_position.as_str(), "top" | "bottom");
+        let top = self.p.devtools_position == "top";
+        let script = format!(
+            r#"
+(() => {{
+  const findSplit = root => {{
+    const direct = root.querySelector?.(".split-widget");
+    if (direct) return direct;
+    for (const element of root.querySelectorAll?.("*") || []) {{
+      if (element.shadowRoot) {{
+        const nested = findSplit(element.shadowRoot);
+        if (nested) return nested;
+      }}
+    }}
+    return null;
+  }};
+  const split = findSplit(document);
+  const sidebar = split?.shadowRoot?.querySelector(".shadow-split-widget-sidebar");
+  if (sidebar) {{
+    sidebar.style.setProperty("flex-basis", "{size}px", "important");
+    sidebar.style.setProperty("{dimension}", "{size}px", "important");
+  }}
+  if ({top}) {{
+    window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget?.setSecondIsSidebar(false);
+  }}
+}})();
+"#,
+            size = size,
+            dimension = if horizontal { "height" } else { "width" },
+            top = top,
+        );
+        let _ = devtools.evaluate_script(&script);
     }
 
     // ---------- model helpers ----------
