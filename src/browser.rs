@@ -1119,6 +1119,7 @@ impl Browser {
                 if matches!(position.as_str(), "right" | "left" | "bottom" | "top") {
                     self.p.devtools_position = position;
                     self.save();
+                    self.sync_devtools_panel_size();
                     self.relayout();
                 }
             }
@@ -1126,6 +1127,7 @@ impl Browser {
                 if size.is_finite() {
                     self.p.devtools_size = size.clamp(240.0, 800.0);
                     if persist { self.save(); }
+                    self.sync_devtools_panel_size();
                     self.relayout();
                 }
             }
@@ -1218,6 +1220,12 @@ impl Browser {
             return;
         }
         self.devtools_page_bounds = None;
+        let init_script = devtools_init_script(
+            &self.p.devtools_position,
+            self.p.devtools_size,
+        );
+        let bounds_proxy = self.proxy.clone();
+        let bounds_tab = tab.to_string();
         let result = if let Some(devtools) = self.devtools.as_ref() {
             devtools.load_url(url)
         } else {
@@ -1227,6 +1235,19 @@ impl Browser {
                 .with_bounds(bounds)
                 .with_visible(false)
                 .with_devtools(false)
+                .with_initialization_script_for_main_only(&init_script, false)
+                .with_ipc_handler(move |request| {
+                    let Ok(message) = serde_json::from_str::<DevToolsMsg>(request.into_body().as_str()) else {
+                        return;
+                    };
+                    match message {
+                        DevToolsMsg::InspectedPageBounds { x, y, width, height } => {
+                            let _ = bounds_proxy.send_event(UserEvent::DevToolsPageBounds {
+                                tab: bounds_tab.clone(), x, y, width, height,
+                            });
+                        }
+                    }
+                })
                 .with_url(url)
                 .build_as_child(&self.window)
             {
