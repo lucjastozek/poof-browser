@@ -68,8 +68,8 @@ try {
 
   // Exercise the actual sidebar icon loader against the official Gmail asset.
   const uiSource = await readFile("ui/scripts/core.js", "utf8");
-  const freshFn = uiSource.match(/function freshFaviconUrl\\(src\\) \\{[\\s\\S]*?\\n\\}/)?.[0];
-  const iconFn = uiSource.match(/function icon\\(t, guess = true\\) \\{[\\s\\S]*?\\n\\}\\nconst pretty/)?.[0]?.replace(/\\nconst pretty$/, "");
+  const freshFn = uiSource.match(/function freshFaviconUrl\(src\) \{[\s\S]*?\n\}/)?.[0];
+  const iconFn = uiSource.match(/function icon\(t, guess = true\) \{[\s\S]*?\n\}\nconst pretty/)?.[0]?.replace(/\nconst pretty$/, "");
   assert.ok(freshFn && iconFn, "Could not extract the production sidebar icon loader");
   const uiPage = await browser.newPage();
   await uiPage.setContent("<html><body></body></html>");
