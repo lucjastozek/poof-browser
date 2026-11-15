@@ -23,6 +23,9 @@ pub enum UserEvent {
     /// Native WebView2 notification that a page element entered or left fullscreen.
     Fullscreen { tab: String, active: bool },
     Title { tab: String, title: String },
+    /// A page-specific DevTools frontend URL resolved from the profile's CDP endpoint.
+    DevToolsReady { tab: String, url: String },
+    DevToolsFailed { tab: String, message: String },
     OpenTab { url: String },
     /// Result of a background extension install (Web Store download).
     ExtResult { ok: bool, msg: String, dir: Option<std::path::PathBuf>, id: Option<String> },
