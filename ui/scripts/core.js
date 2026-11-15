@@ -192,6 +192,7 @@ function go(cmd) {
   if (ov) {
     ov = null;
     $("stage").hidden = true;
+    if (typeof updateDevtoolsResizeHandle === "function") updateDevtoolsResizeHandle();
     send({ cmd: "overlay", open: false });
   }
   send(cmd);
@@ -199,6 +200,7 @@ function go(cmd) {
 function openView(name) {
   ov = name;
   $("stage").hidden = false;
+  if (typeof updateDevtoolsResizeHandle === "function") updateDevtoolsResizeHandle();
   send({ cmd: "overlay", open: true });
   build(name);
 }
@@ -210,6 +212,7 @@ function closeView() {
   }
   ov = null;
   $("stage").hidden = true;
+  if (typeof updateDevtoolsResizeHandle === "function") updateDevtoolsResizeHandle();
   applyColor(curSpace().color);
   send({ cmd: "overlay", open: false });
 }
