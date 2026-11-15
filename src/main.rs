@@ -26,6 +26,8 @@ pub enum UserEvent {
     /// A page-specific DevTools frontend URL resolved from the profile's CDP endpoint.
     DevToolsReady { tab: String, url: String },
     DevToolsFailed { tab: String, message: String },
+    /// Bounds requested by the DevTools inspected-page placeholder.
+    DevToolsPageBounds { tab: String, x: f64, y: f64, width: f64, height: f64 },
     OpenTab { url: String },
     /// Result of a background extension install (Web Store download).
     ExtResult { ok: bool, msg: String, dir: Option<std::path::PathBuf>, id: Option<String> },
