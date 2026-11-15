@@ -152,7 +152,18 @@ const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
   let host = window.InspectorFrontendHost;
   const report = bounds => {
     if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) return;
-    window.ipc?.postMessage(JSON.stringify({t: "inspected_page_bounds", ...bounds}));
+    const left = Math.max(0, bounds.x);
+    const top = Math.max(0, bounds.y);
+    const right = Math.min(window.innerWidth, bounds.x + bounds.width);
+    const bottom = Math.min(window.innerHeight, bounds.y + bounds.height);
+    if (right <= left || bottom <= top) return;
+    window.ipc?.postMessage(JSON.stringify({
+      t: "inspected_page_bounds",
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top
+    }));
   };
   const patch = value => {
     if (!value || value.__poofBoundsPatched || typeof value.setInspectedPageBounds !== "function") return;
@@ -210,12 +221,17 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}
   }} catch (_) {{}}
   {DEVTOOLS_BOUNDS_INIT_JS}
+  let layoutAttempts = 0;
   const applyPanelLayout = () => {{
     const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
-    if (!rootSplit) return;
+    if (!rootSplit) {{
+      if (++layoutAttempts < 120) requestAnimationFrame(applyPanelLayout);
+      return;
+    }}
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
     rootSplit.showBoth();
+    rootSplit.setSidebarSize({size});
     const resizer = rootSplit.resizerElement();
     let resizingPanel = false;
     resizer.addEventListener("pointerdown", () => {{ resizingPanel = true; }});
@@ -232,7 +248,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     document.addEventListener("pointerup", persistPanelSize, true);
     document.addEventListener("pointercancel", persistPanelSize, true);
   }};
-  window.addEventListener("load", applyPanelLayout, {{once: true}});
+  window.addEventListener("load", () => requestAnimationFrame(applyPanelLayout), {{once: true}});
 }})();
 "#,
         dock_side = dock_side,
@@ -805,7 +821,13 @@ impl Browser {
             }
             UserEvent::DevToolsPageBounds { x, y, width, height } => {
                 if self.devtools_open && self.visible.is_some() {
-                    self.devtools_page_bounds = Some((x, y, width, height));
+                    self.devtools_page_bounds = if [x, y, width, height].iter().all(|value| value.is_finite())
+                        && width > 0.0 && height > 0.0
+                    {
+                        Some((x, y, width, height))
+                    } else {
+                        None
+                    };
                     self.relayout();
                 }
             }
