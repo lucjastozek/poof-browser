@@ -273,10 +273,25 @@
       var selected = links.length ? links[0].url : null;
       var pageIsAppHost = pageUrl.hostname.toLowerCase() === appHost;
 
-      // Gmail's page can declare Google's generic account/product icon.
-      // Prefer Gmail's canonical product favicon before considering page links.
+      // Google product pages sometimes declare Google's shared account icon
+      // instead of their own product icon. Ask each product host for its own
+      // favicon endpoint rather than trusting that generic link.
       if (appHost === "mail.google.com") {
         return "https://gmail.google.com/favicon.ico";
+      }
+      var googleProductHosts = [
+        "calendar.google.com",
+        "drive.google.com",
+        "docs.google.com",
+        "photos.google.com",
+        "keep.google.com",
+        "meet.google.com",
+        "contacts.google.com",
+        "classroom.google.com",
+        "maps.google.com"
+      ];
+      if (googleProductHosts.indexOf(appHost) !== -1) {
+        return new URL("/favicon.ico", appUrl.origin).href;
       }
 
       // On the real app page, accept its declared icon even when hosted by a
