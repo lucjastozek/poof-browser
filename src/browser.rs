@@ -514,6 +514,8 @@ impl Browser {
                             if let Some(h) = parsed.host_str() {
                                 let host = h.trim_start_matches("www.").to_string();
                                 if t.host != host {
+                                    // Do not carry the previous site's favicon across navigation.
+                                    t.favicon = None;
                                     // A new site was visited in this tab: count it for the new-tab bar.
                                     t.host = host.clone();
                                     let s = self.p.sites.entry(host).or_default();
