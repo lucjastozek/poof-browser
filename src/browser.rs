@@ -1732,7 +1732,7 @@ impl Browser {
         let y = TOPBAR_H;
         let width = (window_w - sidebar - 2.0 * INSET).max(1.0);
         let height = (window_h - TOPBAR_H - INSET).max(1.0);
-        let gap = 4.0;
+        let gap = 8.0;
         let size = self.p.devtools_size.clamp(240.0, 800.0);
         let position = self.p.devtools_position.as_str();
         let (page, tools) = match position {
