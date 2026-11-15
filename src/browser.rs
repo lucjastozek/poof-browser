@@ -156,7 +156,12 @@ const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
     const top = Math.max(0, bounds.y);
     const right = Math.min(window.innerWidth, bounds.x + bounds.width);
     const bottom = Math.min(window.innerHeight, bounds.y + bounds.height);
-    if (right <= left || bottom <= top) return;
+    if (right <= left || bottom <= top) {
+      window.ipc?.postMessage(JSON.stringify({
+        t: "inspected_page_bounds", x: 0, y: 0, width: 0, height: 0
+      }));
+      return;
+    }
     window.ipc?.postMessage(JSON.stringify({
       t: "inspected_page_bounds",
       x: left,
@@ -2242,6 +2247,8 @@ mod devtools_frontend_tests {
         assert!(script.contains("setInspectedPageBounds"));
         assert!(script.contains("__poofDevToolsLayoutInitialized"));
         assert!(script.contains(r#"t: "panel_size""#));
+        assert!(script.contains("requestAnimationFrame(applyPanelLayout)"));
+        assert!(script.contains("rootSplit.setSidebarSize(560)"));
     }
 
     #[test]
