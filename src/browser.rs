@@ -228,6 +228,67 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   }} catch (_) {{}}
   {DEVTOOLS_BOUNDS_INIT_JS}
   let layoutAttempts = 0;
+  let responsiveMode = false;
+  let resizeHandle = null;
+  let panelSize = {size};
+  const postPanelSize = (persist) => window.ipc?.postMessage(JSON.stringify({{
+    t: "panel_size", size: panelSize, persist
+  }}));
+  const installPanelResizer = () => {{
+    if (resizeHandle || responsiveMode) return;
+    resizeHandle = document.createElement("div");
+    resizeHandle.id = "__poof_devtools_panel_resizer";
+    Object.assign(resizeHandle.style, {{
+      position: "fixed", zIndex: "2147483647", touchAction: "none",
+      background: "transparent",
+      cursor: {vertical} ? "col-resize" : "row-resize",
+      {handle_css}
+    }});
+    let start = 0;
+    let initial = panelSize;
+    let dragging = false;
+    resizeHandle.addEventListener("pointerdown", event => {{
+      dragging = true;
+      start = {vertical} ? event.clientX : event.clientY;
+      initial = panelSize;
+      resizeHandle.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    }});
+    resizeHandle.addEventListener("pointermove", event => {{
+      if (!dragging) return;
+      const current = {vertical} ? event.clientX : event.clientY;
+      const delta = current - start;
+      const direction = "{grow_direction}";
+      panelSize = Math.max(240, Math.min(800, initial + (direction === "positive" ? delta : -delta)));
+      document.documentElement.dataset.poofPanelSize = String(panelSize);
+      postPanelSize(false);
+    }});
+    const finish = () => {{
+      if (!dragging) return;
+      dragging = false;
+      postPanelSize(true);
+    }};
+    resizeHandle.addEventListener("pointerup", finish);
+    resizeHandle.addEventListener("pointercancel", finish);
+    document.documentElement.appendChild(resizeHandle);
+  }};
+  const reportResponsiveMode = active => {{
+    if (responsiveMode === active) return;
+    responsiveMode = active;
+    window.ipc?.postMessage(JSON.stringify({{t: "responsive_mode", active}}));
+    const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
+    if (!rootSplit) return;
+    if (active) {{
+      resizeHandle?.remove();
+      resizeHandle = null;
+      rootSplit.showBoth();
+      rootSplit.setSidebarSize(panelSize);
+    }} else {{
+      rootSplit.hideMain();
+      window.ipc?.postMessage(JSON.stringify({{t:"inspected_page_bounds",x:0,y:0,width:0,height:0}}));
+      installPanelResizer();
+    }}
+  }};
   const applyPanelLayout = () => {{
     const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
     if (!rootSplit) {{
@@ -236,23 +297,13 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
-    rootSplit.showBoth();
-    rootSplit.setSidebarSize({size});
-    const resizer = rootSplit.resizerElement();
-    let resizingPanel = false;
-    resizer.addEventListener("pointerdown", () => {{ resizingPanel = true; }});
-    const persistPanelSize = () => {{
-      if (!resizingPanel) return;
-      resizingPanel = false;
-      requestAnimationFrame(() => {{
-        window.ipc?.postMessage(JSON.stringify({{
-          t: "panel_size",
-          size: rootSplit.sidebarSize()
-        }}));
-      }});
-    }};
-    document.addEventListener("pointerup", persistPanelSize, true);
-    document.addEventListener("pointercancel", persistPanelSize, true);
+    rootSplit.setSidebarSize(panelSize);
+    rootSplit.hideMain();
+    installPanelResizer();
+    const model = window.Emulation?.DeviceModeModel?.instance?.();
+    const updateMode = () => reportResponsiveMode(Boolean(model?.isActive?.()));
+    updateMode();
+    model?.addEventListener?.(window.Emulation?.DeviceModeModel?.Events?.UPDATED || "Updated", updateMode);
   }};
   window.addEventListener("load", () => requestAnimationFrame(applyPanelLayout), {{once: true}});
 }})();
@@ -261,6 +312,8 @@ fn devtools_init_script(position: &str, size: f64) -> String {
         size = size.clamp(240.0, 800.0),
         vertical = vertical,
         second_is_sidebar = second_is_sidebar,
+        handle_css = position === "right" ? "left:0;top:0;width:8px;height:100vh;" : position === "left" ? "right:0;top:0;width:8px;height:100vh;" : position === "bottom" ? "left:0;top:0;width:100vw;height:8px;" : "left:0;bottom:0;width:100vw;height:8px;",
+        grow_direction = position === "left" || position === "top" ? "positive" : "negative",
         DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
     )
 }
@@ -1454,8 +1507,9 @@ impl Browser {
   if (rootSplit) {{
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
-    rootSplit.showBoth();
     rootSplit.setSidebarSize({size});
+    if (window.Emulation?.DeviceModeModel?.instance?.()?.isActive?.()) rootSplit.showBoth();
+    else rootSplit.hideMain();
   }}
 }})();
 "#,
