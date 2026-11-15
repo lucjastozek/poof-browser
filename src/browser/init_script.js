@@ -225,7 +225,7 @@
         isGoogleApp &&
         selected &&
         selected.hostname.toLowerCase() === "www.google.com" &&
-        /favicon\\.ico$/i.test(selected.pathname)
+        /favicon\.ico$/i.test(selected.pathname)
       ) {
         selected = null;
       }
