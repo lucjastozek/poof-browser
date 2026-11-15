@@ -947,6 +947,7 @@ impl Browser {
             use base64::{engine::general_purpose::STANDARD, Engine as _};
             use webview2_com::{FaviconChangedEventHandler, GetFaviconCompletedHandler, Microsoft::Web::WebView2::Win32::*};
             use windows::Win32::System::Com::{IStream, STATFLAG_NONAME, STREAM_SEEK_SET};
+            use windows::core::Interface;
             use wry::WebViewExtWindows;
             fn stream_to_png(stream: &IStream) -> Option<Vec<u8>> {
                 unsafe {
