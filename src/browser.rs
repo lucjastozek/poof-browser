@@ -273,6 +273,18 @@ fn ok_url(s: &str, max: usize, allow_data: bool) -> bool {
             || (allow_data && s.starts_with("data:image/")))
 }
 
+/// Keep the last usable icon when WebView2 reports a transient empty result.
+fn update_favicon(current: &mut Option<String>, incoming: Option<String>) -> bool {
+    let Some(favicon) = incoming.filter(|value| ok_url(value, 512_000, true)) else {
+        return false;
+    };
+    if current.as_deref() == Some(favicon.as_str()) {
+        return false;
+    }
+    *current = Some(favicon);
+    true
+}
+
 fn ok_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
@@ -656,9 +668,13 @@ impl Browser {
             PageMsg::Favicon { f } => {
                 let mut persist = false;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
-                    t.favicon = f.filter(|value| ok_url(value, 512_000, true));
-                    if let Some(s) = self.p.sites.get_mut(&t.host) { s.favicon = t.favicon.clone(); }
-                    persist = t.kind != Kind::Normal;
+                    let changed = update_favicon(&mut t.favicon, f);
+                    if changed {
+                        if let Some(s) = self.p.sites.get_mut(&t.host) {
+                            s.favicon = t.favicon.clone();
+                        }
+                        persist = t.kind != Kind::Normal;
+                    }
                 }
                 if persist { self.save(); }
                 self.push_state();
@@ -1061,33 +1077,29 @@ impl Browser {
         #[cfg(windows)]
         register_browser_shortcuts(&wv, self.proxy.clone(), id.clone());
 
-        // WebView2 owns favicon discovery and retrieval; no guessed URL requests.
+        // Use WebView2's original favicon URI so the sidebar and tab rows can
+        // render SVGs and multi-resolution ICO/PNG sources without rasterizing
+        // every icon to WebView2's small PNG snapshot first.
         #[cfg(windows)]
         {
-            use base64::{engine::general_purpose::STANDARD, Engine as _};
-            use webview2_com::{FaviconChangedEventHandler, GetFaviconCompletedHandler, Microsoft::Web::WebView2::Win32::*};
-            use windows::Win32::System::Com::{IStream, STATFLAG_NONAME, STREAM_SEEK_SET};
-            use windows::core::Interface;
+            use webview2_com::{FaviconChangedEventHandler, Microsoft::Web::WebView2::Win32::*};
+            use windows::Win32::System::Com::CoTaskMemFree;
+            use windows::core::{Interface, PWSTR};
             use wry::WebViewExtWindows;
-            fn stream_to_png(stream: &IStream) -> Option<Vec<u8>> {
+
+            fn current_favicon_uri(core15: &ICoreWebView2_15) -> Option<String> {
                 unsafe {
-                    let mut stat = Default::default();
-                    stream.Stat(&mut stat, STATFLAG_NONAME).ok()?;
-                    let size = usize::try_from(stat.cbSize).ok()?;
-                    if size == 0 || size > 256 * 1024 { return None; }
-                    stream.Seek(0, STREAM_SEEK_SET, None).ok()?;
-                    let mut bytes = vec![0u8; size];
-                    let mut total = 0usize;
-                    while total < size {
-                        let mut read = 0u32;
-                        stream.Read(bytes[total..].as_mut_ptr() as *mut _, (size-total) as u32, Some(&mut read)).ok().ok()?;
-                        if read == 0 { break; }
-                        total += read as usize;
+                    let mut uri = PWSTR::null();
+                    core15.FaviconUri(&mut uri).ok()?;
+                    if uri.is_null() {
+                        return None;
                     }
-                    bytes.truncate(total);
-                    if bytes.is_empty() { None } else { Some(bytes) }
+                    let value = uri.to_string().ok();
+                    CoTaskMemFree(Some(uri.0 as *const std::ffi::c_void));
+                    value.filter(|value| ok_url(value, 4096, false))
                 }
             }
+
             let favicon_proxy = self.proxy.clone();
             let favicon_tab = id.clone();
             let initial_proxy = favicon_proxy.clone();
@@ -1098,17 +1110,9 @@ impl Browser {
                         let handler = FaviconChangedEventHandler::create(Box::new(move |sender, _| {
                             let Some(sender) = sender else { return Ok(()) };
                             let Ok(core15) = sender.cast::<ICoreWebView2_15>() else { return Ok(()) };
-                            let callback_proxy = favicon_proxy.clone();
-                            let callback_tab = favicon_tab.clone();
-                            let completed = GetFaviconCompletedHandler::create(Box::new(move |result, stream| {
-                                let data_uri = result.ok()
-                                    .and_then(|_| stream.as_ref().and_then(stream_to_png))
-                                    .map(|bytes| format!("data:image/png;base64,{}", STANDARD.encode(bytes)));
-                                let body = json!({"t": "favicon", "f": data_uri}).to_string();
-                                let _ = callback_proxy.send_event(UserEvent::Page { tab: callback_tab.clone(), body });
-                                Ok(())
-                            }));
-                            let _ = core15.GetFavicon(COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG, &completed);
+                            let favicon = current_favicon_uri(&core15);
+                            let body = json!({"t": "favicon", "f": favicon}).to_string();
+                            let _ = favicon_proxy.send_event(UserEvent::Page { tab: favicon_tab.clone(), body });
                             Ok(())
                         }));
                         let mut token = 0;
@@ -1116,17 +1120,10 @@ impl Browser {
                             log::warn!("registering WebView2 favicon handler failed: {error}");
                         }
                         // The initial navigation may have started before this handler
-                        // was attached. Fetch the current icon once as well as listening
-                        // for subsequent changes.
-                        let completed = GetFaviconCompletedHandler::create(Box::new(move |result, stream| {
-                            let data_uri = result.ok()
-                                .and_then(|_| stream.as_ref().and_then(stream_to_png))
-                                .map(|bytes| format!("data:image/png;base64,{}", STANDARD.encode(bytes)));
-                            let body = json!({"t": "favicon", "f": data_uri}).to_string();
-                            let _ = initial_proxy.send_event(UserEvent::Page { tab: initial_tab.clone(), body });
-                            Ok(())
-                        }));
-                        let _ = core15.GetFavicon(COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG, &completed);
+                        // was attached, so publish the current URI as well.
+                        let favicon = current_favicon_uri(&core15);
+                        let body = json!({"t": "favicon", "f": favicon}).to_string();
+                        let _ = initial_proxy.send_event(UserEvent::Page { tab: initial_tab, body });
                     } else {
                         log::warn!("WebView2 runtime lacks native favicon support (ICoreWebView2_15)");
                     }
@@ -1578,6 +1575,29 @@ impl Browser {
 #[cfg(test)]
 mod shortcut_tests {
     use super::browser_shortcut;
+
+    #[test]
+    fn favicon_updates_preserve_existing_icon_on_empty_or_invalid_results() {
+        let original = "data:image/png;base64,aGVsbG8=".to_string();
+        let mut current = Some(original.clone());
+
+        assert!(!super::update_favicon(&mut current, None));
+        assert_eq!(current.as_deref(), Some(original.as_str()));
+
+        assert!(!super::update_favicon(&mut current, Some("javascript:alert(1)".into())));
+        assert_eq!(current.as_deref(), Some(original.as_str()));
+    }
+
+    #[test]
+    fn favicon_updates_replace_icon_only_when_a_new_valid_value_arrives() {
+        let original = "data:image/png;base64,aGVsbG8=".to_string();
+        let replacement = "https://example.test/favicon.png".to_string();
+        let mut current = Some(original);
+
+        assert!(!super::update_favicon(&mut current, Some("data:image/png;base64,aGVsbG8=".into())));
+        assert!(super::update_favicon(&mut current, Some(replacement.clone())));
+        assert_eq!(current.as_deref(), Some(replacement.as_str()));
+    }
 
     #[test]
     fn maps_common_browser_shortcuts() {
