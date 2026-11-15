@@ -375,9 +375,10 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
                 unsafe { core.CallDevToolsProtocolMethod(w!("Target.getTargetInfo"), w!("{}"), &handler) }
             }),
             Box::new(move |status, value| {
-                status.ok()?;
-                let json = value.to_string()?;
-                *result_slot.lock().map_err(|_| anyhow::anyhow!("DevTools target result lock poisoned"))? = Some(json);
+                status?;
+                if let Ok(mut slot) = result_slot.lock() {
+                    *slot = Some(value);
+                }
                 Ok(())
             }),
         )?;
