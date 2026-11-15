@@ -20,7 +20,7 @@ pub fn parse_id(input: &str) -> Option<String> {
     input
         .split(|c: char| !c.is_ascii_alphanumeric())
         .filter(|t| t.len() == 32 && t.bytes().all(|b| (b'a'..=b'p').contains(&b)))
-        .last()
+        .next_back()
         .map(str::to_string)
 }
 
@@ -157,6 +157,6 @@ pub fn list(root: &Path) -> Vec<ExtInfo> {
             v.push(info_for(&e.path(), &name));
         }
     }
-    v.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    v.sort_by_key(|a| a.name.to_lowercase());
     v
 }
