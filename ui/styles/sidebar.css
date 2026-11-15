@@ -113,7 +113,6 @@ body.collapsed #side #toast {
   display: none;
 }
 #favs {
-  display: grid;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
