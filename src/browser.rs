@@ -195,7 +195,8 @@ enum Cmd {
 #[derive(Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 enum PageMsg {
-    Meta { u: Option<String>, f: Option<String> },
+    Meta { u: Option<String> },
+    Favicon { f: Option<String> },
     Key { k: String },
     Fullscreen { active: bool },
 }
@@ -499,21 +500,22 @@ impl Browser {
 
     /// Messages from web pages are untrusted: strict parsing, size limits, own-tab only.
     fn handle_page(&mut self, tab: &str, body: &str) {
-        if body.len() > 20_000 {
+        if body.len() > 700_000 {
             return;
         }
         let Ok(msg) = serde_json::from_str::<PageMsg>(body) else { return };
         match msg {
-            PageMsg::Meta { u, f } => {
+            PageMsg::Meta { u } => {
                 let mut persist = false;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
-                    t.favicon = f.filter(|f| ok_url(f, 16_000, true));
                     if let Some(u) = u.filter(|u| ok_url(u, 4096, false)) {
                         t.url = u.clone();
                         if let Ok(parsed) = url::Url::parse(&u) {
                             if let Some(h) = parsed.host_str() {
                                 let host = h.trim_start_matches("www.").to_string();
                                 if t.host != host {
+                                    // Do not carry the previous site's favicon across navigation.
+                                    t.favicon = None;
                                     // A new site was visited in this tab: count it for the new-tab bar.
                                     t.host = host.clone();
                                     let s = self.p.sites.entry(host).or_default();
@@ -534,6 +536,19 @@ impl Browser {
                 if persist {
                     self.save();
                 }
+                // The sidebar is a separate WebView and only sees tab changes
+                // when its serialized state is pushed.
+                self.push_state();
+            }
+            PageMsg::Favicon { f } => {
+                let mut persist = false;
+                if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
+                    t.favicon = f.filter(|value| ok_url(value, 512_000, true));
+                    if let Some(s) = self.p.sites.get_mut(&t.host) { s.favicon = t.favicon.clone(); }
+                    persist = t.kind != Kind::Normal;
+                }
+                if persist { self.save(); }
+                self.push_state();
             }
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
             PageMsg::Key { k } => {
@@ -916,6 +931,79 @@ impl Browser {
         };
 
         let wv = builder.build_as_child(&self.window)?;
+
+        // WebView2 owns favicon discovery and retrieval; no guessed URL requests.
+        #[cfg(windows)]
+        {
+            use base64::{engine::general_purpose::STANDARD, Engine as _};
+            use webview2_com::{FaviconChangedEventHandler, GetFaviconCompletedHandler, Microsoft::Web::WebView2::Win32::*};
+            use windows::Win32::System::Com::{IStream, STATFLAG_NONAME, STREAM_SEEK_SET};
+            use windows::core::Interface;
+            use wry::WebViewExtWindows;
+            fn stream_to_png(stream: &IStream) -> Option<Vec<u8>> {
+                unsafe {
+                    let mut stat = Default::default();
+                    stream.Stat(&mut stat, STATFLAG_NONAME).ok()?;
+                    let size = usize::try_from(stat.cbSize).ok()?;
+                    if size == 0 || size > 256 * 1024 { return None; }
+                    stream.Seek(0, STREAM_SEEK_SET, None).ok()?;
+                    let mut bytes = vec![0u8; size];
+                    let mut total = 0usize;
+                    while total < size {
+                        let mut read = 0u32;
+                        stream.Read(bytes[total..].as_mut_ptr() as *mut _, (size-total) as u32, Some(&mut read)).ok().ok()?;
+                        if read == 0 { break; }
+                        total += read as usize;
+                    }
+                    bytes.truncate(total);
+                    if bytes.is_empty() { None } else { Some(bytes) }
+                }
+            }
+            let favicon_proxy = self.proxy.clone();
+            let favicon_tab = id.clone();
+            let initial_proxy = favicon_proxy.clone();
+            let initial_tab = favicon_tab.clone();
+            unsafe {
+                if let Ok(core) = wv.controller().CoreWebView2() {
+                    if let Ok(core15) = core.cast::<ICoreWebView2_15>() {
+                        let handler = FaviconChangedEventHandler::create(Box::new(move |sender, _| {
+                            let Some(sender) = sender else { return Ok(()) };
+                            let Ok(core15) = sender.cast::<ICoreWebView2_15>() else { return Ok(()) };
+                            let callback_proxy = favicon_proxy.clone();
+                            let callback_tab = favicon_tab.clone();
+                            let completed = GetFaviconCompletedHandler::create(Box::new(move |result, stream| {
+                                let data_uri = result.ok()
+                                    .and_then(|_| stream.as_ref().and_then(stream_to_png))
+                                    .map(|bytes| format!("data:image/png;base64,{}", STANDARD.encode(bytes)));
+                                let body = json!({"t": "favicon", "f": data_uri}).to_string();
+                                let _ = callback_proxy.send_event(UserEvent::Page { tab: callback_tab.clone(), body });
+                                Ok(())
+                            }));
+                            let _ = core15.GetFavicon(COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG, &completed);
+                            Ok(())
+                        }));
+                        let mut token = 0;
+                        if let Err(error) = core15.add_FaviconChanged(&handler, &mut token) {
+                            log::warn!("registering WebView2 favicon handler failed: {error}");
+                        }
+                        // The initial navigation may have started before this handler
+                        // was attached. Fetch the current icon once as well as listening
+                        // for subsequent changes.
+                        let completed = GetFaviconCompletedHandler::create(Box::new(move |result, stream| {
+                            let data_uri = result.ok()
+                                .and_then(|_| stream.as_ref().and_then(stream_to_png))
+                                .map(|bytes| format!("data:image/png;base64,{}", STANDARD.encode(bytes)));
+                            let body = json!({"t": "favicon", "f": data_uri}).to_string();
+                            let _ = initial_proxy.send_event(UserEvent::Page { tab: initial_tab.clone(), body });
+                            Ok(())
+                        }));
+                        let _ = core15.GetFavicon(COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG, &completed);
+                    } else {
+                        log::warn!("WebView2 runtime lacks native favicon support (ICoreWebView2_15)");
+                    }
+                }
+            }
+        }
 
         // WebView2 reports HTML fullscreen transitions directly from its native
         // host. This covers fullscreen requests inside cross-origin/nested frames

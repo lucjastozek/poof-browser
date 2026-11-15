@@ -188,22 +188,12 @@
     "html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}::-webkit-scrollbar{width:6px!important;height:6px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}";
   (document.head || document.documentElement).appendChild(scrollbarStyle);
   var last = "";
-  function icon() {
-    try {
-      var l = document.querySelector('link[rel~="icon" i]');
-      return new URL(l ? l.getAttribute("href") : "/favicon.ico", location.href)
-        .href;
-    } catch (e) {
-      return null;
-    }
-  }
   function meta(force) {
     var u = location.href,
-      f = icon(),
-      k = u + "|" + f;
+      k = u;
     if (!force && k === last) return;
     last = k;
-    post({ t: "meta", u: u, f: f });
+    post({ t: "meta", u: u });
   }
   addEventListener("DOMContentLoaded", function () {
     meta(true);
