@@ -201,7 +201,8 @@ const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
 #[serde(tag = "t", rename_all = "snake_case")]
 enum DevToolsMsg {
     InspectedPageBounds { x: f64, y: f64, width: f64, height: f64 },
-    PanelSize { size: f64 },
+    PanelSize { size: f64, persist: bool },
+    ResponsiveMode { active: bool },
 }
 
 fn devtools_init_script(position: &str, size: f64) -> String {
@@ -371,6 +372,7 @@ pub struct Browser {
     devtools_tab: Option<String>,
     /// Preview bounds relative to the full DevTools frontend surface.
     devtools_page_bounds: Option<(f64, f64, f64, f64)>,
+    responsive_mode: bool,
 }
 
 // ---------- geometry ----------
@@ -751,6 +753,7 @@ impl Browser {
             devtools: None,
             devtools_tab: None,
             devtools_page_bounds: None,
+            responsive_mode: false,
         };
         b.apply_theme();
         b.preinstall();
@@ -814,14 +817,22 @@ impl Browser {
         match ev {
             UserEvent::CloseWindow => {},
             UserEvent::DevToolsReady { tab, url } => self.show_devtools(&tab, &url),
-            UserEvent::DevToolsPanelSize { size } => {
+            UserEvent::DevToolsPanelSize { size, persist } => {
                 if self.devtools_open && size.is_finite() {
                     let size = size.clamp(240.0, 800.0);
                     if (self.p.devtools_size - size).abs() >= 1.0 {
                         self.p.devtools_size = size;
-                        self.save();
+                        if persist { self.save(); }
+                        self.relayout();
                         self.push_state();
                     }
+                }
+            }
+            UserEvent::DevToolsResponsiveMode { active } => {
+                if self.devtools_open && self.responsive_mode != active {
+                    self.responsive_mode = active;
+                    self.devtools_page_bounds = None;
+                    self.relayout();
                 }
             }
             UserEvent::DevToolsPageBounds { x, y, width, height } => {
@@ -1265,6 +1276,7 @@ impl Browser {
             self.devtools_open = false;
             self.devtools_tab = None;
             self.devtools_page_bounds = None;
+            self.responsive_mode = false;
             if let Some(devtools) = self.devtools.as_ref() {
                 let _ = devtools.set_visible(false);
             }
@@ -1371,8 +1383,11 @@ impl Browser {
                                 x, y, width, height,
                             });
                         }
-                        DevToolsMsg::PanelSize { size } => {
-                            let _ = bounds_proxy.send_event(UserEvent::DevToolsPanelSize { size });
+                        DevToolsMsg::PanelSize { size, persist } => {
+                            let _ = bounds_proxy.send_event(UserEvent::DevToolsPanelSize { size, persist });
+                        }
+                        DevToolsMsg::ResponsiveMode { active } => {
+                            let _ = bounds_proxy.send_event(UserEvent::DevToolsResponsiveMode { active });
                         }
                     }
                 })
@@ -2000,13 +2015,24 @@ impl Browser {
         let y = TOPBAR_H;
         let width = (window_w - sidebar - 2.0 * INSET).max(1.0);
         let height = (window_h - TOPBAR_H - INSET).max(1.0);
-        let page = self.devtools_page_bounds
-            .and_then(|preview| clamp_preview_bounds(width, height, preview))
-            .map(|(preview_x, preview_y, preview_width, preview_height)| {
-                rect(x + preview_x, y + preview_y, preview_width, preview_height)
-            })
-            .unwrap_or_else(|| rect(x, y, 1.0, 1.0));
-        (page, Some(base))
+        if self.responsive_mode {
+            let page = self.devtools_page_bounds
+                .and_then(|preview| clamp_preview_bounds(width, height, preview))
+                .map(|(preview_x, preview_y, preview_width, preview_height)| {
+                    rect(x + preview_x, y + preview_y, preview_width, preview_height)
+                })
+                .unwrap_or_else(|| rect(x, y, 1.0, 1.0));
+            return (page, Some(base));
+        }
+
+        let size = self.p.devtools_size.clamp(240.0, 800.0).min(width - 1.0);
+        let (page, tools) = match self.p.devtools_position.as_str() {
+            "left" => (rect(x + size, y, width - size, height), rect(x, y, size, height)),
+            "top" => (rect(x, y + size, width, height - size), rect(x, y, width, size)),
+            "bottom" => (rect(x, y, width, height - size), rect(x, y + height - size, width, size)),
+            _ => (rect(x, y, width - size, height), rect(x + width - size, y, size, height)),
+        };
+        (page, Some(tools))
     }
 
     pub fn relayout(&self) {
@@ -2022,7 +2048,7 @@ impl Browser {
                 log::warn!("resizing content WebView failed: {error:#}");
             }
             let page_visible = !self.overlay
-                && (!self.devtools_open || self.fullscreen || self.devtools_page_bounds.is_some());
+                && (!self.devtools_open || self.fullscreen || !self.responsive_mode || self.devtools_page_bounds.is_some());
             let _ = wv.set_visible(page_visible);
             #[cfg(windows)]
             {
@@ -2047,7 +2073,7 @@ impl Browser {
             }
         }
         #[cfg(windows)]
-        if self.devtools_open && self.devtools_page_bounds.is_some() && !self.fullscreen && !self.overlay {
+        if self.devtools_open && self.responsive_mode && self.devtools_page_bounds.is_some() && !self.fullscreen && !self.overlay {
             if let Some(wv) = self.visible_webview() {
                 raise_webview(wv);
             }
