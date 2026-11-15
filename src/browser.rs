@@ -326,6 +326,7 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
     }
     if shift {
         return match key {
+            0x49 => Some("devtools_toggle"), // I
             0x54 => Some("reopen"), // T
             0x52 => Some("reload"), // R
             VK_TAB => Some("tab_prev"),
@@ -391,6 +392,21 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("WebView2 returned an invalid DevTools target ID"))
 }
 
+fn devtools_frontend_url(port: u16, target_id: &str) -> Result<String> {
+    if port == 0
+        || target_id.is_empty()
+        || !target_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        anyhow::bail!("invalid WebView2 DevTools endpoint");
+    }
+
+    // WebView2 ships the real frontend behind its privileged devtools:// scheme.
+    // The HTTP /devtools/inspector.html route is not a reliable frontend host.
+    Ok(format!(
+        "devtools://devtools/bundled/inspector.html?ws=127.0.0.1:{port}/devtools/page/{target_id}"
+    ))
+}
+
 #[cfg(windows)]
 fn resolve_devtools_frontend(profile_dir: &Path, target_id: &str) -> Result<String> {
     let port_file = [
@@ -403,24 +419,8 @@ fn resolve_devtools_frontend(profile_dir: &Path, target_id: &str) -> Result<Stri
             let Some(port) = contents.lines().next().and_then(|line| line.trim().parse::<u16>().ok()) else {
                 continue;
             };
-            if port == 0 { continue; }
-            let endpoint = format!("http://127.0.0.1:{port}/json/list");
-            let Ok(response) = ureq::get(&endpoint)
-                .timeout(Duration::from_millis(400))
-                .call()
-            else { continue };
-            let Ok(body) = response.into_string() else { continue };
-            let Ok(targets) = serde_json::from_str::<Vec<Value>>(&body) else { continue };
-            let Some(target) = targets.iter().find(|item| item["id"].as_str() == Some(target_id)) else {
-                continue;
-            };
-            let Some(frontend) = target["devtoolsFrontendUrlCompat"]
-                .as_str()
-                .or_else(|| target["devtoolsFrontendUrl"].as_str())
-            else { continue };
-            if frontend.starts_with("/devtools/inspector.html") {
-                let frontend = frontend.replace("ws=localhost:", "ws=127.0.0.1:");
-                return Ok(format!("http://127.0.0.1:{port}{frontend}"));
+            if let Ok(url) = devtools_frontend_url(port, target_id) {
+                return Ok(url);
             }
         }
         thread::sleep(Duration::from_millis(100));
@@ -523,6 +523,7 @@ impl Browser {
         let ptx = proxy.clone();
         let sidebar = WebViewBuilder::new_with_web_context(&mut ui_ctx)
             .with_bounds(full_rect(&window))
+            .with_devtools(false)
             .with_html(html)
             .with_ipc_handler(move |req| {
                 let _ = ptx.send_event(UserEvent::Ui(req.into_body()));
@@ -1144,10 +1145,13 @@ impl Browser {
             match WebViewBuilder::new_with_web_context(&mut self._ui_ctx)
                 .with_bounds(bounds)
                 .with_visible(false)
+                .with_devtools(false)
                 .with_url(url)
                 .build_as_child(&self.window)
             {
                 Ok(devtools) => {
+                    #[cfg(windows)]
+                    register_browser_shortcuts(&devtools, self.proxy.clone(), tab.to_string());
                     self.devtools = Some(devtools);
                     Ok(())
                 }
@@ -1292,6 +1296,7 @@ impl Browser {
         let builder = WebViewBuilder::new_with_web_context(ctx)
             .with_bounds(rect)
             .with_visible(false)
+            .with_devtools(false)
             .with_url(&url)
             .with_initialization_script_for_main_only(INIT_JS, false)
             .with_ipc_handler(move |req| {
@@ -1936,6 +1941,9 @@ mod shortcut_tests {
         assert_eq!(browser_shortcut(0x39, true, false, false), Some("tab_last"));
         assert_eq!(browser_shortcut(0x7B, false, false, false), Some("devtools_toggle"));
         assert_eq!(browser_shortcut(0x7B, true, false, false), None);
+        assert_eq!(browser_shortcut(0x49, true, false, true), Some("devtools_toggle"));
+        assert_eq!(browser_shortcut(0x49, true, false, false), None);
+        assert_eq!(browser_shortcut(0x49, true, true, true), None);
         assert_eq!(browser_shortcut(0x25, false, true, false), Some("back"));
         assert_eq!(browser_shortcut(0x27, false, true, false), Some("forward"));
         assert_eq!(browser_shortcut(0x25, true, true, false), Some("space_prev"));
@@ -1948,5 +1956,27 @@ mod shortcut_tests {
         assert_eq!(browser_shortcut(0x46, true, false, false), None);
         assert_eq!(browser_shortcut(0x25, false, false, false), None);
         assert_eq!(browser_shortcut(0x54, true, true, false), None);
+    }
+}
+
+
+#[cfg(test)]
+mod devtools_frontend_tests {
+    use super::devtools_frontend_url;
+
+    #[test]
+    fn builds_a_runtime_bundled_devtools_url_for_the_exact_page_target() {
+        assert_eq!(
+            devtools_frontend_url(43123, "A1B2C3").unwrap(),
+            "devtools://devtools/bundled/inspector.html?ws=127.0.0.1:43123/devtools/page/A1B2C3"
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_devtools_endpoint_values() {
+        assert!(devtools_frontend_url(0, "A1B2C3").is_err());
+        assert!(devtools_frontend_url(43123, "").is_err());
+        assert!(devtools_frontend_url(43123, "abc/other").is_err());
+        assert!(devtools_frontend_url(43123, "abc?ws=evil").is_err());
     }
 }
