@@ -305,9 +305,9 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     rootSplit.hideMain();
     installPanelResizer();
     const model = window.Emulation?.DeviceModeModel?.instance?.();
-    const updateMode = () => reportResponsiveMode(Boolean(model?.isActive?.()));
+    const updateMode = () => reportResponsiveMode(Boolean(model?.isDeviceModeOn?.()));
     updateMode();
-    model?.addEventListener?.(window.Emulation?.DeviceModeModel?.Events?.UPDATED || "Updated", updateMode);
+    model?.addEventListener?.("Updated", updateMode);
   }};
   window.addEventListener("load", () => requestAnimationFrame(applyPanelLayout), {{once: true}});
 }})();
@@ -1524,7 +1524,7 @@ impl Browser {
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
     rootSplit.setSidebarSize({size});
-    if (window.Emulation?.DeviceModeModel?.instance?.()?.isActive?.()) rootSplit.showBoth();
+    if (window.Emulation?.DeviceModeModel?.instance?.()?.isDeviceModeOn?.()) rootSplit.showBoth();
     else rootSplit.hideMain();
   }}
 }})();
