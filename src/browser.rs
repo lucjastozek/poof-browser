@@ -1003,7 +1003,6 @@ impl Browser {
             use webview2_com::{
                 AcceleratorKeyPressedEventHandler, Microsoft::Web::WebView2::Win32::*,
             };
-            use windows::core::BOOL;
             use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
 
             let shortcut_proxy = self.proxy.clone();
@@ -1012,23 +1011,27 @@ impl Browser {
                 let handler =
                     AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
                         let Some(args) = args else { return Ok(()) };
-                        let kind = args.KeyEventKind()?;
+                        let mut kind = COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN;
+                        args.KeyEventKind(&mut kind)?;
                         if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
                             && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
                         {
                             return Ok(());
                         }
-                        let key_event_lparam = args.KeyEventLParam()?;
+                        let mut key_event_lparam = 0;
+                        args.KeyEventLParam(&mut key_event_lparam)?;
+                        let mut virtual_key = 0;
+                        args.VirtualKey(&mut virtual_key)?;
                         let is_down = |virtual_key| GetKeyState(virtual_key) < 0;
                         let command = browser_shortcut(
-                            args.VirtualKey()?,
+                            virtual_key,
                             is_down(0x11), // VK_CONTROL
                             is_down(0x12), // VK_MENU
                             is_down(0x10), // VK_SHIFT
                         );
                         if let Some(command) = command {
                             // Always suppress WebView2's default action, including repeats.
-                            args.SetHandled(BOOL(1))?;
+                            args.SetHandled(true)?;
                             // Bit 30 is set when this key was already down, i.e. a repeat.
                             if key_event_lparam & (1 << 30) != 0 {
                                 return Ok(());
