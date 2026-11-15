@@ -93,6 +93,8 @@ fn system() -> String {
 }
 
 fn default_sidebar_width() -> f64 { 280.0 }
+fn default_devtools_position() -> String { "right".into() }
+fn default_devtools_size() -> f64 { 420.0 }
 
 /// Space icons are ids of the built-in icon set (e.g. "house"), never emoji.
 pub fn valid_icon(s: &str) -> bool {
@@ -139,6 +141,12 @@ pub struct Persisted {
     /// Show the sidebar as a compact icon rail when it is not collapsed.
     #[serde(default)]
     pub sidebar_compact: bool,
+    /// Dock side for the embedded WebView2 DevTools frontend.
+    #[serde(default = "default_devtools_position")]
+    pub devtools_position: String,
+    /// Logical pixels allocated to the DevTools pane.
+    #[serde(default = "default_devtools_size")]
+    pub devtools_size: f64,
     #[serde(default)]
     pub sites: HashMap<String, Site>,
     /// Store extensions we already tried to preinstall (so removing one sticks).
@@ -176,6 +184,8 @@ impl Default for Persisted {
             sidebar_width: default_sidebar_width(),
             sidebar_collapsed: false,
             sidebar_compact: false,
+            devtools_position: default_devtools_position(),
+            devtools_size: default_devtools_size(),
             sites: HashMap::new(),
             preinstalled: vec![],
         }
@@ -215,6 +225,13 @@ impl Persisted {
         }
         if !p.sidebar_width.is_finite() { p.sidebar_width = default_sidebar_width(); }
         p.sidebar_width = p.sidebar_width.clamp(180.0, 480.0);
+        if !matches!(p.devtools_position.as_str(), "right" | "left" | "bottom" | "top") {
+            p.devtools_position = default_devtools_position();
+        }
+        if !p.devtools_size.is_finite() {
+            p.devtools_size = default_devtools_size();
+        }
+        p.devtools_size = p.devtools_size.clamp(240.0, 800.0);
         if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
             p.theme = system();
         }
