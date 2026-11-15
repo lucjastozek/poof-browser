@@ -500,7 +500,7 @@ impl Browser {
 
     /// Messages from web pages are untrusted: strict parsing, size limits, own-tab only.
     fn handle_page(&mut self, tab: &str, body: &str) {
-        if body.len() > 20_000 {
+        if body.len() > 700_000 {
             return;
         }
         let Ok(msg) = serde_json::from_str::<PageMsg>(body) else { return };
