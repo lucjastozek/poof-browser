@@ -755,8 +755,8 @@ impl Browser {
         match ev {
             UserEvent::CloseWindow => {},
             UserEvent::DevToolsReady { tab, url } => self.show_devtools(&tab, &url),
-            UserEvent::DevToolsPageBounds { tab, x, y, width, height } => {
-                if self.devtools_open && self.visible.as_deref() == Some(tab.as_str())
+            UserEvent::DevToolsPageBounds { x, y, width, height } => {
+                if self.devtools_open && self.visible.is_some()
                     && [x, y, width, height].iter().all(|value| value.is_finite())
                     && width > 0.0 && height > 0.0
                 {
