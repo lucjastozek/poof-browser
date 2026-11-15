@@ -193,7 +193,7 @@ enum Cmd {
     Reload,
     DevToolsToggle,
     DevToolsPosition { position: String },
-    DevToolsSize { size: f64 },
+    DevToolsSize { size: f64, #[serde(default)] persist: bool },
 }
 
 #[derive(Deserialize)]
@@ -1047,10 +1047,10 @@ impl Browser {
                     self.relayout();
                 }
             }
-            Cmd::DevToolsSize { size } => {
+            Cmd::DevToolsSize { size, persist } => {
                 if size.is_finite() {
                     self.p.devtools_size = size.clamp(240.0, 800.0);
-                    self.save();
+                    if persist { self.save(); }
                     self.relayout();
                 }
             }
