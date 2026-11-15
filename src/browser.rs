@@ -882,6 +882,7 @@ impl Browser {
         let id = self.tabs[idx].id.clone();
         let profile_id = self.tabs[idx].profile_id.clone();
         let url = self.tabs[idx].url.clone();
+        let requested_url = self.tabs[idx].home.clone();
         let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
         let dir = self.root.join("profiles").join(&profile_id);
         let ctx = self
@@ -897,7 +898,7 @@ impl Browser {
         // looks like an authentication screen on a different host.
         let init_script = format!(
             "window.__poofRequestedUrl = {};\n{}",
-            serde_json::to_string(&url)?,
+            serde_json::to_string(&requested_url)?,
             INIT_JS
         );
 
