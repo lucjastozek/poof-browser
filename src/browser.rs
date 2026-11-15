@@ -334,6 +334,64 @@ fn clip(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
+#[cfg(windows)]
+fn register_browser_shortcuts(
+    webview: &WebView,
+    proxy: EventLoopProxy<UserEvent>,
+    tab: String,
+) {
+    use webview2_com::{
+        AcceleratorKeyPressedEventHandler, Microsoft::Web::WebView2::Win32::*,
+    };
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+
+    unsafe {
+        let handler =
+            AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
+                let Some(args) = args else { return Ok(()) };
+                let mut kind = COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN;
+                args.KeyEventKind(&mut kind)?;
+                if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
+                    && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
+                {
+                    return Ok(());
+                }
+
+                let mut key_event_lparam = 0;
+                args.KeyEventLParam(&mut key_event_lparam)?;
+                let mut virtual_key = 0;
+                args.VirtualKey(&mut virtual_key)?;
+                let is_down = |virtual_key| GetAsyncKeyState(virtual_key) < 0;
+                let command = browser_shortcut(
+                    virtual_key,
+                    is_down(0x11), // VK_CONTROL
+                    is_down(0x12), // VK_MENU
+                    is_down(0x10), // VK_SHIFT
+                );
+
+                if let Some(command) = command {
+                    args.SetHandled(true)?;
+                    // Ignore auto-repeat after suppressing WebView2's default action.
+                    if key_event_lparam & (1 << 30) != 0 {
+                        return Ok(());
+                    }
+                    let _ = proxy.send_event(UserEvent::Page {
+                        tab: tab.clone(),
+                        body: json!({ "t": "key", "k": command }).to_string(),
+                    });
+                }
+                Ok(())
+            }));
+        let mut token = 0;
+        if let Err(error) = webview
+            .controller()
+            .add_AcceleratorKeyPressed(&handler, &mut token)
+        {
+            log::warn!("registering WebView2 keyboard shortcuts failed: {error}");
+        }
+    }
+}
+
 impl Browser {
     pub fn new(window: Window, proxy: EventLoopProxy<UserEvent>) -> Result<Self> {
         let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
@@ -376,6 +434,11 @@ impl Browser {
                 let _ = ptx.send_event(UserEvent::Ui(req.into_body()));
             })
             .build_as_child(&window)?;
+
+        // The sidebar is a separate WebView, so it needs its own native
+        // accelerator handler when it owns keyboard focus.
+        #[cfg(windows)]
+        register_browser_shortcuts(&sidebar, proxy.clone(), String::new());
 
         let tabs = p
             .saved
@@ -602,6 +665,10 @@ impl Browser {
             }
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
             PageMsg::Key { k } => {
+                // An empty tab ID means the shortcut originated in the sidebar;
+                // resolve the active tab now, not when the handler was registered.
+                let active_tab = self.visible.clone().unwrap_or_default();
+                let tab = if tab.is_empty() { active_tab.as_str() } else { tab };
                 if self.visible.as_deref() != Some(tab) {
                     return;
                 }
@@ -990,64 +1057,9 @@ impl Browser {
 
         let wv = builder.build_as_child(&self.window)?;
 
-        // Browser shortcuts must be handled by WebView2's native accelerator
-        // event. Chromium does not reliably dispatch browser-level Ctrl/Alt
-        // combinations to page JavaScript keydown listeners.
+        // Register on each content WebView as well as the sidebar WebView.
         #[cfg(windows)]
-        {
-            use webview2_com::{
-                AcceleratorKeyPressedEventHandler, Microsoft::Web::WebView2::Win32::*,
-            };
-            use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-
-            let shortcut_proxy = self.proxy.clone();
-            let shortcut_tab = id.clone();
-            unsafe {
-                let handler =
-                    AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
-                        let Some(args) = args else { return Ok(()) };
-                        let mut kind = COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN;
-                        args.KeyEventKind(&mut kind)?;
-                        if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
-                            && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
-                        {
-                            return Ok(());
-                        }
-                        let mut key_event_lparam = 0;
-                        args.KeyEventLParam(&mut key_event_lparam)?;
-                        let mut virtual_key = 0;
-                        args.VirtualKey(&mut virtual_key)?;
-                        let is_down = |virtual_key| GetAsyncKeyState(virtual_key) < 0;
-                        let command = browser_shortcut(
-                            virtual_key,
-                            is_down(0x11), // VK_CONTROL
-                            is_down(0x12), // VK_MENU
-                            is_down(0x10), // VK_SHIFT
-                        );
-                        if let Some(command) = command {
-                            // Always suppress WebView2's default action, including repeats.
-                            args.SetHandled(true)?;
-                            // Bit 30 is set when this key was already down, i.e. a repeat.
-                            if key_event_lparam & (1 << 30) != 0 {
-                                return Ok(());
-                            }
-                            let body = json!({"t": "key", "k": command}).to_string();
-                            let _ = shortcut_proxy.send_event(UserEvent::Page {
-                                tab: shortcut_tab.clone(),
-                                body,
-                            });
-                        }
-                        Ok(())
-                    }));
-                let mut token = 0;
-                if let Err(error) = wv
-                    .controller()
-                    .add_AcceleratorKeyPressed(&handler, &mut token)
-                {
-                    log::warn!("registering WebView2 keyboard shortcuts failed: {error}");
-                }
-            }
-        }
+        register_browser_shortcuts(&wv, self.proxy.clone(), id.clone());
 
         // WebView2 owns favicon discovery and retrieval; no guessed URL requests.
         #[cfg(windows)]
