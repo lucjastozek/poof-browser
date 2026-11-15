@@ -56,6 +56,113 @@ resizeHandle.addEventListener("keydown", (e) => {
   e.preventDefault();
   applySidebarWidth(sidebarWidth + (e.key === "ArrowRight" ? 12 : -12), true);
 });
+
+/* The native DevTools WebView leaves an 8px gutter for this accessible splitter. */
+const devtoolsResizeHandle = $("devtools-resize");
+let devtoolsSize = 420;
+let devtoolsPosition = "right";
+let resizingDevtools = false;
+let devtoolsPointerId = null;
+
+function updateDevtoolsResizeHandle() {
+  const visible = !!(S && S.devtools_open && !ov);
+  devtoolsResizeHandle.hidden = !visible;
+  if (!visible) return;
+
+  const sidebar = document.body.classList.contains("collapsed")
+    ? 0
+    : document.body.classList.contains("compact")
+      ? 56
+      : sidebarWidth;
+  const x = sidebar + 8;
+  const y = 40;
+  const width = Math.max(1, window.innerWidth - sidebar - 16);
+  const height = Math.max(1, window.innerHeight - 48);
+
+  if (devtoolsPosition === "left") {
+    devtoolsResizeHandle.dataset.axis = "x";
+    devtoolsResizeHandle.style.cursor = "col-resize";
+    devtoolsResizeHandle.style.left = `${x + devtoolsSize + 1}px`;
+    devtoolsResizeHandle.style.top = `${y}px`;
+    devtoolsResizeHandle.style.width = "6px";
+    devtoolsResizeHandle.style.height = `${height}px`;
+    devtoolsResizeHandle.setAttribute("aria-orientation", "vertical");
+  } else if (devtoolsPosition === "right") {
+    devtoolsResizeHandle.dataset.axis = "x";
+    devtoolsResizeHandle.style.cursor = "col-resize";
+    devtoolsResizeHandle.style.left = `${window.innerWidth - devtoolsSize - 15}px`;
+    devtoolsResizeHandle.style.top = `${y}px`;
+    devtoolsResizeHandle.style.width = "6px";
+    devtoolsResizeHandle.style.height = `${height}px`;
+    devtoolsResizeHandle.setAttribute("aria-orientation", "vertical");
+  } else if (devtoolsPosition === "top") {
+    devtoolsResizeHandle.dataset.axis = "y";
+    devtoolsResizeHandle.style.cursor = "row-resize";
+    devtoolsResizeHandle.style.left = `${x}px`;
+    devtoolsResizeHandle.style.top = `${y + devtoolsSize + 1}px`;
+    devtoolsResizeHandle.style.width = `${width}px`;
+    devtoolsResizeHandle.style.height = "6px";
+    devtoolsResizeHandle.setAttribute("aria-orientation", "horizontal");
+  } else {
+    devtoolsResizeHandle.dataset.axis = "y";
+    devtoolsResizeHandle.style.cursor = "row-resize";
+    devtoolsResizeHandle.style.left = `${x}px`;
+    devtoolsResizeHandle.style.top = `${window.innerHeight - devtoolsSize - 15}px`;
+    devtoolsResizeHandle.style.width = `${width}px`;
+    devtoolsResizeHandle.style.height = "6px";
+    devtoolsResizeHandle.setAttribute("aria-orientation", "horizontal");
+  }
+  devtoolsResizeHandle.setAttribute("aria-valuenow", String(devtoolsSize));
+}
+
+function applyDevtoolsSize(size, persist = false) {
+  devtoolsSize = Math.max(240, Math.min(800, size));
+  updateDevtoolsResizeHandle();
+  send({ cmd: "devtools_size", size: devtoolsSize, persist });
+}
+
+devtoolsResizeHandle.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || devtoolsResizeHandle.hidden) return;
+  e.preventDefault();
+  resizingDevtools = true;
+  devtoolsPointerId = e.pointerId;
+  devtoolsResizeHandle.setPointerCapture(e.pointerId);
+  document.body.classList.add("resizing-devtools");
+});
+devtoolsResizeHandle.addEventListener("pointermove", (e) => {
+  if (!resizingDevtools || e.pointerId !== devtoolsPointerId) return;
+  const sidebar = document.body.classList.contains("collapsed")
+    ? 0
+    : document.body.classList.contains("compact")
+      ? 56
+      : sidebarWidth;
+  const size = devtoolsPosition === "left"
+    ? e.clientX - sidebar - 12
+    : devtoolsPosition === "right"
+      ? window.innerWidth - e.clientX - 12
+      : devtoolsPosition === "top"
+        ? e.clientY - 44
+        : window.innerHeight - e.clientY - 12;
+  applyDevtoolsSize(size);
+});
+function finishDevtoolsResize(e) {
+  if (!resizingDevtools || (e && e.pointerId !== devtoolsPointerId)) return;
+  resizingDevtools = false;
+  document.body.classList.remove("resizing-devtools");
+  devtoolsPointerId = null;
+  applyDevtoolsSize(devtoolsSize, true);
+}
+devtoolsResizeHandle.addEventListener("pointerup", finishDevtoolsResize);
+devtoolsResizeHandle.addEventListener("pointercancel", finishDevtoolsResize);
+devtoolsResizeHandle.addEventListener("keydown", (e) => {
+  const horizontal = devtoolsPosition === "left" || devtoolsPosition === "right";
+  const positive = horizontal ? "ArrowRight" : "ArrowDown";
+  const negative = horizontal ? "ArrowLeft" : "ArrowUp";
+  if (e.key !== positive && e.key !== negative) return;
+  e.preventDefault();
+  applyDevtoolsSize(devtoolsSize + (e.key === positive ? 12 : -12), true);
+});
+window.addEventListener("resize", updateDevtoolsResizeHandle);
 $("pageNav").append(
   ib("back", "Back", () => send({ cmd: "back" })),
   ib("fwd", "Forward", () => send({ cmd: "forward" })),
@@ -286,6 +393,8 @@ window.__setState = (s) => {
   if (key === lastKey) return;
   lastKey = key;
   S = s;
+  devtoolsSize = Number.isFinite(s.devtools_size) ? s.devtools_size : 420;
+  devtoolsPosition = ["left", "right", "top", "bottom"].includes(s.devtools_position) ? s.devtools_position : "right";
   if (Number.isFinite(s.sidebar_width)) {
     sidebarWidth = Math.max(180, Math.min(480, s.sidebar_width));
     document.documentElement.style.setProperty(
@@ -294,6 +403,7 @@ window.__setState = (s) => {
     );
   }
   document.body.classList.toggle("has-page", !!s.active);
+  updateDevtoolsResizeHandle();
   document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
   document.body.classList.toggle(
     "compact",
