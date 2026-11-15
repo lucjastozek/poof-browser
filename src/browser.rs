@@ -1267,6 +1267,7 @@ impl Browser {
                 let _ = devtools.set_visible(visible);
                 if visible { let _ = devtools.focus(); }
             }
+            self.relayout();
             return;
         }
         self.devtools_page_bounds = None;
@@ -1319,6 +1320,7 @@ impl Browser {
                     let _ = devtools.set_visible(visible);
                     if visible { let _ = devtools.focus(); }
                 }
+                self.relayout();
             }
             Err(error) => {
                 self.devtools_open = false;
