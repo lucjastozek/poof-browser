@@ -214,7 +214,8 @@
         return null;
       }
 
-      var appUrl = appUrlFromRedirect(pageUrl) || pageUrl;
+      var redirectAppUrl = appUrlFromRedirect(pageUrl);
+      var appUrl = redirectAppUrl || pageUrl;
       var appHost = appUrl.hostname.toLowerCase();
       var links = Array.prototype.slice
         .call(document.querySelectorAll('link[rel~="icon" i]'))
@@ -261,7 +262,7 @@
         selectedHost &&
         (selectedHost === appHost || selectedHost.endsWith("." + appHost));
 
-      if (selectedBelongsToApp) return selected.href;
+      if (selected && (!redirectAppUrl || selectedBelongsToApp)) return selected.href;
 
       // Some services expose their product icon through a canonical favicon
       // host rather than the web-app hostname. Gmail is one such case.
