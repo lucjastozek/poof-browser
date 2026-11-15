@@ -18,6 +18,13 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Test favicon selection in Chromium
         run: node tests/favicon.spec.mjs
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: favicon-browser-screenshots
+          path: artifacts/
+          if-no-files-found: ignore
 
   windows-build:
     runs-on: windows-latest
