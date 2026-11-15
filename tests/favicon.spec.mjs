@@ -84,12 +84,14 @@ try {
     "Page metadata must be pushed to the separate sidebar WebView");
   assert.ok(rust.includes("FaviconChangedEventHandler::create"),
     "WebView2 FaviconChanged must drive favicon updates");
-  assert.ok(rust.includes("GetFaviconCompletedHandler::create"),
-    "WebView2 GetFavicon must retrieve the engine-decoded image");
-  assert.ok(rust.includes("COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG"),
-    "WebView2 must normalize ICO and SVG favicons to PNG");
-  assert.equal(rust.split('json!({"t": "favicon", "f": data_uri}).to_string()').length - 1, 2,
-    "Both initial and changed favicons must use the native IPC payload");
+  assert.ok(rust.includes("core15.FaviconUri(&mut uri)"),
+    "Sidebar and tab rows must use the original favicon URI, not a small raster snapshot");
+  assert.ok(rust.includes("current_favicon_uri(&core15)"),
+    "Initial and changed favicon events must publish the original source URI");
+  assert.doesNotMatch(rust, /GetFaviconCompletedHandler|COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG/,
+    "The favicon pipeline must not rasterize source icons into low-resolution PNGs");
+  assert.equal(rust.split('json!({"t": "favicon", "f": favicon}).to_string()').length - 1, 2,
+    "Both initial and changed favicons must use the original URI IPC payload");
   assert.ok(rust.includes("body.len() > 700_000"),
     "IPC size limit must allow bounded embedded favicon data");
   console.log("PASS: native WebView2 favicon handoff and sidebar PNG handling");
