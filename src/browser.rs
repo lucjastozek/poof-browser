@@ -392,6 +392,7 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("WebView2 returned an invalid DevTools target ID"))
 }
 
+#[cfg(any(windows, test))]
 fn devtools_frontend_url(port: u16, target_id: &str) -> Result<String> {
     if port == 0
         || target_id.is_empty()
