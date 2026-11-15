@@ -193,6 +193,16 @@ impl Default for Persisted {
 }
 
 impl Persisted {
+    fn sanitize_devtools_preferences(&mut self) {
+        if !matches!(self.devtools_position.as_str(), "right" | "left" | "bottom" | "top") {
+            self.devtools_position = default_devtools_position();
+        }
+        if !self.devtools_size.is_finite() {
+            self.devtools_size = default_devtools_size();
+        }
+        self.devtools_size = self.devtools_size.clamp(240.0, 800.0);
+    }
+
     pub fn prune_sites(&mut self) {
         while self.sites.len() > 400 {
             let Some(k) = self.sites.iter().min_by_key(|(_, s)| s.count).map(|(k, _)| k.clone()) else { break };
@@ -225,13 +235,7 @@ impl Persisted {
         }
         if !p.sidebar_width.is_finite() { p.sidebar_width = default_sidebar_width(); }
         p.sidebar_width = p.sidebar_width.clamp(180.0, 480.0);
-        if !matches!(p.devtools_position.as_str(), "right" | "left" | "bottom" | "top") {
-            p.devtools_position = default_devtools_position();
-        }
-        if !p.devtools_size.is_finite() {
-            p.devtools_size = default_devtools_size();
-        }
-        p.devtools_size = p.devtools_size.clamp(240.0, 800.0);
+        p.sanitize_devtools_preferences();
         if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
             p.theme = system();
         }
@@ -248,5 +252,32 @@ impl Persisted {
                 let _ = fs::rename(&tmp, path);
             }
         }
+    }
+}
+
+
+#[cfg(test)]
+mod devtools_state_tests {
+    use super::*;
+
+    #[test]
+    fn devtools_preferences_default_to_a_right_docked_panel() {
+        let state = Persisted::default();
+        assert_eq!(state.devtools_position, "right");
+        assert_eq!(state.devtools_size, 420.0);
+    }
+
+    #[test]
+    fn invalid_devtools_preferences_are_sanitized() {
+        let mut state = Persisted::default();
+        state.devtools_position = "floating".into();
+        state.devtools_size = f64::NAN;
+        state.sanitize_devtools_preferences();
+        assert_eq!(state.devtools_position, "right");
+        assert_eq!(state.devtools_size, 420.0);
+
+        state.devtools_size = 2_000.0;
+        state.sanitize_devtools_preferences();
+        assert_eq!(state.devtools_size, 800.0);
     }
 }
