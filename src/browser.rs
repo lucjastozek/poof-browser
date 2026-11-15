@@ -220,11 +220,11 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       sidebar.style.setProperty("flex-basis", "{size}px", "important");
       sidebar.style.setProperty("{dimension}", "{size}px", "important");
     }}
-    const split = window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget;
-    if (split) {{
-      split.setVertical({vertical});
-      split.setSecondIsSidebar({second_is_sidebar});
-      split.showBoth();
+    const rootSplit = window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget;
+    if (rootSplit) {{
+      rootSplit.setVertical({vertical});
+      rootSplit.setSecondIsSidebar({second_is_sidebar});
+      rootSplit.showBoth();
     }}
   }};
   window.addEventListener("load", applyPanelLayout, {{once: true}});
@@ -233,7 +233,6 @@ fn devtools_init_script(position: &str, size: f64) -> String {
         dock_side = dock_side,
         size = size.clamp(240.0, 800.0),
         dimension = if matches!(position, "top" | "bottom") { "height" } else { "width" },
-        top = top,
         vertical = vertical,
         second_is_sidebar = second_is_sidebar,
         DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
