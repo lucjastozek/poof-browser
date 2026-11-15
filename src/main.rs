@@ -29,7 +29,9 @@ pub enum UserEvent {
     /// Bounds requested by the DevTools inspected-page placeholder.
     DevToolsPageBounds { x: f64, y: f64, width: f64, height: f64 },
     /// The user resized the docked DevTools inspector pane.
-    DevToolsPanelSize { size: f64 },
+    DevToolsPanelSize { size: f64, persist: bool },
+    /// Responsive device emulation was enabled or disabled in DevTools.
+    DevToolsResponsiveMode { active: bool },
     OpenTab { url: String },
     /// Result of a background extension install (Web Store download).
     ExtResult { ok: bool, msg: String, dir: Option<std::path::PathBuf>, id: Option<String> },
