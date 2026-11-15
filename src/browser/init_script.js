@@ -234,17 +234,17 @@
 
       var selected = links.length ? links[0].url : null;
       var selectedHost = selected && selected.hostname.toLowerCase();
-      var isSubdomain = pageHost.split(".").length > 2;
-      var selectedIsParentOrSibling =
-        selectedHost &&
-        selectedHost !== pageHost &&
-        (pageHost.endsWith("." + selectedHost) ||
-          selectedHost.endsWith("." + pageHost.split(".").slice(-2).join(".")));
+      var canonicalPageHost = pageHost.replace(/^www\\./, "");
+      var canonicalSelectedHost = selectedHost && selectedHost.replace(/^www\\./, "");
+      var selectedIsParent =
+        canonicalSelectedHost &&
+        canonicalSelectedHost !== canonicalPageHost &&
+        canonicalPageHost.endsWith("." + canonicalSelectedHost);
 
-      // If the only declared icon belongs to a parent/sibling host, try the
-      // current app host's conventional favicon endpoint first. This is
-      // intentionally generic and applies to every multi-host web service.
-      if (isSubdomain && selectedIsParentOrSibling) {
+      // If the only declared icon belongs to a parent site (including its
+      // www alias), try the current app host's conventional favicon endpoint.
+      // This applies to subdomain apps across providers, not a provider list.
+      if (selectedIsParent) {
         return new URL("/favicon.ico", pageUrl.origin).href;
       }
       return (selected || new URL("/favicon.ico", pageUrl.origin)).href;
