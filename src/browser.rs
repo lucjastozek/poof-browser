@@ -189,6 +189,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
         "bottom" | "top" => "bottom",
         _ => "right",
     };
+    let top = position == "top";
     format!(
         r#"
 (() => {{
@@ -218,7 +219,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       sidebar.style.setProperty("flex-basis", "{size}px", "important");
       sidebar.style.setProperty("{dimension}", "{size}px", "important");
     }}
-    if ("{position}" === "top") {{
+    if ({top}) {{
       window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget?.setSecondIsSidebar(false);
     }}
   }};
@@ -228,7 +229,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
         dock_side = dock_side,
         size = size.clamp(240.0, 800.0),
         dimension = if matches!(position, "top" | "bottom") { "height" } else { "width" },
-        position = position,
+        top = top,
         DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
     )
 }
