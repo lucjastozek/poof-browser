@@ -2238,7 +2238,10 @@ mod devtools_frontend_tests {
         .unwrap();
         match bounds {
             super::DevToolsMsg::InspectedPageBounds { x, y, width, height } => {
-                assert_eq!((x, y, width, height), (12.0, 24.0, 640.0, 480.0));
+                assert!((x - 12.0).abs() < f64::EPSILON);
+                assert!((y - 24.0).abs() < f64::EPSILON);
+                assert!((width - 640.0).abs() < f64::EPSILON);
+                assert!((height - 480.0).abs() < f64::EPSILON);
             }
             super::DevToolsMsg::PanelSize { .. } => panic!("unexpected panel-size message"),
         }
@@ -2248,7 +2251,7 @@ mod devtools_frontend_tests {
         )
         .unwrap();
         match size {
-            super::DevToolsMsg::PanelSize { size } => assert_eq!(size, 420.0),
+            super::DevToolsMsg::PanelSize { size } => assert!((size - 420.0).abs() < f64::EPSILON),
             super::DevToolsMsg::InspectedPageBounds { .. } => panic!("unexpected bounds message"),
         }
     }
