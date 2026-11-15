@@ -200,11 +200,29 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}));
   }} catch (_) {{}}
   {DEVTOOLS_BOUNDS_INIT_JS}
-  if ("{position}" === "top") {{
-    window.addEventListener("load", () => {{
+  const applyPanelLayout = () => {{
+    const findSplit = root => {{
+      const direct = root.querySelector?.(".split-widget");
+      if (direct) return direct;
+      for (const element of root.querySelectorAll?.("*") || []) {{
+        if (element.shadowRoot) {{
+          const nested = findSplit(element.shadowRoot);
+          if (nested) return nested;
+        }}
+      }}
+      return null;
+    }};
+    const split = findSplit(document);
+    const sidebar = split?.shadowRoot?.querySelector(".shadow-split-widget-sidebar");
+    if (sidebar) {{
+      sidebar.style.setProperty("flex-basis", "{size}px", "important");
+      sidebar.style.setProperty("{dimension}", "{size}px", "important");
+    }}
+    if ("{position}" === "top") {{
       window.Emulation?.AdvancedApp?.instance?.().rootSplitWidget?.setSecondIsSidebar(false);
-    }}, {{once: true}});
-  }}
+    }}
+  }};
+  window.addEventListener("load", applyPanelLayout, {{once: true}});
 }})();
 "#,
         dock_side = dock_side,
