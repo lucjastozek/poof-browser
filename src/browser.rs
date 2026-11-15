@@ -94,7 +94,6 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
     }
 }
 
-const SIDEBAR_W: f64 = 280.0;
 const SIDEBAR_MIN_W: f64 = 180.0;
 const SIDEBAR_MAX_W: f64 = 480.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
@@ -278,12 +277,119 @@ fn ok_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// Map WebView2 accelerator keys to browser commands. Virtual-key values are
+/// the Win32 VK_* constants so this logic can be tested without a WebView.
+fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'static str> {
+    const VK_TAB: u32 = 0x09;
+    const VK_LEFT: u32 = 0x25;
+    const VK_RIGHT: u32 = 0x27;
+
+    if ctrl && alt && !shift {
+        return match key {
+            VK_LEFT => Some("space_prev"),
+            VK_RIGHT => Some("space_next"),
+            _ => None,
+        };
+    }
+    if alt && !ctrl && !shift {
+        return match key {
+            VK_LEFT => Some("back"),
+            VK_RIGHT => Some("forward"),
+            _ => None,
+        };
+    }
+    if !ctrl || alt {
+        return None;
+    }
+    if shift {
+        return match key {
+            0x54 => Some("reopen"), // T
+            0x52 => Some("reload"), // R
+            VK_TAB => Some("tab_prev"),
+            _ => None,
+        };
+    }
+    match key {
+        0x54 => Some("new_tab"),   // T
+        0x57 => Some("close"),     // W
+        0x4C => Some("focus_url"), // L
+        0x52 => Some("reload"),    // R
+        0x50 => Some("print"),     // P
+        0x44 => Some("favorite"),  // D
+        0x31..=0x38 => Some(match key {
+            0x31 => "tab_1", 0x32 => "tab_2", 0x33 => "tab_3", 0x34 => "tab_4",
+            0x35 => "tab_5", 0x36 => "tab_6", 0x37 => "tab_7", _ => "tab_8",
+        }),
+        0x39 => Some("tab_last"),
+        VK_TAB => Some("tab_next"),
+        _ => None,
+    }
+}
+
 fn clean_icon(s: &str) -> String {
     if valid_icon(s) { s.to_string() } else { "house".into() }
 }
 
 fn clip(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
+}
+
+#[cfg(windows)]
+fn register_browser_shortcuts(
+    webview: &WebView,
+    proxy: EventLoopProxy<UserEvent>,
+    tab: String,
+) {
+    use webview2_com::{
+        AcceleratorKeyPressedEventHandler, Microsoft::Web::WebView2::Win32::*,
+    };
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+
+    unsafe {
+        let handler =
+            AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
+                let Some(args) = args else { return Ok(()) };
+                let mut kind = COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN;
+                args.KeyEventKind(&mut kind)?;
+                if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
+                    && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
+                {
+                    return Ok(());
+                }
+
+                let mut key_event_lparam = 0;
+                args.KeyEventLParam(&mut key_event_lparam)?;
+                let mut virtual_key = 0;
+                args.VirtualKey(&mut virtual_key)?;
+                let is_down = |virtual_key| GetAsyncKeyState(virtual_key) < 0;
+                let command = browser_shortcut(
+                    virtual_key,
+                    is_down(0x11), // VK_CONTROL
+                    is_down(0x12), // VK_MENU
+                    is_down(0x10), // VK_SHIFT
+                );
+
+                if let Some(command) = command {
+                    args.SetHandled(true)?;
+                    // Ignore auto-repeat after suppressing WebView2's default action.
+                    if key_event_lparam & (1 << 30) != 0 {
+                        return Ok(());
+                    }
+                    let _ = proxy.send_event(UserEvent::Page {
+                        tab: tab.clone(),
+                        body: json!({ "t": "key", "k": command }).to_string(),
+                    });
+                }
+                Ok(())
+            }));
+        let mut token = 0;
+        if let Err(error) = webview
+            .controller()
+            .add_AcceleratorKeyPressed(&handler, &mut token)
+        {
+            log::warn!("registering WebView2 keyboard shortcuts failed: {error}");
+        }
+    }
 }
 
 impl Browser {
@@ -328,6 +434,11 @@ impl Browser {
                 let _ = ptx.send_event(UserEvent::Ui(req.into_body()));
             })
             .build_as_child(&window)?;
+
+        // The sidebar is a separate WebView, so it needs its own native
+        // accelerator handler when it owns keyboard focus.
+        #[cfg(windows)]
+        register_browser_shortcuts(&sidebar, proxy.clone(), String::new());
 
         let tabs = p
             .saved
@@ -554,15 +665,15 @@ impl Browser {
             }
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
             PageMsg::Key { k } => {
+                // An empty tab ID means the shortcut originated in the sidebar;
+                // resolve the active tab now, not when the handler was registered.
+                let active_tab = self.visible.clone().unwrap_or_default();
+                let tab = if tab.is_empty() { active_tab.as_str() } else { tab };
                 if self.visible.as_deref() != Some(tab) {
                     return;
                 }
                 let r = match k.as_str() {
-                    "new_tab" => {
-                        let _ = self.sidebar.focus();
-                        let _ = self.sidebar.evaluate_script("window.__openNew && window.__openNew()");
-                        Ok(())
-                    }
+                    "new_tab" => self.new_tab("about:blank"),
                     "focus_url" => {
                         let _ = self.sidebar.focus();
                         let _ = self.sidebar.evaluate_script("window.__focusUrl && window.__focusUrl()");
@@ -946,6 +1057,10 @@ impl Browser {
 
         let wv = builder.build_as_child(&self.window)?;
 
+        // Register on each content WebView as well as the sidebar WebView.
+        #[cfg(windows)]
+        register_browser_shortcuts(&wv, self.proxy.clone(), id.clone());
+
         // WebView2 owns favicon discovery and retrieval; no guessed URL requests.
         #[cfg(windows)]
         {
@@ -1036,7 +1151,7 @@ impl Browser {
                         let handler = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
                             let Some(sender) = sender else { return Ok(()) };
                             let mut contains = BOOL::default();
-                            if let Err(error) = unsafe { sender.ContainsFullScreenElement(&mut contains) } {
+                            if let Err(error) = sender.ContainsFullScreenElement(&mut contains) {
                                 log::warn!("reading WebView2 fullscreen state failed: {error}");
                                 return Ok(());
                             }
@@ -1457,5 +1572,35 @@ impl Browser {
                 .unwrap_or_else(|| json!({})),
         });
         let _ = self.sidebar.evaluate_script(&format!("window.__setState({state})"));
+    }
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::browser_shortcut;
+
+    #[test]
+    fn maps_common_browser_shortcuts() {
+        assert_eq!(browser_shortcut(0x54, true, false, false), Some("new_tab"));
+        assert_eq!(browser_shortcut(0x57, true, false, false), Some("close"));
+        assert_eq!(browser_shortcut(0x4C, true, false, false), Some("focus_url"));
+        assert_eq!(browser_shortcut(0x54, true, false, true), Some("reopen"));
+        assert_eq!(browser_shortcut(0x52, true, false, true), Some("reload"));
+        assert_eq!(browser_shortcut(0x09, true, false, false), Some("tab_next"));
+        assert_eq!(browser_shortcut(0x09, true, false, true), Some("tab_prev"));
+        assert_eq!(browser_shortcut(0x31, true, false, false), Some("tab_1"));
+        assert_eq!(browser_shortcut(0x39, true, false, false), Some("tab_last"));
+        assert_eq!(browser_shortcut(0x25, false, true, false), Some("back"));
+        assert_eq!(browser_shortcut(0x27, false, true, false), Some("forward"));
+        assert_eq!(browser_shortcut(0x25, true, true, false), Some("space_prev"));
+        assert_eq!(browser_shortcut(0x27, true, true, false), Some("space_next"));
+    }
+
+    #[test]
+    fn leaves_unhandled_and_unmodified_keys_alone() {
+        assert_eq!(browser_shortcut(0x41, false, false, false), None);
+        assert_eq!(browser_shortcut(0x46, true, false, false), None);
+        assert_eq!(browser_shortcut(0x25, false, false, false), None);
+        assert_eq!(browser_shortcut(0x54, true, true, false), None);
     }
 }
