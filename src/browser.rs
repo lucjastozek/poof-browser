@@ -892,11 +892,20 @@ impl Browser {
         let (p1, p2, p3) = (self.proxy.clone(), self.proxy.clone(), self.proxy.clone());
         let (id1, id2) = (id.clone(), id.clone());
 
+        // Preserve the originally requested site URL across server-side login
+        // redirects. The page script uses it only while the current document
+        // looks like an authentication screen on a different host.
+        let init_script = format!(
+            "window.__poofRequestedUrl = {};\\n{}",
+            serde_json::to_string(&url)?,
+            INIT_JS
+        );
+
         let builder = WebViewBuilder::new_with_web_context(ctx)
             .with_bounds(rect)
             .with_visible(false)
             .with_url(&url)
-            .with_initialization_script_for_main_only(INIT_JS, false)
+            .with_initialization_script_for_main_only(&init_script, false)
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page { tab: id1.clone(), body: req.into_body() });
             })
