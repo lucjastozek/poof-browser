@@ -157,10 +157,14 @@ const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
   const patch = value => {
     if (!value || value.__poofBoundsPatched || typeof value.setInspectedPageBounds !== "function") return;
     const original = value.setInspectedPageBounds;
-    value.setInspectedPageBounds = function(bounds) {
-      report(bounds);
-      return original.call(this, bounds);
-    };
+    Object.defineProperty(value, "setInspectedPageBounds", {
+      configurable: true,
+      writable: true,
+      value: function(bounds) {
+        report(bounds);
+        return original.call(this, bounds);
+      }
+    });
     Object.defineProperty(value, "__poofBoundsPatched", {value: true});
   };
   patch(host);
