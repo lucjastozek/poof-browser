@@ -114,8 +114,7 @@ body.collapsed #side #toast {
 }
 #favs {
   display: grid;
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   padding-right: 4px;
   border-radius: var(--r-lg);
@@ -125,7 +124,6 @@ body.collapsed #side #toast {
   display: none;
 }
 .tile {
-  flex: 1 1 calc((100% - 18px) / 4);
   min-width: 0;
   height: 46px;
   border-radius: var(--r-lg);
@@ -145,8 +143,10 @@ body.collapsed #side #toast {
   background: transparent;
 }
 .tile .ico img {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  image-rendering: auto;
 }
 .tile.on {
   background: var(--raised);
