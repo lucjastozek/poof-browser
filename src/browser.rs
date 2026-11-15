@@ -368,7 +368,7 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
     unsafe {
         CallDevToolsProtocolMethodCompletedHandler::wait_for_async_operation(
             Box::new(move |handler| {
-                core.CallDevToolsProtocolMethod("Target.getTargetInfo", "{}", &handler)
+                unsafe { core.CallDevToolsProtocolMethod("Target.getTargetInfo", "{}", &handler) }
             }),
             Box::new(move |status, value| {
                 status.ok()?;
