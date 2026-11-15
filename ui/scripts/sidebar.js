@@ -128,6 +128,7 @@ devtoolsResizeHandle.addEventListener("pointerdown", (e) => {
   devtoolsPointerId = e.pointerId;
   devtoolsResizeHandle.setPointerCapture(e.pointerId);
   document.body.classList.add("resizing-devtools");
+  document.body.style.cursor = devtoolsPosition === "left" || devtoolsPosition === "right" ? "col-resize" : "row-resize";
 });
 devtoolsResizeHandle.addEventListener("pointermove", (e) => {
   if (!resizingDevtools || e.pointerId !== devtoolsPointerId) return;
@@ -149,6 +150,7 @@ function finishDevtoolsResize(e) {
   if (!resizingDevtools || (e && e.pointerId !== devtoolsPointerId)) return;
   resizingDevtools = false;
   document.body.classList.remove("resizing-devtools");
+  document.body.style.cursor = "";
   devtoolsPointerId = null;
   applyDevtoolsSize(devtoolsSize, true);
 }
