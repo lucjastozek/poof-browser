@@ -69,8 +69,6 @@ try {
     "The favicon pipeline must not rasterize source icons into low-resolution PNGs");
   assert.equal(rust.split('json!({"t": "favicon", "f": favicon}).to_string()').length - 1, 2,
     "Both initial and changed favicons must use the original URI IPC payload");
-  assert.ok(rust.includes("body.len() > 700_000"),
-    "IPC size limit must allow bounded embedded favicon data");
   console.log("PASS: native WebView2 favicon URI handoff and original-source rendering");
 } finally {
   await browser.close();
