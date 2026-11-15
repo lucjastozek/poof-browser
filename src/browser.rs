@@ -2357,9 +2357,6 @@ mod devtools_frontend_tests {
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
-        assert!(script.contains("rootSplit.hideMain()"));
-        assert!(script.contains("responsive_mode"));
-        assert!(script.contains("__poof_devtools_panel_resizer"));
     }
 
     #[test]
