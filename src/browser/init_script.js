@@ -215,7 +215,21 @@
       }
 
       var redirectAppUrl = appUrlFromRedirect(pageUrl);
-      var appUrl = redirectAppUrl || pageUrl;
+      var requestedAppUrl = null;
+      try {
+        if (window.__poofRequestedUrl) requestedAppUrl = new URL(window.__poofRequestedUrl);
+      } catch (e) {}
+      var looksLikeAuthPage = !!document.querySelector(
+        'input[type="password"], input[autocomplete="username" i], ' +
+        'form[action*="login" i], form[action*="signin" i], form[action*="authorize" i]'
+      ) || /sign.?in|log.?in|authenticate|identity/i.test(
+        location.pathname + " " + (document.title || "")
+      );
+      var requestedHost = requestedAppUrl && requestedAppUrl.hostname.toLowerCase();
+      var isRedirectedAuthPage = !!(
+        requestedAppUrl && requestedHost !== pageUrl.hostname.toLowerCase() && looksLikeAuthPage
+      );
+      var appUrl = redirectAppUrl || (isRedirectedAuthPage ? requestedAppUrl : pageUrl);
       var appHost = appUrl.hostname.toLowerCase();
       var links = Array.prototype.slice
         .call(document.querySelectorAll('link[rel~="icon" i]'))
