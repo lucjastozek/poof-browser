@@ -1018,10 +1018,7 @@ impl Browser {
                     {
                         return Ok(());
                     }
-                    // Bit 30 is set when this key was already down, i.e. a repeat.
-                    if args.KeyEventLParam()? & (1 << 30) != 0 {
-                        return Ok(());
-                    }
+                    let key_event_lparam = args.KeyEventLParam()?;
                     let is_down = |virtual_key| GetKeyState(virtual_key) < 0;
                     let command = browser_shortcut(
                         args.VirtualKey()?,
@@ -1030,7 +1027,12 @@ impl Browser {
                         is_down(0x10), // VK_SHIFT
                     );
                     if let Some(command) = command {
+                        // Always suppress WebView2's default action, including repeats.
                         args.SetHandled(BOOL(1))?;
+                        // Bit 30 is set when this key was already down, i.e. a repeat.
+                        if key_event_lparam & (1 << 30) != 0 {
+                            return Ok(());
+                        }
                         let body = json!({"t": "key", "k": command}).to_string();
                         let _ = shortcut_proxy.send_event(UserEvent::Page {
                             tab: shortcut_tab.clone(),
