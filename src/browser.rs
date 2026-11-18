@@ -1344,11 +1344,6 @@ impl Browser {
                         return;
                     };
                     match message {
-                        DevToolsMsg::InspectedPageBounds { x, y, width, height } => {
-                            let _ = bounds_proxy.send_event(UserEvent::DevToolsPageBounds {
-                                x, y, width, height,
-                            });
-                        }
                         DevToolsMsg::PanelSize { size, persist } => {
                             let _ = bounds_proxy.send_event(UserEvent::DevToolsPanelSize { size, persist });
                         }
