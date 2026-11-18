@@ -253,7 +253,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   }};
   const updateMode = () => {{
     const app = window.Emulation?.AdvancedApp?.instance?.();
-    const model = app?.deviceModeView?.model;
+    const model = window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.instance?.();
     const active = Boolean(model?.isDeviceModeOn?.());
     const rootSplit = app?.rootSplitWidget;
     const showMode = rootSplit?.showMode?.();
@@ -268,6 +268,9 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   updateMode();
   setInterval(updateMode, 250);
 
+  // Install the native panel divider independently of Chromium's split widget.
+  // This keeps manual resizing available even if DevTools initializes its emulation UI late.
+  installPanelResizer();
   const applyPanelLayout = () => {{
     const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
     if (!rootSplit) {{
@@ -1430,7 +1433,7 @@ impl Browser {
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
     rootSplit.setSidebarSize({size});
-    if (window.Emulation?.AdvancedApp?.instance?.()?.deviceModeView?.model?.isDeviceModeOn?.()) rootSplit.showBoth();
+    if (window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.instance?.()?.isDeviceModeOn?.()) rootSplit.showBoth();
     else rootSplit.hideMain();
   }}
 }})();
@@ -2254,9 +2257,9 @@ mod devtools_frontend_tests {
         assert!(script.contains("setInterval(updateMode, 250)"));
         assert!(script.contains("window.Emulation?.AdvancedApp?.instance?.()"));
         assert!(script.contains("app?.rootSplitWidget"));
-        assert!(script.contains("model?.isDeviceModeOn?.()"));
+        assert!(script.contains("window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.instance?.()"));
         assert!(!script.contains("window.Screencast?.ScreencastApp"));
-        assert!(script.contains("app?.deviceModeView?.model"));
+        assert!(!script.contains("deviceModeView?.model"));
         assert!(script.find("setInterval(updateMode, 250)").unwrap()
             < script.find("const applyPanelLayout").unwrap());
         assert!(script.contains("showMode !== \"Both\""));
@@ -2268,7 +2271,7 @@ mod devtools_frontend_tests {
         assert!(script.contains("width:\"10px\""));
         assert!(script.contains("responsive_mode"));
         assert!(!script.contains("ScreencastApp"));
-        assert!(script.contains("if (resizeHandle || responsiveMode) return;"));
+        assert!(script.contains("installPanelResizer();"));
         assert!(script.contains("resizeHandle.addEventListener(\"pointerdown\""));
         assert!(script.contains("postPanelSize(false)"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
