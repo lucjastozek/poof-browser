@@ -15,6 +15,11 @@
       window.ipc.postMessage(JSON.stringify(o));
     } catch (e) {}
   }
+  // Sites with their own full player UI (YouTube) handle fullscreen natively.
+  // Our video-only workaround would fight their layout and show a second set of controls.
+  var nativePlayer = /(^|\.)(youtube\.com|youtube-nocookie\.com)$/.test(
+    location.hostname,
+  );
   // Only the top document controls the native window. Fullscreen changes from
   // embedded frames propagate to their iframe element in the parent document.
   // Keep the video player's F shortcut available even before its controls are clicked.
@@ -59,6 +64,7 @@
     "keydown",
     function (e) {
       if (
+        nativePlayer ||
         !e.isTrusted ||
         e.defaultPrevented ||
         e.repeat ||
@@ -99,7 +105,9 @@
     "visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;margin:0!important;" +
     "width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;" +
     "object-fit:contain!important;background:#000!important;border:0!important;transform:none!important}";
-  (document.head || document.documentElement).appendChild(fullscreenStyle);
+  if (!nativePlayer) {
+    (document.head || document.documentElement).appendChild(fullscreenStyle);
+  }
   function clearVideoOnlyFullscreen() {
     document
       .querySelectorAll(".poof-video-only-fullscreen")
@@ -115,10 +123,11 @@
   document.addEventListener(
     "fullscreenchange",
     function () {
+      if (nativePlayer) return;
       clearVideoOnlyFullscreen();
       var active = document.fullscreenElement;
       if (active && active.tagName !== "VIDEO") {
-        // Some YouTube fullscreen paths request the whole player container.
+        // Some fullscreen paths request the whole player container.
         // Keep that native fullscreen request, but make its visible surface
         // strictly the video. Player chrome, overlays and colored page layers
         // are hidden; the video itself fills the viewport without cropping.
