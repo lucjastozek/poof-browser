@@ -250,10 +250,9 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     const model = app?.deviceModeView?.model;
     const active = Boolean(model?.isDeviceModeOn?.());
     const rootSplit = app?.rootSplitWidget;
-    if (rootSplit) {{
-      if (active) rootSplit.showBoth();
-      else rootSplit.hideMain();
-    }}
+    const showMode = rootSplit?.showMode?.();
+    if (rootSplit && active && showMode !== "Both") rootSplit.showBoth();
+    else if (rootSplit && !active && showMode !== "OnlySidebar) rootSplit.hideMain();
     reportResponsiveMode(active);
   }};
   updateMode();
@@ -2245,6 +2244,8 @@ mod devtools_frontend_tests {
         assert!(script.contains("app?.deviceModeView?.model"));
         assert!(script.find("setInterval(updateMode, 250)").unwrap()
             < script.find("const applyPanelLayout").unwrap());
+        assert!(script.contains("showMode !== \"Both\""));
+        assert!(script.contains("showMode !== \"OnlySidebar\""));
         assert!(script.contains("rootSplit.showBoth()"));
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
