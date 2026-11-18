@@ -246,11 +246,15 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}
   }};
   const updateMode = () => {{
-    const app = window.Screencast?.ScreencastApp?._instance?.();
-    const split = app?._rootSplitWidget;
-    // ScreencastApp's split is independent of Emulation.AdvancedApp's split.
-    // Its show mode changes when the Toggle Screencast button is activated.
-    reportResponsiveMode(split?.showMode?.() === "Both");
+    const app = window.Emulation?.AdvancedApp?.instance?.();
+    const model = app?.deviceModeView?.model;
+    const active = Boolean(model?.isDeviceModeOn?.());
+    const rootSplit = app?.rootSplitWidget;
+    if (rootSplit) {{
+      if (active) rootSplit.showBoth();
+      else rootSplit.hideMain();
+    }}
+    reportResponsiveMode(active);
   }};
   updateMode();
   setInterval(updateMode, 250);
@@ -2234,14 +2238,14 @@ mod devtools_frontend_tests {
         assert!(script.contains("setTimeout(applyPanelLayout, 100)"));
         assert!(script.contains("rootSplit.setSidebarSize(panelSize)"));
         assert!(script.contains("setInterval(updateMode, 250)"));
-        assert!(script.contains("window.Screencast?.ScreencastApp?._instance?.()"));
-        assert!(script.contains("app?._rootSplitWidget"));
-        assert!(script.contains("split?.showMode?.() === \"Both\""));
-        assert!(!script.contains("app?._enabledSetting?.get?.() && app?._screencastView"));
-        assert!(!script.contains("deviceModeView?.model"));
+        assert!(script.contains("window.Emulation?.AdvancedApp?.instance?.()"));
+        assert!(script.contains("app?.rootSplitWidget"));
+        assert!(script.contains("model?.isDeviceModeOn?.()"));
+        assert!(!script.contains("window.Screencast?.ScreencastApp"));
+        assert!(script.contains("app?.deviceModeView?.model"));
         assert!(script.find("setInterval(updateMode, 250)").unwrap()
             < script.find("const applyPanelLayout").unwrap());
-        assert!(!script.contains("rootSplit.showBoth()"));
+        assert!(script.contains("rootSplit.showBoth()"));
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
         assert!(script.contains("ScreencastApp's split is independent of Emulation.AdvancedApp's split"));
