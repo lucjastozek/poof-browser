@@ -7,9 +7,14 @@ use anyhow::Result;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
+    cell::Cell,
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tao::{
@@ -22,11 +27,10 @@ use wry::{
 };
 
 #[cfg(windows)]
-use std::{path::Path, thread};
+use std::path::Path;
 #[cfg(windows)]
 use wry::WebViewExtWindows;
 
-#[cfg(windows)]
 #[cfg(windows)]
 fn apply_webview_bounds(wv: &WebView, bounds: Rect, scale: f64) -> Result<()> {
     use windows::Win32::{
@@ -34,9 +38,8 @@ fn apply_webview_bounds(wv: &WebView, bounds: Rect, scale: f64) -> Result<()> {
         UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER},
     };
 
-    // Keep WebView2's viewport in sync, then position its child HWND
-    // synchronously. Wry's normal set_bounds uses ASYNCWINDOWPOS on Windows,
-    // which can visibly lag behind rapid sidebar pointer-move events.
+    // Wry's set_bounds positions the child HWND asynchronously on Windows, which visibly lags
+    // behind rapid pointer-move events, so the HWND is also positioned synchronously.
     wv.set_bounds(bounds)?;
     let position = bounds.position.to_physical(scale);
     let size = bounds.size.to_physical::<i32>(scale);
@@ -65,6 +68,7 @@ fn apply_webview_bounds(wv: &WebView, bounds: Rect, _scale: f64) -> Result<()> {
     Ok(())
 }
 
+/// In device mode the page WebView overlaps the DevTools WebView and must stay on top.
 #[cfg(windows)]
 fn raise_webview(wv: &WebView) {
     use windows::Win32::{
@@ -90,12 +94,12 @@ fn raise_webview(wv: &WebView) {
     }
 }
 
+#[cfg(windows)]
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
         Foundation::HWND,
         Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, SetWindowRgn},
     };
-    use wry::WebViewExtWindows;
 
     let mut hwnd = HWND::default();
     unsafe {
@@ -114,7 +118,7 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
         if region.0.is_null() {
             return;
         }
-        // SetWindowRgn takes ownership only when it succeeds.
+        // SetWindowRgn takes ownership of the region only when it succeeds.
         if SetWindowRgn(hwnd, Some(region), true) == 0 {
             let _ = DeleteObject(HGDIOBJ(region.0));
         }
@@ -126,6 +130,15 @@ const SIDEBAR_MAX_W: f64 = 480.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
 const INSET: f64 = 8.0;
 const TOPBAR_H: f64 = 40.0;
+
+const PANEL_MIN: f64 = 240.0;
+const PANEL_MAX: f64 = 800.0;
+const PANEL_DEFAULT: f64 = 420.0;
+/// The gap between page and panel holds the resize handle.
+const PANEL_GAP: f64 = INSET;
+const PAGE_MIN: f64 = 160.0;
+/// Strip above the DevTools frontend holding the title and the close button.
+const HEADER_H: f64 = 28.0;
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 const DEFAULT_SITES: &[(&str, &str)] = &[
@@ -145,195 +158,257 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = include_str!("browser/init_script.js");
 
-#[derive(Deserialize)]
-#[serde(tag = "t", rename_all = "snake_case")]
-enum DevToolsMsg {
-    PanelSize { size: f64, persist: bool },
-    ResponsiveMode { active: bool },
-}
+/// Draws the DevTools resize handle and header strip. They live in the sidebar WebView, whose IPC
+/// is known to work, so neither depends on the DevTools frontend. Called with a config object,
+/// or null to hide both.
+const DEVTOOLS_CHROME_JS: &str = r##"
+(cfg => {
+  let ui = window.__poofDevtoolsUi;
+  if (!cfg) {
+    if (ui) ui.handle.style.display = ui.header.style.display = "none";
+    return;
+  }
+  if (!ui) {
+    const post = msg => window.ipc.postMessage(JSON.stringify(msg));
 
-fn devtools_init_script(position: &str, size: f64) -> String {
-    let dock_side = match position {
-        "left" => "left",
-        "bottom" | "top" => "bottom",
-        _ => "right",
+    const handle = document.createElement("div");
+    handle.style.cssText = "position:fixed;z-index:2147483647;touch-action:none;user-select:none;";
+    const line = document.createElement("div");
+    line.style.cssText = "position:absolute;border-radius:2px;background:rgba(128,128,128,0);transition:background .12s;";
+    handle.appendChild(line);
+    const paint = on => { line.style.background = on ? "rgba(128,128,128,.55)" : "rgba(128,128,128,0)"; };
+
+    let drag = null, raf = 0, last = 0;
+    const send = (size, persist) => post({ cmd: "dev_tools_size", size, persist });
+    const sizeAt = e => {
+      const [cx, cy, cw, ch] = ui.cfg.box, gap = ui.cfg.gap;
+      switch (ui.cfg.position) {
+        case "left": return e.clientX - cx - gap / 2;
+        case "top": return e.clientY - cy - gap / 2;
+        case "bottom": return cy + ch - e.clientY - gap / 2;
+        default: return cx + cw - e.clientX - gap / 2;
+      }
     };
-    format!(
-        r#"
-(() => {{
-  try {{
-    if (localStorage.getItem("__poofDevToolsLayoutInitialized") !== "1") {{
-      localStorage.setItem("currentDockState", JSON.stringify("{dock_side}"));
-      localStorage.setItem("inspector-view.split-view-state", JSON.stringify({{
-        vertical: {{size: {size}}},
-        horizontal: {{size: {size}}}
-      }}));
-      localStorage.setItem("__poofDevToolsLayoutInitialized", "1");
-    }}
-  }} catch (_) {{}}
-  let responsiveMode = false;
-  let resizeHandle = null;
-  let panelPosition = "{position}";
-  let panelSize = {size};
-  const isVertical = () => panelPosition === "left" || panelPosition === "right";
-  const postPanelSize = persist => window.ipc?.postMessage(JSON.stringify({{
-    t: "panel_size", size: panelSize, persist
-  }}));
-  const installPanelResizer = () => {{
-    if (resizeHandle || responsiveMode) return;
-    const root = document.documentElement;
-    if (!root) {{
-      document.addEventListener("DOMContentLoaded", installPanelResizer, {{once: true}});
-      return;
-    }}
-    resizeHandle = document.createElement("div");
-    resizeHandle.id = "__poof_devtools_panel_resizer";
-    Object.assign(resizeHandle.style, {{
-      position: "fixed", zIndex: "2147483647", touchAction: "none",
-      background: "var(--sys-color-divider, rgba(128,128,128,0.28))",
-      cursor: isVertical() ? "col-resize" : "row-resize"
-    }});
-    resizeHandle.addEventListener("pointerenter", () => {{
-      resizeHandle.style.background = "var(--sys-color-state-hover-on-subtle, rgba(128,128,128,0.55))";
-    }});
-    resizeHandle.addEventListener("pointerleave", () => {{
-      if (activePointer === null) resizeHandle.style.background = "var(--sys-color-divider, rgba(128,128,128,0.28))";
-    }});
-    if (panelPosition === "right") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"10px",height:"100vh"}});
-    if (panelPosition === "left") Object.assign(resizeHandle.style, {{right:"0",top:"0",width:"10px",height:"100vh"}});
-    if (panelPosition === "bottom") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"100vw",height:"10px"}});
-    if (panelPosition === "top") Object.assign(resizeHandle.style, {{left:"0",bottom:"0",width:"100vw",height:"10px"}});
-    let start = 0;
-    let initial = panelSize;
-    let activePointer = null;
-    const removeDragListeners = () => {{
-      window.removeEventListener("pointermove", onPointerMove, true);
-      window.removeEventListener("pointerup", finish, true);
-      window.removeEventListener("pointercancel", finish, true);
-      window.removeEventListener("blur", cancelDrag);
-    }};
-    const onPointerMove = event => {{
-      if (activePointer !== event.pointerId) return;
-      const current = isVertical() ? event.screenX : event.screenY;
-      const delta = current - start;
-      const growsWithPositiveDelta = panelPosition === "left" || panelPosition === "top";
-      panelSize = Math.max(240, Math.min(800, initial + (growsWithPositiveDelta ? delta : -delta)));
-      document.documentElement.dataset.poofPanelSize = String(panelSize);
-      resizeHandle.style.transform = isVertical()
-        ? `translateX(${delta}px)`
-        : `translateY(${delta}px)`;
-      event.preventDefault();
-    }};
-    const finish = event => {{
-      if (activePointer === null || event.pointerId !== activePointer) return;
-      activePointer = null;
-      removeDragListeners();
-      resizeHandle.style.transform = "";
-      postPanelSize(true);
-      event.preventDefault();
-    }};
-    const cancelDrag = () => {{
-      if (activePointer === null) return;
-      activePointer = null;
-      removeDragListeners();
-      resizeHandle.style.transform = "";
-      postPanelSize(true);
-    }};
-    resizeHandle.addEventListener("pointerdown", event => {{
-      if (event.button !== 0) return;
-      activePointer = event.pointerId;
-      start = isVertical() ? event.screenX : event.screenY;
-      initial = panelSize;
-      try {{
-        resizeHandle.setPointerCapture(event.pointerId);
-      }} catch (_) {{
-        activePointer = null;
-        return;
-      }}
-      window.addEventListener("pointermove", onPointerMove, true);
-      window.addEventListener("pointerup", finish, true);
-      window.addEventListener("pointercancel", finish, true);
-      window.addEventListener("blur", cancelDrag);
-      event.preventDefault();
-      event.stopPropagation();
-    }});
-    root.appendChild(resizeHandle);
-  }};
-  window.__poofSetPanelLayout = (position, size) => {{
-    panelPosition = ["left", "right", "top", "bottom"].includes(position) ? position : "right";
-    panelSize = Math.max(240, Math.min(800, Number(size) || {size}));
-    resizeHandle?.remove();
-    resizeHandle = null;
-    const rootSplit = getAdvancedApp()?.rootSplitWidget;
-    if (rootSplit) {{
-      rootSplit.setVertical(isVertical());
-      rootSplit.setSecondIsSidebar(panelPosition === "right" || panelPosition === "bottom");
-      rootSplit.setSidebarSize(panelSize);
-      rootSplit.hideMain();
-    }}
-    installPanelResizer();
-  }};
-  const getAdvancedApp = () => {{
-    try {{
-      return window.Emulation?.AdvancedApp?.instance?.() ?? null;
-    }} catch (_) {{
-      // AdvancedApp.instance() requires its Universe until the DevTools app is constructed.
-      return null;
-    }}
-  }};
-  const reportResponsiveMode = active => {{
-    const changed = responsiveMode !== active;
-    responsiveMode = active;
-    // Retry until the native IPC bridge is ready. Initialization scripts can run
-    // before WebView2 has exposed window.ipc to the document.
-    window.ipc?.postMessage(JSON.stringify({{t: "responsive_mode", active}}));
-    if (!changed) return;
-    if (active) {{
-      resizeHandle?.remove();
-      resizeHandle = null;
-    }} else {{
-      installPanelResizer();
-    }}
-  }};
-  const updateMode = () => {{
-    const model = window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.tryInstance?.();
-    const active = Boolean(model?.isDeviceModeOn?.());
-    const app = getAdvancedApp();
-    const rootSplit = app?.rootSplitWidget;
-    const showMode = rootSplit?.showMode?.();
-    if (rootSplit && active && showMode !== "Both") {{
-      rootSplit.setSidebarSize(panelSize);
-      rootSplit.showBoth();
-    }} else if (rootSplit && !active && showMode !== "OnlySidebar") {{
-      rootSplit.hideMain();
-    }}
-    reportResponsiveMode(active);
-  }};
-  // Install the divider before touching DevTools internals. It must remain usable
-  // even while the frontend is still constructing AdvancedApp.
-  installPanelResizer();
-  updateMode();
-  setInterval(updateMode, 250);
+    handle.addEventListener("pointerenter", () => paint(true));
+    handle.addEventListener("pointerleave", () => { if (drag === null) paint(false); });
+    handle.addEventListener("pointerdown", e => {
+      if (e.button !== 0) return;
+      drag = e.pointerId;
+      handle.setPointerCapture(e.pointerId);
+      paint(true);
+      e.preventDefault();
+    });
+    handle.addEventListener("pointermove", e => {
+      if (drag !== e.pointerId) return;
+      last = sizeAt(e);
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; send(last, false); });
+    });
+    const end = e => {
+      if (drag !== e.pointerId) return;
+      drag = null;
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      send(sizeAt(e), true);
+      paint(false);
+    };
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
 
-  const applyPanelLayout = () => {{
-    const rootSplit = getAdvancedApp()?.rootSplitWidget;
-    if (!rootSplit) {{
-      setTimeout(applyPanelLayout, 100);
-      return;
-    }}
-    rootSplit.setVertical(isVertical());
-    rootSplit.setSecondIsSidebar(panelPosition === "right" || panelPosition === "bottom");
-    rootSplit.setSidebarSize(panelSize);
-    rootSplit.hideMain();
-    installPanelResizer();
-  }};
-  window.addEventListener("load", () => requestAnimationFrame(applyPanelLayout), {{once: true}});
-}})();
-"#,
-        dock_side = dock_side,
-        size = size.clamp(240.0, 800.0),
-        position = position,
-    )
+    const header = document.createElement("div");
+    header.style.cssText = "position:fixed;z-index:2147483647;align-items:center;justify-content:space-between;box-sizing:border-box;padding:0 4px 0 10px;border-radius:8px 8px 0 0;background:rgba(128,128,128,.12);font:12px system-ui,sans-serif;user-select:none;";
+    const title = document.createElement("span");
+    title.textContent = "Developer Tools";
+    title.style.cssText = "opacity:.7;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+    const close = document.createElement("button");
+    close.textContent = "\u00d7";
+    close.title = "Close Developer Tools (F12)";
+    close.setAttribute("aria-label", "Close Developer Tools");
+    close.style.cssText = "all:unset;width:22px;height:22px;line-height:22px;text-align:center;border-radius:4px;cursor:pointer;font-size:16px;";
+    close.addEventListener("pointerenter", () => { close.style.background = "rgba(128,128,128,.3)"; });
+    close.addEventListener("pointerleave", () => { close.style.background = "transparent"; });
+    close.addEventListener("click", () => post({ cmd: "dev_tools_toggle" }));
+    header.append(title, close);
+
+    document.body.append(handle, header);
+    ui = window.__poofDevtoolsUi = { handle, line, header, title, cfg };
+  }
+  ui.cfg = cfg;
+
+  const place = (el, b) => Object.assign(el.style, {
+    display: "block", left: b[0] + "px", top: b[1] + "px", width: b[2] + "px", height: b[3] + "px",
+  });
+  place(ui.header, cfg.header);
+  ui.header.style.display = "flex";
+
+  if (!cfg.handle) { ui.handle.style.display = "none"; return; }
+  const vertical = cfg.position === "left" || cfg.position === "right";
+  place(ui.handle, cfg.handle);
+  ui.handle.style.cursor = vertical ? "col-resize" : "row-resize";
+  Object.assign(ui.line.style, vertical
+    ? { left: "50%", top: "0", width: "2px", height: "100%", transform: "translateX(-50%)" }
+    : { top: "50%", left: "0", height: "2px", width: "100%", transform: "translateY(-50%)" });
+})
+"##;
+
+/// Evaluated in the DevTools frontend by the native side every few milliseconds while DevTools is
+/// open. The frontend has no IPC, so the result comes back through the evaluate callback.
+///
+/// The frontend must be docked: undocked, device mode opens in a separate toolbox window that
+/// this WebView never shows, and the inspector cannot sit next to the emulated screen. Docked:
+///  * panel mode: the main split is hidden, so the inspector fills its panel-sized WebView
+///  * device mode: the main split is shown next to the inspector and reports where the emulated
+///    screen is, so native code can put the real page WebView exactly there
+///
+/// Nothing is touched before the frontend has presented its UI: importing its modules earlier
+/// would evaluate them out of order and break the frontend.
+const DEVTOOLS_SYNC_JS: &str = r##"
+(cfg => {
+  const st = window.__poof || (window.__poof = {
+    dock: null, loading: false, failed: false, pos: null, resp: null, settle: 0,
+    emu: null, emuTried: false, want: 0, from: false, lastOn: false, hooked: false, hideAt: 0,
+  });
+  const wait = () => ({ ready: false });
+  try {
+    if (!document.querySelector(".root-view")) return wait();
+
+    // Closing is handled by the native header; the frontend's own button does nothing here.
+    if (!document.getElementById("__poof_style")) {
+      const style = document.createElement("style");
+      style.id = "__poof_style";
+      style.textContent = ".close-devtools{display:none!important}";
+      document.head.appendChild(style);
+    }
+
+    // A click on the device emulation button (or Ctrl+Shift+M) expands the frontend immediately.
+    // composedPath() sees through shadow roots.
+    if (!st.hooked) {
+      st.hooked = true;
+      const mark = () => { st.want = Date.now(); st.from = st.lastOn; };
+      const isToggle = n => n && n.getAttribute && /device (emulation|toolbar)/i.test(
+        (n.getAttribute("aria-label") || "") + " " + (n.getAttribute("title") || ""));
+      document.addEventListener("click", e => {
+        if (e.composedPath().some(isToggle)) mark();
+      }, true);
+      document.addEventListener("keydown", e => {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "M" || e.key === "m")) mark();
+      }, true);
+    }
+
+    // Toolbar buttons live in shadow roots, so a document-level stylesheet can't reach them.
+    // Hide the screencast toggle and the built-in close button (the native header has its own)
+    // by walking the shadow roots (throttled; the toolbar can re-render).
+    if (Date.now() - st.hideAt > 300) {
+      st.hideAt = Date.now();
+      const attrs = ["title", "aria-label", "jslog"];
+      const hide = root => {
+        for (const el of root.querySelectorAll("*")) {
+          if (el.shadowRoot) hide(el.shadowRoot);
+          const cls = typeof el.className === "string" ? el.className : "";
+          if (!/close-devtools/.test(cls) && !attrs.some(a => /screencast/i.test(el.getAttribute(a) || ""))) continue;
+          let target = el;
+          for (;;) {
+            const r = target.getRootNode();
+            if (r instanceof ShadowRoot && /button/i.test(r.host.localName)) target = r.host;
+            else break;
+          }
+          target.style.setProperty("display", "none", "important");
+        }
+      };
+      hide(document);
+    }
+
+    if (!st.emu && !st.emuTried) {
+      st.emuTried = true;
+      import("./models/emulation/emulation.js").then(m => { st.emu = m; }).catch(() => {});
+    }
+
+    const advanced = window.Emulation && window.Emulation.AdvancedApp;
+    const app = advanced && advanced.instance();
+    const split = app && app.rootSplitWidget;
+    if (!split) return wait();
+
+    const sides = ["right", "bottom", "left", "undocked"];
+    const dockSide = () => sides.find(s => document.body.classList.contains(s)) || "none";
+    if (dockSide() === "undocked" || dockSide() === "none") {
+      if (!st.dock) {
+        if (st.failed) return wait();
+        if (!st.loading) {
+          st.loading = true;
+          import("./ui/legacy/legacy.js")
+            .then(m => { st.dock = m.DockController.DockController.instance(); })
+            .catch(() => { st.failed = true; });
+        }
+        return wait();
+      }
+      // The frontend only knows right, bottom and left; top is bottom with the sides swapped below.
+      st.dock.setDockSide(cfg.position === "top" ? "bottom" : cfg.position);
+      st.pos = null;
+    }
+
+    const wrapper = app.deviceModeView;
+    let on = false;
+    try { on = Boolean(wrapper && wrapper.isDeviceModeOn && wrapper.isDeviceModeOn()); } catch (e) {}
+    if (!on) {
+      try {
+        const model = st.emu && st.emu.DeviceModeModel.DeviceModeModel.instance();
+        on = Boolean(model && model.enabledSetting().get());
+      } catch (e) {}
+    }
+    if (!on) {
+      const bar = document.querySelector(".device-mode-toolbar");
+      on = Boolean(bar && bar.offsetParent);
+    }
+
+    // Expand right away on a click that turns device mode on; drop it if nothing confirms in 1.5s.
+    const wantFull = on || (!st.from && Date.now() - st.want < 1500);
+    const full = Math.abs(window.innerWidth - cfg.width) <= 4 && Math.abs(window.innerHeight - cfg.height) <= 4;
+
+    const changed = st.pos !== cfg.position || st.resp !== wantFull;
+    const mode = split.showMode && split.showMode();
+    if (changed || (mode !== undefined && mode !== (wantFull ? "Both" : "OnlySidebar"))) {
+      split.setVertical(cfg.position === "left" || cfg.position === "right");
+      split.setSecondIsSidebar(cfg.position === "right" || cfg.position === "bottom");
+      if (wantFull) split.showBoth(); else split.hideMain();
+    }
+    st.pos = cfg.position;
+
+    // The split clamps the sidebar while the WebView is still panel-sized, so re-apply the
+    // panel size for a few ticks once the WebView has really grown. After that the user can
+    // drag the frontend's own splitter freely.
+    if (changed || !wantFull || !full) st.settle = 0;
+    if (wantFull && full && st.settle < 6) {
+      st.settle++;
+      split.setSidebarSize(cfg.size);
+    }
+    st.resp = wantFull;
+    st.lastOn = on;
+
+    let bounds = null;
+    const el = app.inspectedPagePlaceholder && app.inspectedPagePlaceholder.element;
+    if (on && el && el.isConnected) {
+      const r = el.getBoundingClientRect();
+      bounds = [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)];
+    }
+    return { ready: true, responsive: wantFull, bounds, iw: window.innerWidth, ih: window.innerHeight };
+  } catch (e) {
+    return wait();
+  }
+})
+"##;
+
+/// What the DevTools frontend reports back to the native side.
+#[derive(Deserialize, Default)]
+struct DevToolsReport {
+    #[serde(default)]
+    ready: bool,
+    #[serde(default)]
+    responsive: bool,
+    /// [x, y, w, h] of the emulated screen, in the frontend's own coordinates.
+    #[serde(default)]
+    bounds: Option<[f64; 4]>,
+    #[serde(default)]
+    iw: f64,
+    #[serde(default)]
+    ih: f64,
 }
 
 pub struct Tab {
@@ -419,6 +494,23 @@ enum PageMsg {
     Favicon { f: Option<String> },
     Key { k: String },
     Fullscreen { active: bool },
+    /// Internal (empty tab id only): periodic DevTools poll trigger.
+    #[serde(rename = "devtools_tick")]
+    DevToolsTick,
+    /// Internal (empty tab id only): result of a DevTools poll.
+    #[serde(rename = "devtools_state")]
+    DevToolsState { s: Option<DevToolsReport> },
+}
+
+/// Where everything goes for the current window / DevTools state.
+struct Layout {
+    page: Rect,
+    page_visible: bool,
+    tools: Option<Rect>,
+    /// [x, y, w, h] of the strip with the DevTools title and close button.
+    header: Option<[f64; 4]>,
+    /// [x, y, w, h] of the resize handle (docked mode only).
+    handle: Option<[f64; 4]>,
 }
 
 pub struct Browser {
@@ -426,7 +518,7 @@ pub struct Browser {
     proxy: EventLoopProxy<UserEvent>,
     root: PathBuf,
     sidebar: WebView,
-    _ui_ctx: WebContext,
+    ui_ctx: WebContext,
     /// One WebContext (= one user-data folder = one browser profile) per profile.
     contexts: HashMap<String, WebContext>,
     ext_done: HashSet<String>,
@@ -437,18 +529,26 @@ pub struct Browser {
     visible: Option<String>,
     overlay: bool,
     fullscreen: bool,
-    closed_tabs: Vec<(String, String)>,
+    closed_tabs: Vec<String>,
     devtools_open: bool,
     devtools: Option<WebView>,
     devtools_tab: Option<String>,
+    /// DevTools device mode is on: the frontend covers the whole content area and the page
+    /// WebView is placed over the emulated screen.
     responsive_mode: bool,
+    responsive_bounds: Option<[f64; 4]>,
+    /// The poll thread only sends ticks while this is set.
+    devtools_polling: Arc<AtomicBool>,
+    /// Start time (ms) of the poll in flight, 0 when idle.
+    poll_busy: Arc<AtomicU64>,
+    chrome_shown: Cell<bool>,
 }
 
-// ---------- geometry ----------
 fn logical(w: &Window) -> (f64, f64) {
     let s: tao::dpi::LogicalSize<f64> = w.inner_size().to_logical(w.scale_factor());
     (s.width, s.height)
 }
+
 fn rect(x: f64, y: f64, w: f64, h: f64) -> Rect {
     Rect {
         position: LogicalPosition::new(x, y).into(),
@@ -456,20 +556,23 @@ fn rect(x: f64, y: f64, w: f64, h: f64) -> Rect {
     }
 }
 
+fn rect_of(b: [f64; 4]) -> Rect {
+    rect(b[0], b[1], b[2], b[3])
+}
+
 fn full_rect(w: &Window) -> Rect {
     let (ww, hh) = logical(w);
     rect(0.0, 0.0, ww, hh)
 }
-fn content_rect(w: &Window, collapsed: bool, compact: bool, sidebar_width: f64, fullscreen: bool) -> Rect {
-    let (ww, hh) = logical(w);
-    if fullscreen {
-        return full_rect(w);
-    }
-    let left = if collapsed { 0.0 } else if compact { SIDEBAR_COMPACT_W } else { sidebar_width };
-    rect(left + INSET, TOPBAR_H, ww - left - 2.0 * INSET, hh - TOPBAR_H - INSET)
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(1)
+        .max(1)
 }
 
-// ---------- input helpers ----------
 pub fn normalize(input: &str) -> String {
     let s = input.trim();
     if s.is_empty() {
@@ -499,7 +602,7 @@ fn ok_url(s: &str, max: usize, allow_data: bool) -> bool {
             || (allow_data && s.starts_with("data:image/")))
 }
 
-/// Keep the last usable icon when WebView2 reports a transient empty result.
+/// Keeps the last usable icon when WebView2 reports a transient empty result.
 fn update_favicon(current: &mut Option<String>, incoming: Option<String>) -> bool {
     let Some(favicon) = incoming.filter(|value| ok_url(value, 512_000, true)) else {
         return false;
@@ -515,8 +618,7 @@ fn ok_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// Map WebView2 accelerator keys to browser commands. Virtual-key values are
-/// the Win32 VK_* constants so this logic can be tested without a WebView.
+/// Maps WebView2 accelerator keys (Win32 VK_* values) to browser commands.
 fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'static str> {
     const VK_TAB: u32 = 0x09;
     const VK_LEFT: u32 = 0x25;
@@ -545,8 +647,8 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
     if shift {
         return match key {
             0x49 => Some("devtools_toggle"), // I
-            0x54 => Some("reopen"), // T
-            0x52 => Some("reload"), // R
+            0x54 => Some("reopen"),          // T
+            0x52 => Some("reload"),          // R
             VK_TAB => Some("tab_prev"),
             _ => None,
         };
@@ -558,10 +660,14 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
         0x52 => Some("reload"),    // R
         0x50 => Some("print"),     // P
         0x44 => Some("favorite"),  // D
-        0x31..=0x38 => Some(match key {
-            0x31 => "tab_1", 0x32 => "tab_2", 0x33 => "tab_3", 0x34 => "tab_4",
-            0x35 => "tab_5", 0x36 => "tab_6", 0x37 => "tab_7", _ => "tab_8",
-        }),
+        0x31 => Some("tab_1"),
+        0x32 => Some("tab_2"),
+        0x33 => Some("tab_3"),
+        0x34 => Some("tab_4"),
+        0x35 => Some("tab_5"),
+        0x36 => Some("tab_6"),
+        0x37 => Some("tab_7"),
+        0x38 => Some("tab_8"),
         0x39 => Some("tab_last"),
         VK_TAB => Some("tab_next"),
         _ => None,
@@ -578,7 +684,7 @@ fn clip(s: &str, n: usize) -> String {
 
 #[cfg(windows)]
 fn devtools_target_id(webview: &WebView) -> Result<String> {
-    use std::sync::{Arc, Mutex};
+    use std::sync::Mutex;
     use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
     use windows::core::w;
 
@@ -610,10 +716,10 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("WebView2 returned an invalid DevTools target ID"))
 }
 
-#[cfg(any(windows, test))]
-const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=*";
+#[cfg(windows)]
+const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=devtools://devtools";
 
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 fn devtools_frontend_url(port: u16, target_id: &str) -> Result<String> {
     if port == 0
         || target_id.is_empty()
@@ -623,9 +729,8 @@ fn devtools_frontend_url(port: u16, target_id: &str) -> Result<String> {
     }
 
     // WebView2 ships the real frontend behind its privileged devtools:// scheme.
-    // The HTTP /devtools/inspector.html route is not a reliable frontend host.
     Ok(format!(
-        "devtools://devtools/bundled/inspector.html?ws=127.0.0.1:{port}/devtools/page/{target_id}"
+        "devtools://devtools/bundled/inspector.html?can_dock=true&ws=127.0.0.1:{port}/devtools/page/{target_id}"
     ))
 }
 
@@ -645,7 +750,7 @@ fn resolve_devtools_frontend(profile_dir: &Path, target_id: &str) -> Result<Stri
                 return Ok(url);
             }
         }
-        thread::sleep(Duration::from_millis(100));
+        std::thread::sleep(Duration::from_millis(100));
     }
     anyhow::bail!("WebView2 DevTools endpoint did not become ready for the active tab")
 }
@@ -718,10 +823,15 @@ impl Browser {
             let _ = fs::rename(&old, &root);
         }
         fs::create_dir_all(root.join("extensions"))?;
-        let p = Persisted::load(&root.join("state.json"));
+        let mut p = Persisted::load(&root.join("state.json"));
+        if !matches!(p.devtools_position.as_str(), "right" | "left" | "bottom" | "top") {
+            p.devtools_position = "right".into();
+        }
+        if !p.devtools_size.is_finite() || p.devtools_size < PANEL_MIN {
+            p.devtools_size = PANEL_DEFAULT;
+        }
 
         // The sidebar is our own trusted UI (HTML), living in its own data folder.
-        // theme.css holds every design token; it is spliced into the page here.
         let html = include_str!("../ui/sidebar.html")
             .replace(
                 "/*STYLES*/",
@@ -776,12 +886,33 @@ impl Browser {
             })
             .collect();
 
+        // Only ticks while DevTools is open (see `relayout`).
+        let devtools_polling = Arc::new(AtomicBool::new(false));
+        {
+            let flag = Arc::clone(&devtools_polling);
+            let tick = proxy.clone();
+            std::thread::spawn(move || loop {
+                if !flag.load(Ordering::Relaxed) {
+                    std::thread::sleep(Duration::from_millis(200));
+                    continue;
+                }
+                std::thread::sleep(Duration::from_millis(40));
+                let ev = UserEvent::Page {
+                    tab: String::new(),
+                    body: r#"{"t":"devtools_tick"}"#.to_string(),
+                };
+                if tick.send_event(ev).is_err() {
+                    break;
+                }
+            });
+        }
+
         let mut b = Self {
             window,
             proxy,
             root,
             sidebar,
-            _ui_ctx: ui_ctx,
+            ui_ctx,
             contexts: HashMap::new(),
             ext_done: HashSet::new(),
             p,
@@ -795,6 +926,10 @@ impl Browser {
             devtools: None,
             devtools_tab: None,
             responsive_mode: false,
+            responsive_bounds: None,
+            devtools_polling,
+            poll_busy: Arc::new(AtomicU64::new(0)),
+            chrome_shown: Cell::new(false),
         };
         b.apply_theme();
         b.preinstall();
@@ -811,7 +946,6 @@ impl Browser {
         self.window.set_theme(t);
     }
 
-    // ---------- extensions ----------
     fn preinstall(&mut self) {
         for id in store::PREINSTALL {
             let id = id.to_string();
@@ -853,36 +987,13 @@ impl Browser {
         let _ = self.sidebar.evaluate_script(&format!("window.__setExts&&window.__setExts({list})"));
     }
 
-    // ---------- events ----------
     pub fn on_user_event(&mut self, ev: UserEvent) {
         match ev {
-            UserEvent::CloseWindow => {},
+            UserEvent::CloseWindow => {}
             UserEvent::DevToolsReady { tab, url } => self.show_devtools(&tab, &url),
-            UserEvent::DevToolsPanelSize { size, persist } => {
-                if self.devtools_open && size.is_finite() {
-                    let size = size.clamp(240.0, 800.0);
-                    let changed = (self.p.devtools_size - size).abs() >= 1.0;
-                    self.p.devtools_size = size;
-                    if persist {
-                        self.save();
-                    }
-                    if changed {
-                        self.relayout();
-                        self.push_state();
-                    }
-                }
-            }
-            UserEvent::DevToolsResponsiveMode { active } => {
-                if self.devtools_open && self.responsive_mode != active {
-                    self.responsive_mode = active;
-                    self.relayout();
-                }
-            }
             UserEvent::DevToolsFailed { tab, message } => {
                 if self.devtools_open && self.visible.as_deref() == Some(tab.as_str()) {
-                    self.devtools_open = false;
-                    self.devtools_tab = None;
-                    self.relayout();
+                    self.close_devtools();
                     self.toast(&message);
                 }
             }
@@ -946,7 +1057,7 @@ impl Browser {
         self.push_state();
     }
 
-    /// Switch the entire native application window, not just the embedded WebView, into fullscreen.
+    /// Switches the whole native window, not just the embedded WebView, into fullscreen.
     fn handle_fullscreen(&mut self, tab: &str, active: bool) {
         if self.visible.as_deref() != Some(tab) || self.fullscreen == active {
             return;
@@ -968,6 +1079,22 @@ impl Browser {
         }
         let Ok(msg) = serde_json::from_str::<PageMsg>(body) else { return };
         match msg {
+            // Internal messages only come from native code (empty tab id). A page always has
+            // its own non-empty id baked in, so it cannot forge them.
+            PageMsg::DevToolsTick => {
+                if tab.is_empty() {
+                    self.poll_devtools();
+                }
+                return;
+            }
+            PageMsg::DevToolsState { s } => {
+                if tab.is_empty() {
+                    if let Some(report) = s {
+                        self.apply_devtools_report(report);
+                    }
+                }
+                return;
+            }
             PageMsg::Meta { u } => {
                 let mut persist = false;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
@@ -977,9 +1104,7 @@ impl Browser {
                             if let Some(h) = parsed.host_str() {
                                 let host = h.trim_start_matches("www.").to_string();
                                 if t.host != host {
-                                    // Do not carry the previous site's favicon across navigation.
                                     t.favicon = None;
-                                    // A new site was visited in this tab: count it for the new-tab bar.
                                     t.host = host.clone();
                                     let s = self.p.sites.entry(host).or_default();
                                     s.count += 1;
@@ -999,28 +1124,24 @@ impl Browser {
                 if persist {
                     self.save();
                 }
-                // The sidebar is a separate WebView and only sees tab changes
-                // when its serialized state is pushed.
-                self.push_state();
             }
             PageMsg::Favicon { f } => {
                 let mut persist = false;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
-                    let changed = update_favicon(&mut t.favicon, f);
-                    if changed {
+                    if update_favicon(&mut t.favicon, f) {
                         if let Some(s) = self.p.sites.get_mut(&t.host) {
                             s.favicon = t.favicon.clone();
                         }
                         persist = t.kind != Kind::Normal;
                     }
                 }
-                if persist { self.save(); }
-                self.push_state();
+                if persist {
+                    self.save();
+                }
             }
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
             PageMsg::Key { k } => {
-                // An empty tab ID means the shortcut originated in the sidebar;
-                // resolve the active tab now, not when the handler was registered.
+                // An empty tab ID means the shortcut originated in the sidebar.
                 let active_tab = self.visible.clone().unwrap_or_default();
                 let tab = if tab.is_empty() { active_tab.as_str() } else { tab };
                 if self.visible.as_deref() != Some(tab) {
@@ -1035,9 +1156,9 @@ impl Browser {
                     }
                     "close" => self.close_tab(tab),
                     "reopen" => self.reopen_closed_tab(),
-                    "back" => { self.eval_visible("history.back()"); Ok(()) },
-                    "forward" => { self.eval_visible("history.forward()"); Ok(()) },
-                    "reload" => { self.eval_visible("location.reload()"); Ok(()) },
+                    "back" => { self.eval_visible("history.back()"); Ok(()) }
+                    "forward" => { self.eval_visible("history.forward()"); Ok(()) }
+                    "reload" => { self.eval_visible("location.reload()"); Ok(()) }
                     "space_next" => self.cycle_space(1),
                     "space_prev" => self.cycle_space(-1),
                     "tab_next" => self.cycle_tab(1),
@@ -1046,8 +1167,8 @@ impl Browser {
                         let index = if k == "tab_last" { usize::MAX } else { k[4..].parse::<usize>().unwrap_or(1).saturating_sub(1) };
                         self.activate_tab_index(index)
                     }
-                    "print" => { self.eval_visible("window.print()"); Ok(()) },
-                    "favorite" => { self.set_kind(tab, Kind::Favorite); Ok(()) },
+                    "print" => { self.eval_visible("window.print()"); Ok(()) }
+                    "favorite" => { self.set_kind(tab, Kind::Favorite); Ok(()) }
                     "devtools_toggle" => self.toggle_devtools(),
                     _ => Ok(()),
                 };
@@ -1056,6 +1177,7 @@ impl Browser {
                 }
             }
         }
+        // The sidebar is a separate WebView and only sees tab changes through pushed state.
         self.push_state();
     }
 
@@ -1088,19 +1210,11 @@ impl Browser {
                 self.overlay = open;
                 if open {
                     let _ = self.sidebar.focus();
+                }
+                self.relayout();
+                if !open {
                     if let Some(wv) = self.visible_webview() {
-                        let _ = wv.set_visible(false);
-                    }
-                    if let Some(devtools) = self.devtools.as_ref() {
-                        let _ = devtools.set_visible(false);
-                    }
-                } else if let Some(wv) = self.visible_webview() {
-                    let _ = wv.set_visible(true);
-                    let _ = wv.focus();
-                    if self.devtools_open {
-                        if let Some(devtools) = self.devtools.as_ref() {
-                            let _ = devtools.set_visible(true);
-                        }
+                        let _ = wv.focus();
                     }
                 }
             }
@@ -1172,23 +1286,31 @@ impl Browser {
             Cmd::RenameFolder { id, name } => {
                 let name = clip(name.trim(), 40);
                 if !name.is_empty() {
-                    if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.name = name; self.save(); }
+                    if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) {
+                        f.name = name;
+                        self.save();
+                    }
                 }
             }
             Cmd::DeleteFolder { id } => {
                 if self.p.folders.iter().any(|f| f.id == id && f.space_id == self.p.current_space) {
                     self.p.folders.retain(|f| f.id != id);
-                    for t in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())) { t.folder_id = None; }
+                    for t in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())) {
+                        t.folder_id = None;
+                    }
                     self.save();
                 }
             }
             Cmd::ToggleFolderCollapsed { id } => {
-                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) { f.collapsed = !f.collapsed; self.save(); }
+                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) {
+                    f.collapsed = !f.collapsed;
+                    self.save();
+                }
             }
             Cmd::MoveFolder { id, to, index } => {
                 let space = self.p.current_space.clone();
                 let pinned = to == "pinned";
-                if to == "pinned" || to == "tab" {
+                if pinned || to == "tab" {
                     if let Some(from) = self.p.folders.iter().position(|f| f.id == id && f.space_id == space) {
                         let mut folder = self.p.folders.remove(from);
                         let old_order = folder.order;
@@ -1204,10 +1326,13 @@ impl Browser {
                         folder.pinned = pinned;
                         folder.order = index;
                         self.p.folders.push(folder);
+                        let kind = if pinned { Kind::Pinned } else { Kind::Normal };
                         for tab in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())
                             && t.space_id.as_deref() == Some(space.as_str())) {
-                            let kind = if pinned { Kind::Pinned } else { Kind::Normal };
-                            if tab.kind != kind { tab.home = tab.url.clone(); tab.kind = kind; }
+                            if tab.kind != kind {
+                                tab.home = tab.url.clone();
+                                tab.kind = kind;
+                            }
                         }
                         self.save();
                     }
@@ -1217,13 +1342,15 @@ impl Browser {
                 let target_pinned = folder_id.as_ref().and_then(|fid| self.p.folders.iter()
                     .find(|f| f.id == *fid && f.space_id == self.p.current_space))
                     .map(|f| f.pinned);
-                let valid = folder_id.is_none() || target_pinned.is_some();
-                if valid {
+                if folder_id.is_none() || target_pinned.is_some() {
                     if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id
                         && t.space_id.as_deref() == Some(self.p.current_space.as_str())) {
                         if let Some(pinned) = target_pinned {
                             let kind = if pinned { Kind::Pinned } else { Kind::Normal };
-                            if t.kind != kind { t.home = t.url.clone(); t.kind = kind; }
+                            if t.kind != kind {
+                                t.home = t.url.clone();
+                                t.kind = kind;
+                            }
                         }
                         t.folder_id = folder_id;
                         self.save();
@@ -1282,16 +1409,15 @@ impl Browser {
             Cmd::DevToolsPosition { position } => {
                 if matches!(position.as_str(), "right" | "left" | "bottom" | "top") {
                     self.p.devtools_position = position;
+                    self.p.devtools_size = self.devtools_size();
                     self.save();
-                    self.sync_devtools_panel_size();
                     self.relayout();
                 }
             }
             Cmd::DevToolsSize { size, persist } => {
                 if size.is_finite() {
-                    self.p.devtools_size = size.clamp(240.0, 800.0);
+                    self.p.devtools_size = size.clamp(PANEL_MIN, self.devtools_limit());
                     if persist { self.save(); }
-                    self.sync_devtools_panel_size();
                     self.relayout();
                 }
             }
@@ -1301,56 +1427,70 @@ impl Browser {
 
     fn toggle_devtools(&mut self) -> Result<()> {
         if self.devtools_open {
-            self.devtools_open = false;
-            self.devtools_tab = None;
-            self.responsive_mode = false;
-            if let Some(devtools) = self.devtools.as_ref() {
-                let _ = devtools.set_visible(false);
-            }
-            self.relayout();
+            self.close_devtools();
             return Ok(());
         }
         self.devtools_open = true;
+        self.responsive_mode = false;
+        self.responsive_bounds = None;
         self.relayout();
         if let Err(error) = self.attach_devtools() {
-            self.devtools_open = false;
-            self.relayout();
+            self.close_devtools();
             return Err(error);
         }
         Ok(())
     }
 
+    /// Closes the panel and drops the frontend's connection to the page, which also removes any
+    /// device-mode emulation from the page.
+    fn close_devtools(&mut self) {
+        self.devtools_open = false;
+        self.devtools_tab = None;
+        self.responsive_mode = false;
+        self.responsive_bounds = None;
+        if let Some(devtools) = self.devtools.as_ref() {
+            let _ = devtools.set_visible(false);
+            let _ = devtools.load_url("about:blank");
+        }
+        self.relayout();
+        if let Some(wv) = self.visible_webview() {
+            let _ = wv.focus();
+        }
+    }
+
     fn attach_devtools(&mut self) -> Result<()> {
         let Some(tab_id) = self.visible.clone() else {
-            self.devtools_open = false;
-            self.relayout();
+            self.close_devtools();
             self.toast("Open a page before opening Developer Tools.");
             return Ok(());
         };
-        let Some(tab) = self.tabs.iter().find(|tab| tab.id == tab_id) else {
-            self.devtools_open = false;
+        if self.devtools_tab.as_deref() == Some(tab_id.as_str()) && self.devtools.is_some() {
             self.relayout();
             return Ok(());
-        };
-        let Some(webview) = tab.webview.as_ref() else {
-            self.devtools_open = false;
-            self.relayout();
-            return Ok(());
-        };
+        }
         #[cfg(windows)]
         {
-            let target_id = match devtools_target_id(webview) {
-                Ok(target_id) => target_id,
-                Err(error) => {
-                    self.devtools_open = false;
-                    self.relayout();
+            let Some(tab) = self.tabs.iter().find(|tab| tab.id == tab_id) else {
+                self.close_devtools();
+                return Ok(());
+            };
+            let profile_id = tab.profile_id.clone();
+            let target = tab.webview.as_ref().map(devtools_target_id);
+            let target_id = match target {
+                None => {
+                    self.close_devtools();
+                    return Ok(());
+                }
+                Some(Err(error)) => {
+                    self.close_devtools();
                     self.toast(&format!("Could not identify the active DevTools target: {error}"));
                     return Ok(());
                 }
+                Some(Ok(target_id)) => target_id,
             };
-            let profile_dir = self.root.join("profiles").join(&tab.profile_id);
+            let profile_dir = self.root.join("profiles").join(&profile_id);
             let proxy = self.proxy.clone();
-            thread::spawn(move || {
+            std::thread::spawn(move || {
                 let event = match resolve_devtools_frontend(&profile_dir, &target_id) {
                     Ok(url) => UserEvent::DevToolsReady { tab: tab_id, url },
                     Err(error) => UserEvent::DevToolsFailed {
@@ -1363,10 +1503,41 @@ impl Browser {
         }
         #[cfg(not(windows))]
         {
-            self.devtools_open = false;
-            self.relayout();
+            self.close_devtools();
             self.toast("Embedded Developer Tools are available on Windows only.");
         }
+        Ok(())
+    }
+
+    fn open_devtools_view(&mut self, tab: &str, url: &str) -> Result<()> {
+        if let Some(devtools) = self.devtools.as_ref() {
+            devtools.load_url(url)?;
+            return Ok(());
+        }
+        let layout = self.layout();
+        let proxy = self.proxy.clone();
+        // No init script and no IPC: everything is driven from the native side
+        // (see `DEVTOOLS_SYNC_JS`).
+        let devtools = WebViewBuilder::new_with_web_context(&mut self.ui_ctx)
+            .with_bounds(layout.tools.unwrap_or(layout.page))
+            .with_visible(false)
+            .with_devtools(false)
+            .with_url(url)
+            // Any navigation away from the frontend is refused so web content can never load
+            // into this WebView.
+            .with_navigation_handler(|target| {
+                target.starts_with("devtools://devtools/") || target == "about:blank"
+            })
+            .with_new_window_req_handler(move |url, _features| {
+                let _ = proxy.send_event(UserEvent::OpenTab { url });
+                NewWindowResponse::Deny
+            })
+            .build_as_child(&self.window)?;
+        #[cfg(windows)]
+        register_browser_shortcuts(&devtools, self.proxy.clone(), tab.to_string());
+        #[cfg(not(windows))]
+        let _ = tab;
+        self.devtools = Some(devtools);
         Ok(())
     }
 
@@ -1376,123 +1547,92 @@ impl Browser {
         }
         if self.devtools_tab.as_deref() == Some(tab) && self.devtools.is_some() {
             self.relayout();
-            if let Some(devtools) = self.devtools.as_ref() {
-                let visible = !self.fullscreen && !self.overlay;
-                let _ = devtools.set_visible(visible);
-                if visible { let _ = devtools.focus(); }
-            }
-            self.relayout();
             return;
         }
-        let init_script = devtools_init_script(
-            &self.p.devtools_position,
-            self.p.devtools_size,
-        );
-        let bounds_proxy = self.proxy.clone();
-        let result = if let Some(devtools) = self.devtools.as_ref() {
-            devtools.load_url(url)
-        } else {
-            let (page_bounds, tools_bounds) = self.layout_rects();
-            let bounds = tools_bounds.unwrap_or(page_bounds);
-            match WebViewBuilder::new_with_web_context(&mut self._ui_ctx)
-                .with_bounds(bounds)
-                .with_visible(false)
-                .with_devtools(false)
-                .with_initialization_script_for_main_only(init_script.clone(), false)
-                .with_ipc_handler(move |request| {
-                    let Ok(message) = serde_json::from_str::<DevToolsMsg>(request.into_body().as_str()) else {
-                        return;
-                    };
-                    match message {
-                        DevToolsMsg::PanelSize { size, persist } => {
-                            let _ = bounds_proxy.send_event(UserEvent::DevToolsPanelSize { size, persist });
-                        }
-                        DevToolsMsg::ResponsiveMode { active } => {
-                            let _ = bounds_proxy.send_event(UserEvent::DevToolsResponsiveMode { active });
-                        }
-                    }
-                })
-                .with_url(url)
-                .build_as_child(&self.window)
-            {
-                Ok(devtools) => {
-                    #[cfg(windows)]
-                    register_browser_shortcuts(&devtools, self.proxy.clone(), tab.to_string());
-                    self.devtools = Some(devtools);
-                    Ok(())
-                }
-                Err(error) => Err(error),
-            }
-        };
-        match result {
+        match self.open_devtools_view(tab, url) {
             Ok(()) => {
                 self.devtools_tab = Some(tab.to_string());
                 self.relayout();
-                self.sync_devtools_panel_size();
-                if let Some(devtools) = self.devtools.as_ref() {
-                    let visible = !self.fullscreen && !self.overlay;
-                    let _ = devtools.set_visible(visible);
-                    if visible { let _ = devtools.focus(); }
+                if !self.overlay && !self.fullscreen {
+                    if let Some(devtools) = self.devtools.as_ref() {
+                        let _ = devtools.focus();
+                    }
                 }
-                self.relayout();
             }
             Err(error) => {
-                self.devtools_open = false;
-                self.devtools_tab = None;
-                if let Some(devtools) = self.devtools.as_ref() {
-                    let _ = devtools.set_visible(false);
-                }
-                self.relayout();
+                self.close_devtools();
                 self.toast(&format!("Could not open Developer Tools: {error}"));
             }
         }
     }
 
-    fn sync_devtools_panel_size(&self) {
-        let Some(devtools) = self.devtools.as_ref() else { return };
-        let size = self.p.devtools_size.clamp(240.0, 800.0);
-        let position = self.p.devtools_position.as_str();
-        let dock_side = match position {
-            "left" => "left",
-            "bottom" | "top" => "bottom",
-            _ => "right",
-        };
-        let vertical = matches!(position, "left" | "right");
-        let second_is_sidebar = matches!(position, "right" | "bottom");
-        let script = format!(
-            r#"
-(() => {{
-  try {{
-    localStorage.setItem("currentDockState", JSON.stringify("{dock_side}"));
-    localStorage.setItem("inspector-view.split-view-state", JSON.stringify({{
-      vertical: {{size: {size}}},
-      horizontal: {{size: {size}}}
-    }}));
-  }} catch (_) {{}}
-  const dockController = window.UI?.DockController?.DockController?.instance?.();
-  dockController?.setDockSide?.("{dock_side}");
-  window.__poofSetPanelLayout?.("{position}", {size});
-  let rootSplit = null;
-  try {{ rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget ?? null; }} catch (_) {{}}
-  if (rootSplit) {{
-    rootSplit.setVertical({vertical});
-    rootSplit.setSecondIsSidebar({second_is_sidebar});
-    rootSplit.setSidebarSize({size});
-    if (window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.tryInstance?.()?.isDeviceModeOn?.()) rootSplit.showBoth();
-    else rootSplit.hideMain();
-  }}
-}})();
-"#,
-            size = size,
-            dock_side = dock_side,
-            position = position,
-            vertical = vertical,
-            second_is_sidebar = second_is_sidebar,
-        );
-        let _ = devtools.evaluate_script(&script);
+    fn devtools_sync_call(&self) -> String {
+        let [_, _, width, height] = self.responsive_tools_box();
+        let cfg = json!({
+            "position": self.p.devtools_position,
+            "size": self.devtools_size(),
+            "width": width.round(),
+            "height": height.round(),
+        });
+        format!("({DEVTOOLS_SYNC_JS})({cfg})")
     }
 
-    // ---------- model helpers ----------
+    /// Asks the frontend for its state and enforces the layout.
+    fn poll_devtools(&self) {
+        if !self.devtools_open || self.fullscreen || self.overlay {
+            return;
+        }
+        if self.devtools_tab.is_none() || self.devtools_tab != self.visible {
+            return;
+        }
+        let Some(devtools) = self.devtools.as_ref() else { return };
+
+        // One poll in flight at a time (with a timeout in case a callback never arrives).
+        let now = now_ms();
+        let started = self.poll_busy.load(Ordering::Acquire);
+        if started != 0 && now.saturating_sub(started) < 1500 {
+            return;
+        }
+        self.poll_busy.store(now, Ordering::Release);
+
+        let busy = Arc::clone(&self.poll_busy);
+        let proxy = self.proxy.clone();
+        let queued = devtools.evaluate_script_with_callback(&self.devtools_sync_call(), move |result| {
+            busy.store(0, Ordering::Release);
+            let payload = if result.trim().is_empty() { "null" } else { result.as_str() };
+            let body = format!(r#"{{"t":"devtools_state","s":{payload}}}"#);
+            let _ = proxy.send_event(UserEvent::Page { tab: String::new(), body });
+        });
+        if queued.is_err() {
+            self.poll_busy.store(0, Ordering::Release);
+        }
+    }
+
+    fn apply_devtools_report(&mut self, report: DevToolsReport) {
+        if !self.devtools_open
+            || self.fullscreen
+            || self.devtools_tab.is_none()
+            || self.devtools_tab != self.visible
+        {
+            return;
+        }
+        let responsive = report.ready && report.responsive;
+        // The emulated-screen bounds belong to the previous layout until the frontend has been
+        // resized to the WebView size native code asked for.
+        let [_, _, w, h] = self.responsive_tools_box();
+        let in_sync = (report.iw - w).abs() <= 4.0 && (report.ih - h).abs() <= 4.0;
+        let bounds = if responsive && in_sync {
+            report.bounds.filter(|b| b[2] >= 1.0 && b[3] >= 1.0)
+        } else {
+            None
+        };
+        if responsive != self.responsive_mode || bounds != self.responsive_bounds {
+            self.responsive_mode = responsive;
+            self.responsive_bounds = bounds;
+            self.relayout();
+        }
+    }
+
     fn cur_space(&self) -> &Space {
         self.p
             .spaces
@@ -1526,7 +1666,7 @@ impl Browser {
         self.save();
     }
 
-    /// Drop a tab into a list. `to` is "pinned", "tab" or "fav"; `index` is its position in that list.
+    /// Drops a tab into a list. `to` is "pinned", "tab" or "fav"; `index` is its position in that list.
     fn move_tab(&mut self, id: &str, to: &str, index: usize) {
         let sp = self.cur_space().clone();
         let Some(from) = self.tabs.iter().position(|t| t.id == id) else { return };
@@ -1541,7 +1681,6 @@ impl Browser {
             t.home = t.url.clone();
         }
         t.kind = kind;
-        if kind != Kind::Normal { t.folder_id = None; }
         t.space_id = if kind == Kind::Favorite { None } else { Some(sp.id.clone()) };
         let profile = t.profile_id.clone();
         let peers: Vec<usize> = self
@@ -1567,7 +1706,6 @@ impl Browser {
         self.save();
     }
 
-    // ---------- tabs ----------
     fn new_tab(&mut self, url: &str) -> Result<()> {
         let sp = self.cur_space().clone();
         let id = new_id();
@@ -1595,7 +1733,7 @@ impl Browser {
         let id = self.tabs[idx].id.clone();
         let profile_id = self.tabs[idx].profile_id.clone();
         let url = self.tabs[idx].url.clone();
-        let rect = content_rect(&self.window, self.p.sidebar_collapsed, self.p.sidebar_compact, self.p.sidebar_width, self.fullscreen);
+        let bounds = self.content_rect();
         let dir = self.root.join("profiles").join(&profile_id);
         let ctx = self
             .contexts
@@ -1606,7 +1744,7 @@ impl Browser {
         let (id1, id2) = (id.clone(), id.clone());
 
         let builder = WebViewBuilder::new_with_web_context(ctx)
-            .with_bounds(rect)
+            .with_bounds(bounds)
             .with_visible(false)
             .with_devtools(false)
             .with_url(&url)
@@ -1617,7 +1755,7 @@ impl Browser {
             .with_document_title_changed_handler(move |title| {
                 let _ = p2.send_event(UserEvent::Title { tab: id2.clone(), title });
             })
-            // target=_blank / window.open -> open as a new tab (OAuth popups need more work).
+            // target=_blank / window.open opens a new tab (OAuth popups need more work).
             .with_new_window_req_handler(move |url, _features| {
                 let _ = p3.send_event(UserEvent::OpenTab { url });
                 NewWindowResponse::Deny
@@ -1628,28 +1766,23 @@ impl Browser {
             use wry::WebViewBuilderExtWindows;
             builder
                 .with_browser_extensions_enabled(true)
-                // Keep Wry's defaults while enabling a random loopback CDP port
-                // for this isolated profile. The port is read from DevToolsActivePort.
-                .with_additional_browser_args(
-                    WEBVIEW2_BROWSER_ARGS,
-                )
+                // Enables a random loopback CDP port for this isolated profile; the port is
+                // read from DevToolsActivePort.
+                .with_additional_browser_args(WEBVIEW2_BROWSER_ARGS)
         };
 
         let wv = builder.build_as_child(&self.window)?;
 
-        // Register on each content WebView as well as the sidebar WebView.
         #[cfg(windows)]
         register_browser_shortcuts(&wv, self.proxy.clone(), id.clone());
 
-        // Use WebView2's original favicon URI so the sidebar and tab rows can
-        // render SVGs and multi-resolution ICO/PNG sources without rasterizing
-        // every icon to WebView2's small PNG snapshot first.
+        // WebView2's original favicon URI lets the sidebar render SVGs and multi-resolution
+        // ICO/PNG sources without rasterizing every icon to a small PNG snapshot first.
         #[cfg(windows)]
         {
             use webview2_com::{FaviconChangedEventHandler, Microsoft::Web::WebView2::Win32::*};
             use windows::Win32::System::Com::CoTaskMemFree;
             use windows::core::{Interface, PWSTR};
-            use wry::WebViewExtWindows;
 
             fn current_favicon_uri(core15: &ICoreWebView2_15) -> Option<String> {
                 unsafe {
@@ -1683,8 +1816,7 @@ impl Browser {
                         if let Err(error) = core15.add_FaviconChanged(&handler, &mut token) {
                             log::warn!("registering WebView2 favicon handler failed: {error}");
                         }
-                        // The initial navigation may have started before this handler
-                        // was attached, so publish the current URI as well.
+                        // The initial navigation may have started before the handler was attached.
                         let favicon = current_favicon_uri(&core15);
                         let body = json!({"t": "favicon", "f": favicon}).to_string();
                         let _ = initial_proxy.send_event(UserEvent::Page { tab: initial_tab, body });
@@ -1695,14 +1827,12 @@ impl Browser {
             }
         }
 
-        // WebView2 reports HTML fullscreen transitions directly from its native
-        // host. This covers fullscreen requests inside cross-origin/nested frames
-        // without depending on JavaScript IPC or postMessage frame relays.
+        // Reported by WebView2's native host, so fullscreen requests from cross-origin or
+        // nested frames work without JavaScript IPC or postMessage relays.
         #[cfg(windows)]
         {
             use webview2_com::ContainsFullScreenElementChangedEventHandler;
             use windows::core::BOOL;
-            use wry::WebViewExtWindows;
 
             let fullscreen_proxy = self.proxy.clone();
             let fullscreen_tab = id.clone();
@@ -1753,6 +1883,8 @@ impl Browser {
     fn hide_visible(&mut self) {
         self.leave_fullscreen();
         let Some(id) = self.visible.take() else { return };
+        self.responsive_mode = false;
+        self.responsive_bounds = None;
         if let Some(wv) = self.tabs.iter().find(|t| t.id == id).and_then(|t| t.webview.as_ref()) {
             if self.p.auto_pip {
                 pip::on_leave(wv);
@@ -1774,30 +1906,16 @@ impl Browser {
         }
         self.hide_visible();
         self.ensure_webview(idx)?;
-        let (rect, _) = self.layout_rects();
         self.overlay = false;
+        self.visible = Some(id.to_string());
+        self.active.insert(self.p.current_space.clone(), id.to_string());
+        self.relayout();
         if let Some(wv) = &self.tabs[idx].webview {
-            apply_webview_bounds(wv, rect, self.window.scale_factor())?;
-            #[cfg(windows)]
-            {
-                let (window_w, window_h) = logical(&self.window);
-                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { self.p.sidebar_width };
-                apply_webview_radius(
-                    wv,
-                    window_w - left - 2.0 * INSET,
-                    window_h - TOPBAR_H - INSET,
-                    self.window.scale_factor(),
-                    !self.fullscreen && !self.devtools_open,
-                );
-            }
-            wv.set_visible(true)?;
             wv.focus()?;
             if self.p.auto_pip {
                 pip::on_enter(wv);
             }
         }
-        self.visible = Some(id.to_string());
-        self.active.insert(self.p.current_space.clone(), id.to_string());
         if self.devtools_open {
             self.attach_devtools()?;
         }
@@ -1810,6 +1928,8 @@ impl Browser {
         if was_visible {
             self.leave_fullscreen();
             self.visible = None;
+            self.responsive_mode = false;
+            self.responsive_bounds = None;
             if let Some(wv) = &self.tabs[idx].webview {
                 let _ = wv.set_visible(false);
             }
@@ -1818,9 +1938,9 @@ impl Browser {
             }
         }
         if self.tabs[idx].kind == Kind::Normal {
-            self.closed_tabs.insert(0, (self.tabs[idx].url.clone(), self.tabs[idx].space_id.clone().unwrap_or_else(|| self.p.current_space.clone())));
+            self.closed_tabs.insert(0, self.tabs[idx].url.clone());
             self.closed_tabs.truncate(25);
-            self.tabs.remove(idx); // drops the WebView
+            self.tabs.remove(idx);
         } else {
             // Pinned / favorite: unload and reset to its home URL, keep the entry.
             let t = &mut self.tabs[idx];
@@ -1836,31 +1956,39 @@ impl Browser {
     }
 
     fn reopen_closed_tab(&mut self) -> Result<()> {
-        let Some((url, _space)) = self.closed_tabs.first().cloned() else { return Ok(()) };
-        self.closed_tabs.remove(0);
+        if self.closed_tabs.is_empty() {
+            return Ok(());
+        }
+        let url = self.closed_tabs.remove(0);
         self.new_tab(&url)
     }
 
-    fn cycle_tab(&mut self, direction: i32) -> Result<()> {
-        let ids: Vec<String> = self.tabs.iter()
+    /// Tabs reachable from the current space, in sidebar order.
+    fn space_tab_ids(&self) -> Vec<String> {
+        self.tabs.iter()
             .filter(|t| t.space_id.as_deref() == Some(self.p.current_space.as_str()) || t.kind == Kind::Favorite)
-            .map(|t| t.id.clone()).collect();
-        if ids.len() < 2 { return Ok(()); }
+            .map(|t| t.id.clone())
+            .collect()
+    }
+
+    fn cycle_tab(&mut self, direction: i32) -> Result<()> {
+        let ids = self.space_tab_ids();
+        if ids.len() < 2 {
+            return Ok(());
+        }
         let current = self.visible.as_ref().and_then(|id| ids.iter().position(|x| x == id)).unwrap_or(0) as i32;
         let next = (current + direction).rem_euclid(ids.len() as i32) as usize;
         self.activate(&ids[next])
     }
 
     fn activate_tab_index(&mut self, index: usize) -> Result<()> {
-        let ids: Vec<String> = self.tabs.iter()
-            .filter(|t| t.space_id.as_deref() == Some(self.p.current_space.as_str()) || t.kind == Kind::Favorite)
-            .map(|t| t.id.clone()).collect();
-        if ids.is_empty() { return Ok(()); }
-        let target = if index == usize::MAX { ids.len() - 1 } else { index.min(ids.len() - 1) };
-        self.activate(&ids[target])
+        let ids = self.space_tab_ids();
+        if ids.is_empty() {
+            return Ok(());
+        }
+        self.activate(&ids[index.min(ids.len() - 1)])
     }
 
-    // ---------- spaces ----------
     fn restore_space_tab(&mut self) -> Result<()> {
         let sp = self.p.current_space.clone();
         let remembered = self
@@ -1878,9 +2006,7 @@ impl Browser {
         if let Some(id) = pick {
             self.activate(&id)?;
         } else if self.devtools_open {
-            self.devtools_open = false;
-            self.devtools_tab = None;
-            self.relayout();
+            self.close_devtools();
         }
         Ok(())
     }
@@ -1922,8 +2048,7 @@ impl Browser {
         Ok(())
     }
 
-
-    /// Expire inactive normal tabs and apply profile-level browsing-data policies.
+    /// Expires inactive normal tabs and applies profile-level browsing-data policies.
     pub fn cleanup_expired_tabs(&mut self) {
         let now = SystemTime::now();
         let expired: Vec<String> = self.tabs.iter()
@@ -2011,49 +2136,117 @@ impl Browser {
         }
     }
 
+    /// Age-scoped profile cleanup is only available through WebView2.
     #[cfg(not(windows))]
-    fn cleanup_profile_data(&mut self) {
-        // Age-scoped profile cleanup is exposed through WebView2 on Windows.
-    }
+    fn cleanup_profile_data(&mut self) {}
 
-    // ---------- output ----------
-    fn layout_rects(&self) -> (Rect, Option<Rect>) {
-        let base = content_rect(
-            &self.window,
-            self.p.sidebar_collapsed,
-            self.p.sidebar_compact,
-            self.p.sidebar_width,
-            self.fullscreen,
-        );
-        if !self.devtools_open || self.fullscreen {
-            return (base, None);
-        }
-        let (window_w, window_h) = logical(&self.window);
-        let sidebar = if self.p.sidebar_collapsed {
+    fn sidebar_left(&self) -> f64 {
+        if self.p.sidebar_collapsed {
             0.0
         } else if self.p.sidebar_compact {
             SIDEBAR_COMPACT_W
         } else {
             self.p.sidebar_width
+        }
+    }
+
+    /// [x, y, w, h] of the area normally occupied by web content.
+    fn content_box(&self) -> [f64; 4] {
+        let (w, h) = logical(&self.window);
+        let left = self.sidebar_left();
+        [
+            left + INSET,
+            TOPBAR_H,
+            (w - left - 2.0 * INSET).max(1.0),
+            (h - TOPBAR_H - INSET).max(1.0),
+        ]
+    }
+
+    fn content_rect(&self) -> Rect {
+        if self.fullscreen {
+            full_rect(&self.window)
+        } else {
+            rect_of(self.content_box())
+        }
+    }
+
+    /// [x, y, w, h] the DevTools frontend occupies in device mode: the content area minus the header.
+    fn responsive_tools_box(&self) -> [f64; 4] {
+        let [x, y, w, h] = self.content_box();
+        [x, y + HEADER_H, w, (h - HEADER_H).max(1.0)]
+    }
+
+    /// Largest panel size that still leaves a usable page.
+    fn devtools_limit(&self) -> f64 {
+        let [_, _, w, h] = self.content_box();
+        let avail = if matches!(self.p.devtools_position.as_str(), "left" | "right") { w } else { h };
+        (avail - PANEL_GAP - PAGE_MIN).max(PANEL_MIN).min(PANEL_MAX)
+    }
+
+    fn devtools_size(&self) -> f64 {
+        self.p.devtools_size.clamp(PANEL_MIN, self.devtools_limit())
+    }
+
+    fn layout(&self) -> Layout {
+        let mut out = Layout {
+            page: self.content_rect(),
+            page_visible: true,
+            tools: None,
+            header: None,
+            handle: None,
         };
-        let x = sidebar + INSET;
-        let y = TOPBAR_H;
-        let width = (window_w - sidebar - 2.0 * INSET).max(1.0);
-        let height = (window_h - TOPBAR_H - INSET).max(1.0);
+        if !self.devtools_open || self.fullscreen {
+            return out;
+        }
+        let [x, y, w, h] = self.content_box();
+
         if self.responsive_mode {
-            // Screencast renders the inspected page inside the DevTools frontend.
-            // The native page WebView must stay hidden rather than cover that preview.
-            return (base, Some(base));
+            // The frontend draws the device frame, rulers and toolbars over the whole content
+            // area; the real page WebView sits exactly on the emulated screen.
+            let [tx, ty, tw, th] = self.responsive_tools_box();
+            out.header = Some([x, y, w, HEADER_H]);
+            out.tools = Some(rect(tx, ty, tw, th));
+            out.page_visible = false;
+            if let Some([bx, by, bw, bh]) = self.responsive_bounds {
+                let (left, top) = ((tx + bx).max(tx), (ty + by).max(ty));
+                let (right, bottom) = ((tx + bx + bw).min(tx + tw), (ty + by + bh).min(ty + th));
+                if right - left >= 1.0 && bottom - top >= 1.0 {
+                    out.page = rect(left, top, right - left, bottom - top);
+                    out.page_visible = true;
+                }
+            }
+            return out;
         }
 
-        let size = self.p.devtools_size.clamp(240.0, 800.0).min(width - 1.0);
-        let (page, tools) = match self.p.devtools_position.as_str() {
-            "left" => (rect(x + size, y, width - size, height), rect(x, y, size, height)),
-            "top" => (rect(x, y + size, width, height - size), rect(x, y, width, size)),
-            "bottom" => (rect(x, y, width, height - size), rect(x, y + height - size, width, size)),
-            _ => (rect(x, y, width - size, height), rect(x + width - size, y, size, height)),
+        let size = self.devtools_size();
+        let gap = PANEL_GAP;
+        let (page, panel, handle) = match self.p.devtools_position.as_str() {
+            "left" => (
+                [x + size + gap, y, w - size - gap, h],
+                [x, y, size, h],
+                [x + size, y, gap, h],
+            ),
+            "top" => (
+                [x, y + size + gap, w, h - size - gap],
+                [x, y, w, size],
+                [x, y + size, w, gap],
+            ),
+            "bottom" => (
+                [x, y, w, h - size - gap],
+                [x, y + h - size, w, size],
+                [x, y + h - size - gap, w, gap],
+            ),
+            _ => (
+                [x, y, w - size - gap, h],
+                [x + w - size, y, size, h],
+                [x + w - size - gap, y, gap, h],
+            ),
         };
-        (page, Some(tools))
+        out.page = rect_of(page);
+        out.header = Some([panel[0], panel[1], panel[2], HEADER_H]);
+        out.tools = Some(rect(panel[0], panel[1] + HEADER_H, panel[2], panel[3] - HEADER_H));
+        out.handle = Some(handle);
+        out
     }
 
     pub fn relayout(&self) {
@@ -2061,44 +2254,69 @@ impl Browser {
         if w < 1.0 || h < 1.0 {
             return; // minimized
         }
+        let scale = self.window.scale_factor();
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
         let _ = self.sidebar.set_visible(!self.fullscreen);
-        let (page_bounds, devtools_bounds) = self.layout_rects();
+        let layout = self.layout();
+
+        let page_shown = !self.overlay && layout.page_visible;
         if let Some(wv) = self.visible_webview() {
-            if let Err(error) = apply_webview_bounds(wv, page_bounds, self.window.scale_factor()) {
+            if let Err(error) = apply_webview_bounds(wv, layout.page, scale) {
                 log::warn!("resizing content WebView failed: {error:#}");
             }
-            let page_visible = !self.overlay
-                && (!self.devtools_open || self.fullscreen || !self.responsive_mode);
-            let _ = wv.set_visible(page_visible);
+            let _ = wv.set_visible(page_shown);
             #[cfg(windows)]
             {
-                let left = if self.p.sidebar_collapsed { 0.0 } else if self.p.sidebar_compact { SIDEBAR_COMPACT_W } else { self.p.sidebar_width };
-                apply_webview_radius(
-                    wv,
-                    w - left - 2.0 * INSET,
-                    h - TOPBAR_H - INSET,
-                    self.window.scale_factor(),
-                    !self.fullscreen && !self.devtools_open,
-                );
-            }
-        }
-        if let Some(devtools) = self.devtools.as_ref() {
-            if let Some(bounds) = devtools_bounds {
-                if let Err(error) = apply_webview_bounds(devtools, bounds, self.window.scale_factor()) {
-                    log::warn!("resizing DevTools WebView failed: {error:#}");
+                let [_, _, cw, ch] = self.content_box();
+                apply_webview_radius(wv, cw, ch, scale, !self.fullscreen && !self.devtools_open);
+                if page_shown && self.devtools_open && self.responsive_mode {
+                    raise_webview(wv);
                 }
-                let visible = self.devtools_open && !self.fullscreen && !self.overlay;
-                let _ = devtools.set_visible(visible);
-                #[cfg(windows)]
-                if visible {
-                    raise_webview(devtools);
-                }
-            } else {
-                let _ = devtools.set_visible(false);
             }
         }
 
+        if let Some(devtools) = self.devtools.as_ref() {
+            match layout.tools {
+                Some(bounds) => {
+                    if let Err(error) = apply_webview_bounds(devtools, bounds, scale) {
+                        log::warn!("resizing DevTools WebView failed: {error:#}");
+                    }
+                    let show = self.devtools_open
+                        && !self.overlay
+                        && !self.fullscreen
+                        && self.devtools_tab.is_some()
+                        && self.devtools_tab == self.visible;
+                    let _ = devtools.set_visible(show);
+                }
+                None => {
+                    let _ = devtools.set_visible(false);
+                }
+            }
+        }
+
+        self.devtools_polling.store(
+            self.devtools_open && !self.overlay && !self.fullscreen,
+            Ordering::Relaxed,
+        );
+        self.sync_devtools_chrome(&layout);
+    }
+
+    /// Shows, moves or hides the resize handle and header strip drawn by the sidebar WebView.
+    fn sync_devtools_chrome(&self, layout: &Layout) {
+        let visible = self.devtools_open && !self.overlay && !self.fullscreen;
+        let cfg = layout.header.filter(|_| visible).map(|header| json!({
+            "header": header,
+            "handle": layout.handle,
+            "position": self.p.devtools_position,
+            "gap": PANEL_GAP,
+            "box": self.content_box(),
+        }));
+        if cfg.is_none() && !self.chrome_shown.get() {
+            return;
+        }
+        self.chrome_shown.set(cfg.is_some());
+        let arg = cfg.map(|c| c.to_string()).unwrap_or_else(|| "null".into());
+        let _ = self.sidebar.evaluate_script(&format!("({DEVTOOLS_CHROME_JS})({arg})"));
     }
 
     pub fn save(&mut self) {
@@ -2207,170 +2425,5 @@ impl Browser {
                 .unwrap_or_else(|| json!({})),
         });
         let _ = self.sidebar.evaluate_script(&format!("window.__setState({state})"));
-    }
-}
-
-#[cfg(test)]
-mod shortcut_tests {
-    use super::browser_shortcut;
-
-    #[test]
-    fn favicon_updates_preserve_existing_icon_on_empty_or_invalid_results() {
-        let original = "data:image/png;base64,aGVsbG8=".to_string();
-        let mut current = Some(original.clone());
-
-        assert!(!super::update_favicon(&mut current, None));
-        assert_eq!(current.as_deref(), Some(original.as_str()));
-
-        assert!(!super::update_favicon(&mut current, Some("javascript:alert(1)".into())));
-        assert_eq!(current.as_deref(), Some(original.as_str()));
-    }
-
-    #[test]
-    fn favicon_updates_replace_icon_only_when_a_new_valid_value_arrives() {
-        let original = "data:image/png;base64,aGVsbG8=".to_string();
-        let replacement = "https://example.test/favicon.png".to_string();
-        let mut current = Some(original);
-
-        assert!(!super::update_favicon(&mut current, Some("data:image/png;base64,aGVsbG8=".into())));
-        assert!(super::update_favicon(&mut current, Some(replacement.clone())));
-        assert_eq!(current.as_deref(), Some(replacement.as_str()));
-    }
-
-    #[test]
-    fn maps_common_browser_shortcuts() {
-        assert_eq!(browser_shortcut(0x54, true, false, false), Some("new_tab"));
-        assert_eq!(browser_shortcut(0x57, true, false, false), Some("close"));
-        assert_eq!(browser_shortcut(0x4C, true, false, false), Some("focus_url"));
-        assert_eq!(browser_shortcut(0x54, true, false, true), Some("reopen"));
-        assert_eq!(browser_shortcut(0x52, true, false, true), Some("reload"));
-        assert_eq!(browser_shortcut(0x09, true, false, false), Some("tab_next"));
-        assert_eq!(browser_shortcut(0x09, true, false, true), Some("tab_prev"));
-        assert_eq!(browser_shortcut(0x31, true, false, false), Some("tab_1"));
-        assert_eq!(browser_shortcut(0x39, true, false, false), Some("tab_last"));
-        assert_eq!(browser_shortcut(0x7B, false, false, false), Some("devtools_toggle"));
-        assert_eq!(browser_shortcut(0x7B, true, false, false), None);
-        assert_eq!(browser_shortcut(0x49, true, false, true), Some("devtools_toggle"));
-        assert_eq!(browser_shortcut(0x49, true, false, false), None);
-        assert_eq!(browser_shortcut(0x49, true, true, true), None);
-        assert_eq!(browser_shortcut(0x25, false, true, false), Some("back"));
-        assert_eq!(browser_shortcut(0x27, false, true, false), Some("forward"));
-        assert_eq!(browser_shortcut(0x25, true, true, false), Some("space_prev"));
-        assert_eq!(browser_shortcut(0x27, true, true, false), Some("space_next"));
-    }
-
-    #[test]
-    fn leaves_unhandled_and_unmodified_keys_alone() {
-        assert_eq!(browser_shortcut(0x41, false, false, false), None);
-        assert_eq!(browser_shortcut(0x46, true, false, false), None);
-        assert_eq!(browser_shortcut(0x25, false, false, false), None);
-        assert_eq!(browser_shortcut(0x54, true, true, false), None);
-    }
-}
-
-
-#[cfg(test)]
-mod devtools_frontend_tests {
-    use super::devtools_frontend_url;
-
-    #[test]
-    fn enables_devtools_websocket_origins_for_the_embedded_frontend() {
-        assert!(super::WEBVIEW2_BROWSER_ARGS.contains("--remote-allow-origins=*"));
-        assert!(super::WEBVIEW2_BROWSER_ARGS.contains("--remote-debugging-address=127.0.0.1"));
-        assert!(super::WEBVIEW2_BROWSER_ARGS.contains("--remote-debugging-port=0"));
-    }
-
-    #[test]
-    fn builds_a_runtime_bundled_devtools_url_for_the_exact_page_target() {
-        assert_eq!(
-            devtools_frontend_url(43123, "A1B2C3").unwrap(),
-            "devtools://devtools/bundled/inspector.html?ws=127.0.0.1:43123/devtools/page/A1B2C3"
-        );
-    }
-
-    #[test]
-    fn devtools_startup_script_uses_the_configured_dock_and_panel_size() {
-        let script = super::devtools_init_script("left", 560.0);
-        assert!(script.contains("JSON.stringify(\"left\")"));
-        assert!(script.contains("vertical: {size: 560}"));
-        assert!(script.contains("horizontal: {size: 560}"));
-        assert!(script.contains("__poofDevToolsLayoutInitialized"));
-        assert!(script.contains(r#"t: "panel_size""#));
-        assert!(script.contains("requestAnimationFrame(applyPanelLayout)"));
-        assert!(script.contains("setTimeout(applyPanelLayout, 100)"));
-        assert!(script.contains("rootSplit.setSidebarSize(panelSize)"));
-        assert!(script.contains("setInterval(updateMode, 250)"));
-        assert!(script.contains("window.Emulation?.AdvancedApp?.instance?.()"));
-        assert!(script.contains("app?.rootSplitWidget"));
-        assert!(script.contains("window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.tryInstance?.()"));
-        assert!(!script.contains("window.Screencast?.ScreencastApp"));
-        assert!(!script.contains("deviceModeView?.model"));
-        assert!(script.find("setInterval(updateMode, 250)").unwrap()
-            < script.find("const applyPanelLayout").unwrap());
-        assert!(script.contains("showMode !== \"Both\""));
-        assert!(script.contains("showMode !== \"OnlySidebar\""));
-        assert!(script.contains("rootSplit.setSidebarSize(panelSize)"));
-        assert!(script.contains("rootSplit.showBoth()"));
-        assert!(script.contains("rootSplit.hideMain()"));
-        assert!(script.contains("pointerenter"));
-        assert!(script.contains("width:\"10px\""));
-        assert!(script.contains("responsive_mode"));
-        assert!(!script.contains("ScreencastApp"));
-        assert!(script.contains("installPanelResizer();"));
-        assert!(script.contains("const root = document.documentElement"));
-        assert!(script.contains("DOMContentLoaded"));
-        assert!(script.contains("const changed = responsiveMode !== active"));
-        assert!(script.contains("Retry until the native IPC bridge is ready"));
-        assert!(script.contains("const getAdvancedApp = () =>"));
-        assert!(script.contains("getAdvancedApp()?.rootSplitWidget"));
-        assert!(script.contains("catch (_)"));
-        assert!(script.contains("resizeHandle.addEventListener(\"pointerdown\""));
-        assert!(script.contains("window.addEventListener(\"pointermove\", onPointerMove, true)"));
-        assert!(script.contains("window.addEventListener(\"pointerup\", finish, true)"));
-        assert!(script.contains("window.removeEventListener(\"pointermove\", onPointerMove, true)"));
-        assert!(script.contains("activePointer !== event.pointerId"));
-        assert!(script.contains("resizeHandle.setPointerCapture(event.pointerId)"));
-        assert!(script.contains("resizeHandle.style.transform ="));
-        assert!(script.contains("postPanelSize(true)"));
-        assert!(!script.contains("postPanelSize(false)"));
-        assert!(!script.contains("dragging"));
-        assert!(script.contains("__poof_devtools_panel_resizer"));
-    }
-
-    #[test]
-    fn devtools_startup_script_maps_top_docking_to_a_top_sidebar() {
-        let script = super::devtools_init_script("top", 420.0);
-        assert!(script.contains("JSON.stringify(\"bottom\")"));
-        assert!(script.contains("panelPosition === \"right\" || panelPosition === \"bottom\""));
-        assert!(script.contains("rootSplit.setSecondIsSidebar(panelPosition === \"right\" || panelPosition === \"bottom\")"));
-    }
-
-    #[test]
-    fn parses_devtools_host_messages() {
-        let size = serde_json::from_str::<super::DevToolsMsg>(
-            r#"{"t":"panel_size","size":420.0,"persist":false}"#,
-        )
-        .unwrap();
-        match size {
-            super::DevToolsMsg::PanelSize { size, persist } => {
-                assert!((size - 420.0).abs() < f64::EPSILON);
-                assert!(!persist);
-            }
-            _ => panic!("unexpected DevTools message"),
-        }
-
-        let responsive = serde_json::from_str::<super::DevToolsMsg>(
-            r#"{"t":"responsive_mode","active":true}"#,
-        )
-        .unwrap();
-        assert!(matches!(responsive, super::DevToolsMsg::ResponsiveMode { active: true }));
-    }
-
-    #[test]
-    fn rejects_invalid_devtools_endpoint_values() {
-        assert!(devtools_frontend_url(0, "A1B2C3").is_err());
-        assert!(devtools_frontend_url(43123, "").is_err());
-        assert!(devtools_frontend_url(43123, "abc/other").is_err());
-        assert!(devtools_frontend_url(43123, "abc?ws=evil").is_err());
     }
 }

@@ -26,11 +26,6 @@ pub enum UserEvent {
     /// A page-specific DevTools frontend URL resolved from the profile's CDP endpoint.
     DevToolsReady { tab: String, url: String },
     DevToolsFailed { tab: String, message: String },
-    /// Bounds requested by the DevTools inspected-page placeholder.
-    /// The user resized the docked DevTools inspector pane.
-    DevToolsPanelSize { size: f64, persist: bool },
-    /// Responsive device emulation was enabled or disabled in DevTools.
-    DevToolsResponsiveMode { active: bool },
     OpenTab { url: String },
     /// Result of a background extension install (Web Store download).
     ExtResult { ok: bool, msg: String, dir: Option<std::path::PathBuf>, id: Option<String> },
@@ -49,7 +44,7 @@ fn poof_icon() -> Option<tao::window::Icon> {
 }
 
 fn main() -> anyhow::Result<()> {
-    env_logger::init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let window = WindowBuilder::new()
