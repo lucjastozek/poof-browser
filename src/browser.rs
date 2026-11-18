@@ -225,7 +225,6 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}
   }} catch (_) {{}}
   {DEVTOOLS_BOUNDS_INIT_JS}
-  let layoutAttempts = 0;
   let responsiveMode = false;
   let resizeHandle = null;
   let panelPosition = "{position}";
@@ -310,7 +309,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   const applyPanelLayout = () => {{
     const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
     if (!rootSplit) {{
-      if (++layoutAttempts < 120) requestAnimationFrame(applyPanelLayout);
+      setTimeout(applyPanelLayout, 100);
       return;
     }}
     rootSplit.setVertical(isVertical());
@@ -2360,6 +2359,7 @@ mod devtools_frontend_tests {
         assert!(script.contains("__poofDevToolsLayoutInitialized"));
         assert!(script.contains(r#"t: "panel_size""#));
         assert!(script.contains("requestAnimationFrame(applyPanelLayout)"));
+        assert!(script.contains("setTimeout(applyPanelLayout, 100)"));
         assert!(script.contains("rootSplit.setSidebarSize(panelSize)"));
         assert!(script.contains("setInterval(updateMode, 250)"));
         assert!(script.contains("model.addEventListener?.(\"Updated\", updateMode)"));
