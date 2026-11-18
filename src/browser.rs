@@ -253,7 +253,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   }};
   const updateMode = () => {{
     const app = window.Emulation?.AdvancedApp?.instance?.();
-    const model = window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.instance?.();
+    const model = window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.tryInstance?.();
     const active = Boolean(model?.isDeviceModeOn?.());
     const rootSplit = app?.rootSplitWidget;
     const showMode = rootSplit?.showMode?.();
@@ -1433,7 +1433,7 @@ impl Browser {
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
     rootSplit.setSidebarSize({size});
-    if (window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.instance?.()?.isDeviceModeOn?.()) rootSplit.showBoth();
+    if (window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.tryInstance?.()?.isDeviceModeOn?.()) rootSplit.showBoth();
     else rootSplit.hideMain();
   }}
 }})();
@@ -2257,7 +2257,7 @@ mod devtools_frontend_tests {
         assert!(script.contains("setInterval(updateMode, 250)"));
         assert!(script.contains("window.Emulation?.AdvancedApp?.instance?.()"));
         assert!(script.contains("app?.rootSplitWidget"));
-        assert!(script.contains("window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.instance?.()"));
+        assert!(script.contains("window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.tryInstance?.()"));
         assert!(!script.contains("window.Screencast?.ScreencastApp"));
         assert!(!script.contains("deviceModeView?.model"));
         assert!(script.find("setInterval(updateMode, 250)").unwrap()
