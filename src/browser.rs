@@ -257,15 +257,27 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     rootSplit.setSidebarSize(panelSize);
     rootSplit.hideMain();
     installPanelResizer();
-    const updateMode = () => {{
-      const app = window.Screencast?.ScreencastApp?._instance?.();
-      const active = Boolean(app?._enabledSetting?.get?.() && app?._screencastView);
-      reportResponsiveMode(active);
-    }};
-    updateMode();
-    // ScreencastApp owns the Toggle Screencast toolbar state and its split widget.
-    // Observe its setting because Device Mode is a separate feature.
-    setInterval(updateMode, 250);
+  const updateMode = () => {{
+    const app = window.Screencast?.ScreencastApp?._instance?.();
+    const split = app?._rootSplitWidget;
+    // ScreencastApp's split is independent of Emulation.AdvancedApp's split.
+    // Its show mode changes when the Toggle Screencast button is activated.
+    reportResponsiveMode(split?.showMode?.() === "Both");
+  }};
+  updateMode();
+  setInterval(updateMode, 250);
+
+  const applyPanelLayout = () => {{
+    const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
+    if (!rootSplit) {{
+      setTimeout(applyPanelLayout, 100);
+      return;
+    }}
+    rootSplit.setVertical(isVertical());
+    rootSplit.setSecondIsSidebar(panelPosition === "right" || panelPosition === "bottom");
+    rootSplit.setSidebarSize(panelSize);
+    rootSplit.hideMain();
+    installPanelResizer();
   }};
   window.addEventListener("load", () => requestAnimationFrame(applyPanelLayout), {{once: true}});
 }})();
@@ -2235,8 +2247,12 @@ mod devtools_frontend_tests {
         assert!(script.contains("rootSplit.setSidebarSize(panelSize)"));
         assert!(script.contains("setInterval(updateMode, 250)"));
         assert!(script.contains("window.Screencast?.ScreencastApp?._instance?.()"));
-        assert!(script.contains("app?._enabledSetting?.get?.() && app?._screencastView"));
+        assert!(script.contains("app?._rootSplitWidget"));
+        assert!(script.contains("split?.showMode?.() === \"Both\""));
+        assert!(!script.contains("app?._enabledSetting?.get?.() && app?._screencastView"));
         assert!(!script.contains("deviceModeView?.model"));
+        assert!(script.find("setInterval(updateMode, 250)").unwrap()
+            < script.find("const applyPanelLayout").unwrap());
         assert!(!script.contains("rootSplit.showBoth()"));
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
