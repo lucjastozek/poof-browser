@@ -145,62 +145,9 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = include_str!("browser/init_script.js");
 
-/// The hosted DevTools frontend normally leaves this embedder hook empty.
-/// Forward its inspected-page placeholder bounds to the native WebView host.
-const DEVTOOLS_BOUNDS_INIT_JS: &str = r#"
-(() => {
-  let host = window.InspectorFrontendHost;
-  const report = bounds => {
-    if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) return;
-    const left = Math.max(0, bounds.x);
-    const top = Math.max(0, bounds.y);
-    const right = Math.min(window.innerWidth, bounds.x + bounds.width);
-    const bottom = Math.min(window.innerHeight, bounds.y + bounds.height);
-    if (right <= left || bottom <= top) {
-      window.ipc?.postMessage(JSON.stringify({
-        t: "inspected_page_bounds", x: 0, y: 0, width: 0, height: 0
-      }));
-      return;
-    }
-    window.ipc?.postMessage(JSON.stringify({
-      t: "inspected_page_bounds",
-      x: left,
-      y: top,
-      width: right - left,
-      height: bottom - top
-    }));
-  };
-  const patch = value => {
-    if (!value || value.__poofBoundsPatched || typeof value.setInspectedPageBounds !== "function") return;
-    const original = value.setInspectedPageBounds;
-    Object.defineProperty(value, "setInspectedPageBounds", {
-      configurable: true,
-      writable: true,
-      value: function(bounds) {
-        report(bounds);
-        return original.call(this, bounds);
-      }
-    });
-    Object.defineProperty(value, "__poofBoundsPatched", {value: true});
-  };
-  patch(host);
-  try {
-    Object.defineProperty(window, "InspectorFrontendHost", {
-      configurable: true,
-      enumerable: true,
-      get: () => host,
-      set: value => { host = value; patch(value); }
-    });
-  } catch (error) {
-    console.error("Poof could not install the DevTools page-bounds bridge", error);
-  }
-})();
-"#;
-
 #[derive(Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 enum DevToolsMsg {
-    InspectedPageBounds { x: f64, y: f64, width: f64, height: f64 },
     PanelSize { size: f64, persist: bool },
     ResponsiveMode { active: bool },
 }
@@ -224,7 +171,6 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       localStorage.setItem("__poofDevToolsLayoutInitialized", "1");
     }}
   }} catch (_) {{}}
-  {DEVTOOLS_BOUNDS_INIT_JS}
   let responsiveMode = false;
   let resizeHandle = null;
   let panelPosition = "{position}";
@@ -297,7 +243,6 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       resizeHandle?.remove();
       resizeHandle = null;
     }} else {{
-      window.ipc?.postMessage(JSON.stringify({{t:"inspected_page_bounds",x:0,y:0,width:0,height:0}}));
       installPanelResizer();
     }}
   }};
@@ -328,7 +273,6 @@ fn devtools_init_script(position: &str, size: f64) -> String {
         dock_side = dock_side,
         size = size.clamp(240.0, 800.0),
         position = position,
-        DEVTOOLS_BOUNDS_INIT_JS = DEVTOOLS_BOUNDS_INIT_JS,
     )
 }
 
@@ -437,8 +381,6 @@ pub struct Browser {
     devtools_open: bool,
     devtools: Option<WebView>,
     devtools_tab: Option<String>,
-    /// Preview bounds relative to the full DevTools frontend surface.
-    devtools_page_bounds: Option<(f64, f64, f64, f64)>,
     responsive_mode: bool,
 }
 
@@ -452,33 +394,6 @@ fn rect(x: f64, y: f64, w: f64, h: f64) -> Rect {
         position: LogicalPosition::new(x, y).into(),
         size: LogicalSize::new(w.max(1.0), h.max(1.0)).into(),
     }
-}
-
-/// Clamp the frontend's inspected-page bounds to the DevTools WebView viewport.
-/// Do not fall back to a guessed split-pane rectangle: that can cover the inspector
-/// when Chromium's actual split size differs from Poof's persisted preference.
-fn clamp_preview_bounds(
-    viewport_width: f64,
-    viewport_height: f64,
-    preview: (f64, f64, f64, f64),
-) -> Option<(f64, f64, f64, f64)> {
-    let (x, y, width, height) = preview;
-    if ![viewport_width, viewport_height, x, y, width, height]
-        .iter()
-        .all(|value| value.is_finite())
-        || viewport_width <= 0.0
-        || viewport_height <= 0.0
-        || width <= 0.0
-        || height <= 0.0
-    {
-        return None;
-    }
-
-    let left = x.clamp(0.0, viewport_width);
-    let top = y.clamp(0.0, viewport_height);
-    let right = (x + width).min(viewport_width);
-    let bottom = (y + height).min(viewport_height);
-    (right > left && bottom > top).then_some((left, top, right - left, bottom - top))
 }
 
 fn full_rect(w: &Window) -> Rect {
@@ -819,7 +734,6 @@ impl Browser {
             devtools_open: false,
             devtools: None,
             devtools_tab: None,
-            devtools_page_bounds: None,
             responsive_mode: false,
         };
         b.apply_theme();
@@ -901,22 +815,6 @@ impl Browser {
             UserEvent::DevToolsResponsiveMode { active } => {
                 if self.devtools_open && self.responsive_mode != active {
                     self.responsive_mode = active;
-                    self.devtools_page_bounds = None;
-                    self.relayout();
-                }
-            }
-            UserEvent::DevToolsPageBounds { x, y, width, height } => {
-                if self.devtools_open && self.visible.is_some() {
-                    log::debug!(
-                        "DevTools inspected-page bounds: x={x:.1}, y={y:.1}, width={width:.1}, height={height:.1}"
-                    );
-                    self.devtools_page_bounds = if [x, y, width, height].iter().all(|value| value.is_finite())
-                        && width > 0.0 && height > 0.0
-                    {
-                        Some((x, y, width, height))
-                    } else {
-                        None
-                    };
                     self.relayout();
                 }
             }
@@ -1345,7 +1243,6 @@ impl Browser {
         if self.devtools_open {
             self.devtools_open = false;
             self.devtools_tab = None;
-            self.devtools_page_bounds = None;
             self.responsive_mode = false;
             if let Some(devtools) = self.devtools.as_ref() {
                 let _ = devtools.set_visible(false);
@@ -1427,7 +1324,6 @@ impl Browser {
             self.relayout();
             return;
         }
-        self.devtools_page_bounds = None;
         let init_script = devtools_init_script(
             &self.p.devtools_position,
             self.p.devtools_size,
@@ -2337,7 +2233,6 @@ mod devtools_frontend_tests {
         assert!(script.contains("JSON.stringify(\"left\")"));
         assert!(script.contains("vertical: {size: 560}"));
         assert!(script.contains("horizontal: {size: 560}"));
-        assert!(script.contains("setInspectedPageBounds"));
         assert!(script.contains("__poofDevToolsLayoutInitialized"));
         assert!(script.contains(r#"t: "panel_size""#));
         assert!(script.contains("requestAnimationFrame(applyPanelLayout)"));
@@ -2364,20 +2259,6 @@ mod devtools_frontend_tests {
 
     #[test]
     fn parses_devtools_host_messages() {
-        let bounds = serde_json::from_str::<super::DevToolsMsg>(
-            r#"{"t":"inspected_page_bounds","x":12.0,"y":24.0,"width":640.0,"height":480.0}"#,
-        )
-        .unwrap();
-        match bounds {
-            super::DevToolsMsg::InspectedPageBounds { x, y, width, height } => {
-                assert!((x - 12.0).abs() < f64::EPSILON);
-                assert!((y - 24.0).abs() < f64::EPSILON);
-                assert!((width - 640.0).abs() < f64::EPSILON);
-                assert!((height - 480.0).abs() < f64::EPSILON);
-            }
-            _ => panic!("unexpected DevTools message"),
-        }
-
         let size = serde_json::from_str::<super::DevToolsMsg>(
             r#"{"t":"panel_size","size":420.0,"persist":false}"#,
         )
@@ -2395,29 +2276,6 @@ mod devtools_frontend_tests {
         )
         .unwrap();
         assert!(matches!(responsive, super::DevToolsMsg::ResponsiveMode { active: true }));
-    }
-
-    #[test]
-    fn inspected_page_bounds_are_clamped_to_the_devtools_viewport() {
-        assert_eq!(
-            super::clamp_preview_bounds(1000.0, 800.0, (-20.0, 100.0, 500.0, 900.0)),
-            Some((0.0, 100.0, 480.0, 700.0))
-        );
-    }
-
-    #[test]
-    fn inspected_page_bounds_keep_the_frontends_actual_position() {
-        assert_eq!(
-            super::clamp_preview_bounds(1000.0, 800.0, (560.0, 40.0, 440.0, 700.0)),
-            Some((560.0, 40.0, 440.0, 700.0))
-        );
-    }
-
-    #[test]
-    fn missing_disjoint_or_invalid_preview_bounds_do_not_create_a_fallback_pane() {
-        assert_eq!(super::clamp_preview_bounds(100.0, 100.0, (200.0, 0.0, 20.0, 20.0)), None);
-        assert_eq!(super::clamp_preview_bounds(100.0, 100.0, (0.0, 0.0, f64::NAN, 20.0)), None);
-        assert_eq!(super::clamp_preview_bounds(100.0, 100.0, (0.0, 0.0, 0.0, 20.0)), None);
     }
 
     #[test]
