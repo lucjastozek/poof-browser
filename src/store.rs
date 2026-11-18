@@ -48,9 +48,14 @@ pub fn install(root: &Path, id: &str) -> Result<(PathBuf, String)> {
         .timeout(Duration::from_secs(90))
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
         .build();
-    let resp = agent.get(&url).call().map_err(|e| anyhow!("download failed: {e}"))?;
+    let resp = agent
+        .get(&url)
+        .call()
+        .map_err(|e| anyhow!("download failed: {e}"))?;
     let mut buf = Vec::new();
-    resp.into_reader().take(120 * 1024 * 1024).read_to_end(&mut buf)?;
+    resp.into_reader()
+        .take(120 * 1024 * 1024)
+        .read_to_end(&mut buf)?;
 
     let exts = root.join("extensions");
     let tmp = exts.join(format!("_tmp_{id}"));
@@ -60,9 +65,16 @@ pub fn install(root: &Path, id: &str) -> Result<(PathBuf, String)> {
     let mut ar = zip::ZipArchive::new(Cursor::new(zip_part(&buf)?))?;
     for i in 0..ar.len() {
         let mut f = ar.by_index(i)?;
-        let Some(rel) = f.enclosed_name() else { continue }; // blocks zip-slip
-        // Chrome adds _metadata/ ; WebView2 refuses folders starting with '_' (but _locales is fine).
-        if rel.components().next().map(|c| c.as_os_str() == "_metadata").unwrap_or(false) {
+        let Some(rel) = f.enclosed_name() else {
+            continue;
+        }; // blocks zip-slip
+           // Chrome adds _metadata/ ; WebView2 refuses folders starting with '_' (but _locales is fine).
+        if rel
+            .components()
+            .next()
+            .map(|c| c.as_os_str() == "_metadata")
+            .unwrap_or(false)
+        {
             continue;
         }
         let out = tmp.join(&rel);
@@ -135,14 +147,27 @@ fn info_for(dir: &Path, folder: &str) -> ExtInfo {
     let version = m["version"].as_str().unwrap_or("").to_string();
     let icon = m["icons"]
         .as_object()
-        .and_then(|o| o.iter().filter_map(|(k, v)| Some((k.parse::<u32>().ok()?, v.as_str()?))).max_by_key(|x| x.0))
+        .and_then(|o| {
+            o.iter()
+                .filter_map(|(k, v)| Some((k.parse::<u32>().ok()?, v.as_str()?)))
+                .max_by_key(|x| x.0)
+        })
         .and_then(|(_, rel)| {
             let path = dir.join(rel.trim_start_matches('/'));
             let bytes = fs::read(&path).ok().filter(|b| b.len() < 300_000)?;
-            let mime = if rel.ends_with(".svg") { "image/svg+xml" } else { "image/png" };
+            let mime = if rel.ends_with(".svg") {
+                "image/svg+xml"
+            } else {
+                "image/png"
+            };
             Some(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
         });
-    ExtInfo { dir: folder.to_string(), name, version, icon }
+    ExtInfo {
+        dir: folder.to_string(),
+        name,
+        version,
+        icon,
+    }
 }
 
 pub fn list(root: &Path) -> Vec<ExtInfo> {

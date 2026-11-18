@@ -40,7 +40,9 @@ fn eval_with_gesture(wv: &WebView, js: &str) {
     .to_string();
 
     unsafe {
-        let Ok(core) = wv.controller().CoreWebView2() else { return };
+        let Ok(core) = wv.controller().CoreWebView2() else {
+            return;
+        };
         let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|_, _| Ok(())));
         if let Err(e) = core.CallDevToolsProtocolMethod(
             &HSTRING::from("Runtime.evaluate"),

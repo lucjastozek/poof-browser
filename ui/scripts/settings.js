@@ -132,6 +132,7 @@ function buildSettings(v) {
     ["Address bar", ["Ctrl", "L"]],
     ["Close tab", ["Ctrl", "W"]],
     ["Switch space", ["Ctrl", "Alt", "←", "→"]],
+    ["Developer tools", ["F12"]],
   ].forEach(([n, k]) => {
     const r = el("div");
     const kk = el("span");
@@ -250,8 +251,42 @@ function buildSettings(v) {
       cache_retention_hours: Number(cacheAge.value),
       history_retention_hours: Number(historyAge.value),
     });
+  const devtoolsDock = el("div", "seg");
+  [["right", "Right"], ["left", "Left"], ["bottom", "Bottom"], ["top", "Top"]].forEach(([value, label]) => {
+    const option = el("button", S.devtools_position === value ? "on" : "", label);
+    option.type = "button";
+    option.setAttribute("aria-pressed", String(S.devtools_position === value));
+    option.onclick = () => {
+      S.devtools_position = value;
+      send({ cmd: "devtools_position", position: value });
+      [...devtoolsDock.children].forEach((child) => {
+        const selected = child === option;
+        child.classList.toggle("on", selected);
+        child.setAttribute("aria-pressed", String(selected));
+      });
+    };
+    devtoolsDock.append(option);
+  });
+  const devtoolsSize = el("div", "seg");
+  [[320, "Narrow"], [420, "Default"], [560, "Wide"]].forEach(([value, label]) => {
+    const option = el("button", Number(S.devtools_size || 420) === value ? "on" : "", label);
+    option.type = "button";
+    option.setAttribute("aria-pressed", String(Number(S.devtools_size || 420) === value));
+    option.onclick = () => {
+      S.devtools_size = value;
+      send({ cmd: "devtools_size", size: value, persist: true });
+      [...devtoolsSize.children].forEach((child) => {
+        const selected = child === option;
+        child.classList.toggle("on", selected);
+        child.setAttribute("aria-pressed", String(selected));
+      });
+    };
+    devtoolsSize.append(option);
+  });
   dialog(v, "Settings", [
     field("Appearance", seg),
+    field("Developer tools · dock", devtoolsDock),
+    field("Developer tools · size", devtoolsSize),
     field("Browsing", sw),
     field("Sidebar", compact),
     field("Automatic cleanup", cleanup),

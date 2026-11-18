@@ -56,6 +56,7 @@ resizeHandle.addEventListener("keydown", (e) => {
   e.preventDefault();
   applySidebarWidth(sidebarWidth + (e.key === "ArrowRight" ? 12 : -12), true);
 });
+
 $("pageNav").append(
   ib("back", "Back", () => send({ cmd: "back" })),
   ib("fwd", "Forward", () => send({ cmd: "forward" })),
@@ -84,6 +85,7 @@ $("copyLink").onclick = async () => {
   }
 };
 $("pageToolbar").append(ib("puzzle", "Extensions", () => openView("ext")));
+$("pageToolbar").append(ib("code", "Developer tools (F12)", () => send({ cmd: "devtools_toggle" })));
 $("winMin").onclick = () => send({ cmd: "window_minimize" });
 $("winMax").onclick = () => send({ cmd: "window_toggle_maximize" });
 $("winClose").onclick = () => send({ cmd: "window_close" });
