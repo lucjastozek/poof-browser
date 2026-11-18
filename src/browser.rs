@@ -219,19 +219,24 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       const growsWithPositiveDelta = panelPosition === "left" || panelPosition === "top";
       panelSize = Math.max(240, Math.min(800, initial + (growsWithPositiveDelta ? delta : -delta)));
       document.documentElement.dataset.poofPanelSize = String(panelSize);
-      postPanelSize(false);
+      resizeHandle.style.transform = isVertical()
+        ? `translateX(${delta}px)`
+        : `translateY(${delta}px)`;
       event.preventDefault();
     }};
     const finish = event => {{
       if (activePointer === null || event.pointerId !== activePointer) return;
       activePointer = null;
       removeDragListeners();
+      resizeHandle.style.transform = "";
       postPanelSize(true);
+      event.preventDefault();
     }};
     const cancelDrag = () => {{
       if (activePointer === null) return;
       activePointer = null;
       removeDragListeners();
+      resizeHandle.style.transform = "";
       postPanelSize(true);
     }};
     resizeHandle.addEventListener("pointerdown", event => {{
@@ -239,6 +244,12 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       activePointer = event.pointerId;
       start = isVertical() ? event.screenX : event.screenY;
       initial = panelSize;
+      try {{
+        resizeHandle.setPointerCapture(event.pointerId);
+      }} catch (_) {{
+        activePointer = null;
+        return;
+      }}
       window.addEventListener("pointermove", onPointerMove, true);
       window.addEventListener("pointerup", finish, true);
       window.addEventListener("pointercancel", finish, true);
@@ -2318,10 +2329,11 @@ mod devtools_frontend_tests {
         assert!(script.contains("window.addEventListener(\"pointerup\", finish, true)"));
         assert!(script.contains("window.removeEventListener(\"pointermove\", onPointerMove, true)"));
         assert!(script.contains("activePointer !== event.pointerId"));
-        assert!(script.contains("if (activePointer === null) resizeHandle.style.background"));
+        assert!(script.contains("resizeHandle.setPointerCapture(event.pointerId)"));
+        assert!(script.contains("resizeHandle.style.transform ="));
+        assert!(script.contains("postPanelSize(true)"));
+        assert!(!script.contains("postPanelSize(false)"));
         assert!(!script.contains("dragging"));
-        assert!(!script.contains("setPointerCapture"));
-        assert!(script.contains("postPanelSize(false)"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
     }
 
