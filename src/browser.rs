@@ -240,6 +240,14 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}
     installPanelResizer();
   }};
+  const getAdvancedApp = () => {{
+    try {{
+      return window.Emulation?.AdvancedApp?.instance?.() ?? null;
+    }} catch (_) {{
+      // AdvancedApp.instance() requires its Universe until the DevTools app is constructed.
+      return null;
+    }}
+  }};
   const reportResponsiveMode = active => {{
     if (responsiveMode === active) return;
     responsiveMode = active;
@@ -252,9 +260,9 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}
   }};
   const updateMode = () => {{
-    const app = window.Emulation?.AdvancedApp?.instance?.();
     const model = window.EmulationModel?.DeviceModeModel?.DeviceModeModel?.tryInstance?.();
     const active = Boolean(model?.isDeviceModeOn?.());
+    const app = getAdvancedApp();
     const rootSplit = app?.rootSplitWidget;
     const showMode = rootSplit?.showMode?.();
     if (rootSplit && active && showMode !== "Both") {{
@@ -265,14 +273,14 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}
     reportResponsiveMode(active);
   }};
+  // Install the divider before touching DevTools internals. It must remain usable
+  // even while the frontend is still constructing AdvancedApp.
+  installPanelResizer();
   updateMode();
   setInterval(updateMode, 250);
 
-  // Install the native panel divider independently of Chromium's split widget.
-  // This keeps manual resizing available even if DevTools initializes its emulation UI late.
-  installPanelResizer();
   const applyPanelLayout = () => {{
-    const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
+    const rootSplit = getAdvancedApp()?.rootSplitWidget;
     if (!rootSplit) {{
       setTimeout(applyPanelLayout, 100);
       return;
@@ -1428,7 +1436,8 @@ impl Browser {
   const dockController = window.UI?.DockController?.DockController?.instance?.();
   dockController?.setDockSide?.("{dock_side}");
   window.__poofSetPanelLayout?.("{position}", {size});
-  const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
+  let rootSplit = null;
+  try {{ rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget ?? null; }} catch (_) {{}}
   if (rootSplit) {{
     rootSplit.setVertical({vertical});
     rootSplit.setSecondIsSidebar({second_is_sidebar});
@@ -2272,6 +2281,8 @@ mod devtools_frontend_tests {
         assert!(script.contains("responsive_mode"));
         assert!(!script.contains("ScreencastApp"));
         assert!(script.contains("installPanelResizer();"));
+        assert!(script.contains("const getAdvancedApp = () =>"));
+        assert!(script.contains("catch (_)"));
         assert!(script.contains("resizeHandle.addEventListener(\"pointerdown\""));
         assert!(script.contains("postPanelSize(false)"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
