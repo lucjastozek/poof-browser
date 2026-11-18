@@ -231,7 +231,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     panelSize = Math.max(240, Math.min(800, Number(size) || {size}));
     resizeHandle?.remove();
     resizeHandle = null;
-    const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
+    const rootSplit = getAdvancedApp()?.rootSplitWidget;
     if (rootSplit) {{
       rootSplit.setVertical(isVertical());
       rootSplit.setSecondIsSidebar(panelPosition === "right" || panelPosition === "bottom");
@@ -2282,6 +2282,7 @@ mod devtools_frontend_tests {
         assert!(!script.contains("ScreencastApp"));
         assert!(script.contains("installPanelResizer();"));
         assert!(script.contains("const getAdvancedApp = () =>"));
+        assert!(script.contains("getAdvancedApp()?.rootSplitWidget"));
         assert!(script.contains("catch (_)"));
         assert!(script.contains("resizeHandle.addEventListener(\"pointerdown\""));
         assert!(script.contains("postPanelSize(false)"));
