@@ -246,17 +246,6 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       installPanelResizer();
     }}
   }};
-  const applyPanelLayout = () => {{
-    const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
-    if (!rootSplit) {{
-      setTimeout(applyPanelLayout, 100);
-      return;
-    }}
-    rootSplit.setVertical(isVertical());
-    rootSplit.setSecondIsSidebar(panelPosition === "right" || panelPosition === "bottom");
-    rootSplit.setSidebarSize(panelSize);
-    rootSplit.hideMain();
-    installPanelResizer();
   const updateMode = () => {{
     const app = window.Screencast?.ScreencastApp?._instance?.();
     const split = app?._rootSplitWidget;
