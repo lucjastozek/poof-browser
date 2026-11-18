@@ -2248,7 +2248,10 @@ mod devtools_frontend_tests {
         assert!(script.contains("rootSplit.showBoth()"));
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
-        assert!(script.contains("ScreencastApp's split is independent of Emulation.AdvancedApp's split"));
+        assert!(!script.contains("ScreencastApp"));
+        assert!(script.contains("if (resizeHandle || responsiveMode) return;"));
+        assert!(script.contains("resizeHandle.addEventListener(\"pointerdown\""));
+        assert!(script.contains("postPanelSize(false)"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
     }
 
