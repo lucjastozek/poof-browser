@@ -1,4 +1,15 @@
 (function () {
+  // Leave anti-bot and auth iframes (Cloudflare Turnstile, Google sign-in embeds)
+  // completely untouched: no injected styles, no listeners. Top-level pages on these
+  // hosts still get the script so the sidebar keeps receiving URL updates.
+  if (
+    window.top !== window &&
+    /^(challenges\.cloudflare\.com|accounts\.google\.com|www\.google\.com)$/.test(
+      location.hostname,
+    )
+  ) {
+    return;
+  }
   function post(o) {
     try {
       window.ipc.postMessage(JSON.stringify(o));
