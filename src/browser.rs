@@ -197,7 +197,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       resizeHandle.style.background = "var(--sys-color-state-hover-on-subtle, rgba(128,128,128,0.55))";
     }});
     resizeHandle.addEventListener("pointerleave", () => {{
-      if (!dragging) resizeHandle.style.background = "var(--sys-color-divider, rgba(128,128,128,0.28))";
+      if (activePointer === null) resizeHandle.style.background = "var(--sys-color-divider, rgba(128,128,128,0.28))";
     }});
     if (panelPosition === "right") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"10px",height:"100vh"}});
     if (panelPosition === "left") Object.assign(resizeHandle.style, {{right:"0",top:"0",width:"10px",height:"100vh"}});
@@ -2318,6 +2318,8 @@ mod devtools_frontend_tests {
         assert!(script.contains("window.addEventListener(\"pointerup\", finish, true)"));
         assert!(script.contains("window.removeEventListener(\"pointermove\", onPointerMove, true)"));
         assert!(script.contains("activePointer !== event.pointerId"));
+        assert!(script.contains("if (activePointer === null) resizeHandle.style.background"));
+        assert!(!script.contains("dragging"));
         assert!(!script.contains("setPointerCapture"));
         assert!(script.contains("postPanelSize(false)"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
