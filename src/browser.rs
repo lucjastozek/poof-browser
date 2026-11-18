@@ -181,6 +181,11 @@ fn devtools_init_script(position: &str, size: f64) -> String {
   }}));
   const installPanelResizer = () => {{
     if (resizeHandle || responsiveMode) return;
+    const root = document.documentElement;
+    if (!root) {{
+      document.addEventListener("DOMContentLoaded", installPanelResizer, {{once: true}});
+      return;
+    }}
     resizeHandle = document.createElement("div");
     resizeHandle.id = "__poof_devtools_panel_resizer";
     Object.assign(resizeHandle.style, {{
@@ -224,7 +229,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }};
     resizeHandle.addEventListener("pointerup", finish);
     resizeHandle.addEventListener("pointercancel", finish);
-    document.documentElement.appendChild(resizeHandle);
+    root.appendChild(resizeHandle);
   }};
   window.__poofSetPanelLayout = (position, size) => {{
     panelPosition = ["left", "right", "top", "bottom"].includes(position) ? position : "right";
@@ -249,9 +254,12 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     }}
   }};
   const reportResponsiveMode = active => {{
-    if (responsiveMode === active) return;
+    const changed = responsiveMode !== active;
     responsiveMode = active;
+    // Retry until the native IPC bridge is ready. Initialization scripts can run
+    // before WebView2 has exposed window.ipc to the document.
     window.ipc?.postMessage(JSON.stringify({{t: "responsive_mode", active}}));
+    if (!changed) return;
     if (active) {{
       resizeHandle?.remove();
       resizeHandle = null;
@@ -2281,6 +2289,10 @@ mod devtools_frontend_tests {
         assert!(script.contains("responsive_mode"));
         assert!(!script.contains("ScreencastApp"));
         assert!(script.contains("installPanelResizer();"));
+        assert!(script.contains("const root = document.documentElement"));
+        assert!(script.contains("DOMContentLoaded"));
+        assert!(script.contains("const changed = responsiveMode !== active"));
+        assert!(script.contains("Retry until the native IPC bridge is ready"));
         assert!(script.contains("const getAdvancedApp = () =>"));
         assert!(script.contains("getAdvancedApp()?.rootSplitWidget"));
         assert!(script.contains("catch (_)"));
