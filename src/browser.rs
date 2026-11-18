@@ -230,8 +230,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
       rootSplit.setVertical(isVertical());
       rootSplit.setSecondIsSidebar(panelPosition === "right" || panelPosition === "bottom");
       rootSplit.setSidebarSize(panelSize);
-      if (responsiveMode) rootSplit.showBoth();
-      else rootSplit.hideMain();
+      rootSplit.hideMain();
     }}
     installPanelResizer();
   }};
@@ -2245,7 +2244,7 @@ mod devtools_frontend_tests {
         assert!(!script.contains("rootSplit.showBoth()"));
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
-        assert!(script.contains("ScreencastApp owns the Toggle Screencast toolbar state"));
+        assert!(script.contains("ScreencastApp's split is independent of Emulation.AdvancedApp's split"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
     }
 
