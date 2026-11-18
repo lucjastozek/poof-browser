@@ -205,30 +205,47 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     if (panelPosition === "top") Object.assign(resizeHandle.style, {{left:"0",bottom:"0",width:"100vw",height:"10px"}});
     let start = 0;
     let initial = panelSize;
-    let dragging = false;
-    resizeHandle.addEventListener("pointerdown", event => {{
-      dragging = true;
-      start = isVertical() ? event.screenX : event.screenY;
-      initial = panelSize;
-      resizeHandle.setPointerCapture(event.pointerId);
-      event.preventDefault();
-    }});
-    resizeHandle.addEventListener("pointermove", event => {{
-      if (!dragging) return;
+    let activePointer = null;
+    const removeDragListeners = () => {{
+      window.removeEventListener("pointermove", onPointerMove, true);
+      window.removeEventListener("pointerup", finish, true);
+      window.removeEventListener("pointercancel", finish, true);
+      window.removeEventListener("blur", cancelDrag);
+    }};
+    const onPointerMove = event => {{
+      if (activePointer !== event.pointerId) return;
       const current = isVertical() ? event.screenX : event.screenY;
       const delta = current - start;
       const growsWithPositiveDelta = panelPosition === "left" || panelPosition === "top";
       panelSize = Math.max(240, Math.min(800, initial + (growsWithPositiveDelta ? delta : -delta)));
       document.documentElement.dataset.poofPanelSize = String(panelSize);
       postPanelSize(false);
-    }});
-    const finish = () => {{
-      if (!dragging) return;
-      dragging = false;
+      event.preventDefault();
+    }};
+    const finish = event => {{
+      if (activePointer === null || event.pointerId !== activePointer) return;
+      activePointer = null;
+      removeDragListeners();
       postPanelSize(true);
     }};
-    resizeHandle.addEventListener("pointerup", finish);
-    resizeHandle.addEventListener("pointercancel", finish);
+    const cancelDrag = () => {{
+      if (activePointer === null) return;
+      activePointer = null;
+      removeDragListeners();
+      postPanelSize(true);
+    }};
+    resizeHandle.addEventListener("pointerdown", event => {{
+      if (event.button !== 0) return;
+      activePointer = event.pointerId;
+      start = isVertical() ? event.screenX : event.screenY;
+      initial = panelSize;
+      window.addEventListener("pointermove", onPointerMove, true);
+      window.addEventListener("pointerup", finish, true);
+      window.addEventListener("pointercancel", finish, true);
+      window.addEventListener("blur", cancelDrag);
+      event.preventDefault();
+      event.stopPropagation();
+    }});
     root.appendChild(resizeHandle);
   }};
   window.__poofSetPanelLayout = (position, size) => {{
@@ -2297,6 +2314,11 @@ mod devtools_frontend_tests {
         assert!(script.contains("getAdvancedApp()?.rootSplitWidget"));
         assert!(script.contains("catch (_)"));
         assert!(script.contains("resizeHandle.addEventListener(\"pointerdown\""));
+        assert!(script.contains("window.addEventListener(\"pointermove\", onPointerMove, true)"));
+        assert!(script.contains("window.addEventListener(\"pointerup\", finish, true)"));
+        assert!(script.contains("window.removeEventListener(\"pointermove\", onPointerMove, true)"));
+        assert!(script.contains("activePointer !== event.pointerId"));
+        assert!(!script.contains("setPointerCapture"));
         assert!(script.contains("postPanelSize(false)"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
     }
