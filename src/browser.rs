@@ -185,13 +185,19 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     resizeHandle.id = "__poof_devtools_panel_resizer";
     Object.assign(resizeHandle.style, {{
       position: "fixed", zIndex: "2147483647", touchAction: "none",
-      background: "transparent",
+      background: "var(--sys-color-divider, rgba(128,128,128,0.28))",
       cursor: isVertical() ? "col-resize" : "row-resize"
     }});
-    if (panelPosition === "right") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"8px",height:"100vh"}});
-    if (panelPosition === "left") Object.assign(resizeHandle.style, {{right:"0",top:"0",width:"8px",height:"100vh"}});
-    if (panelPosition === "bottom") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"100vw",height:"8px"}});
-    if (panelPosition === "top") Object.assign(resizeHandle.style, {{left:"0",bottom:"0",width:"100vw",height:"8px"}});
+    resizeHandle.addEventListener("pointerenter", () => {{
+      resizeHandle.style.background = "var(--sys-color-state-hover-on-subtle, rgba(128,128,128,0.55))";
+    }});
+    resizeHandle.addEventListener("pointerleave", () => {{
+      if (!dragging) resizeHandle.style.background = "var(--sys-color-divider, rgba(128,128,128,0.28))";
+    }});
+    if (panelPosition === "right") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"10px",height:"100vh"}});
+    if (panelPosition === "left") Object.assign(resizeHandle.style, {{right:"0",top:"0",width:"10px",height:"100vh"}});
+    if (panelPosition === "bottom") Object.assign(resizeHandle.style, {{left:"0",top:"0",width:"100vw",height:"10px"}});
+    if (panelPosition === "top") Object.assign(resizeHandle.style, {{left:"0",bottom:"0",width:"100vw",height:"10px"}});
     let start = 0;
     let initial = panelSize;
     let dragging = false;
@@ -251,8 +257,12 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     const active = Boolean(model?.isDeviceModeOn?.());
     const rootSplit = app?.rootSplitWidget;
     const showMode = rootSplit?.showMode?.();
-    if (rootSplit && active && showMode !== "Both") rootSplit.showBoth();
-    else if (rootSplit && !active && showMode !== "OnlySidebar") rootSplit.hideMain();
+    if (rootSplit && active && showMode !== "Both") {{
+      rootSplit.setSidebarSize(panelSize);
+      rootSplit.showBoth();
+    }} else if (rootSplit && !active && showMode !== "OnlySidebar") {{
+      rootSplit.hideMain();
+    }}
     reportResponsiveMode(active);
   }};
   updateMode();
@@ -2251,8 +2261,11 @@ mod devtools_frontend_tests {
             < script.find("const applyPanelLayout").unwrap());
         assert!(script.contains("showMode !== \"Both\""));
         assert!(script.contains("showMode !== \"OnlySidebar\""));
+        assert!(script.contains("rootSplit.setSidebarSize(panelSize)"));
         assert!(script.contains("rootSplit.showBoth()"));
         assert!(script.contains("rootSplit.hideMain()"));
+        assert!(script.contains("pointerenter"));
+        assert!(script.contains("width:\"10px\""));
         assert!(script.contains("responsive_mode"));
         assert!(!script.contains("ScreencastApp"));
         assert!(script.contains("if (resizeHandle || responsiveMode) return;"));
