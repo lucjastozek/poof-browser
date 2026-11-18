@@ -37,6 +37,11 @@ body.compact #side #dots {
   width: 100%;
   justify-content: flex-start;
 }
+body.compact #side .sp {
+  flex: none;
+  width: 32px;
+  max-width: none;
+}
 body.compact #side .foot {
   flex-direction: column;
   justify-content: flex-start;
@@ -432,26 +437,32 @@ body.collapsed #side #toast {
 #dots {
   flex: 1;
   display: flex;
-  gap: 2px;
+  gap: 1px;
   align-items: center;
   justify-content: center;
-  overflow-x: auto;
+  overflow: hidden;
   min-width: 0;
-  scrollbar-width: none;
 }
 .sp {
-  min-width: 32px;
-  height: 32px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 28px;
+  height: 28px;
   border-radius: var(--r-md);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--ink-2);
   position: relative;
-  flex: none;
   transition:
     background 0.12s,
     color 0.12s;
+}
+.sp svg {
+  width: 100%;
+  max-width: 15px;
+  height: auto;
+  aspect-ratio: 1;
 }
 .sp:hover {
   background: var(--hover);

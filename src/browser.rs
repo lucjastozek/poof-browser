@@ -802,7 +802,7 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
 }
 
 #[cfg(windows)]
-const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=devtools://devtools";
+const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-blink-features=AutomationControlled --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=devtools://devtools";
 
 #[cfg(windows)]
 fn devtools_frontend_url(port: u16, target_id: &str) -> Result<String> {
@@ -2005,8 +2005,19 @@ impl Browser {
             })
             // target=_blank / window.open opens a new tab (OAuth popups need more work).
             .with_new_window_req_handler(move |url, _features| {
-                let _ = p3.send_event(UserEvent::OpenTab { url });
-                NewWindowResponse::Deny
+                // Auth popups must stay real popups so window.opener / postMessage keep working.
+                let is_auth = url.starts_with("https://accounts.google.com/")
+                    || url.starts_with("https://appleid.apple.com/")
+                    || url.starts_with("https://login.microsoftonline.com/")
+                    || url.starts_with("https://github.com/login/")
+                    || url.contains("/oauth")
+                    || url.contains("/authorize");
+                if is_auth {
+                    NewWindowResponse::Allow
+                } else {
+                    let _ = p3.send_event(UserEvent::OpenTab { url });
+                    NewWindowResponse::Deny
+                }
             });
 
         #[cfg(windows)]
