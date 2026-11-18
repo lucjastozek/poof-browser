@@ -293,15 +293,10 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     if (responsiveMode === active) return;
     responsiveMode = active;
     window.ipc?.postMessage(JSON.stringify({{t: "responsive_mode", active}}));
-    const rootSplit = window.Emulation?.AdvancedApp?.instance?.()?.rootSplitWidget;
-    if (!rootSplit) return;
     if (active) {{
       resizeHandle?.remove();
       resizeHandle = null;
-      rootSplit.showBoth();
-      rootSplit.setSidebarSize(panelSize);
     }} else {{
-      rootSplit.hideMain();
       window.ipc?.postMessage(JSON.stringify({{t:"inspected_page_bounds",x:0,y:0,width:0,height:0}}));
       installPanelResizer();
     }}
@@ -317,18 +312,14 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     rootSplit.setSidebarSize(panelSize);
     rootSplit.hideMain();
     installPanelResizer();
-    let observedModel = null;
     const updateMode = () => {{
-      const model = window.Emulation?.AdvancedApp?.instance?.()?.deviceModeView?.model;
-      if (model && model !== observedModel) {{
-        observedModel = model;
-        model.addEventListener?.("Updated", updateMode);
-      }}
-      reportResponsiveMode(Boolean(model?.isDeviceModeOn?.()));
+      const app = window.Screencast?.ScreencastApp?._instance?.();
+      const active = Boolean(app?._enabledSetting?.get?.() && app?._screencastView);
+      reportResponsiveMode(active);
     }};
     updateMode();
-    // DeviceModeView can initialize after the root split. Keep checking its state
-    // so late model creation or a missed frontend event cannot strand the layout.
+    // ScreencastApp owns the Toggle Screencast toolbar state and its split widget.
+    // Observe its setting because Device Mode is a separate feature.
     setInterval(updateMode, 250);
   }};
   window.addEventListener("load", () => requestAnimationFrame(applyPanelLayout), {{once: true}});
@@ -2098,13 +2089,9 @@ impl Browser {
         let width = (window_w - sidebar - 2.0 * INSET).max(1.0);
         let height = (window_h - TOPBAR_H - INSET).max(1.0);
         if self.responsive_mode {
-            let page = self.devtools_page_bounds
-                .and_then(|preview| clamp_preview_bounds(width, height, preview))
-                .map(|(preview_x, preview_y, preview_width, preview_height)| {
-                    rect(x + preview_x, y + preview_y, preview_width, preview_height)
-                })
-                .unwrap_or_else(|| rect(x, y, 1.0, 1.0));
-            return (page, Some(base));
+            // Screencast renders the inspected page inside the DevTools frontend.
+            // The native page WebView must stay hidden rather than cover that preview.
+            return (base, Some(base));
         }
 
         let size = self.p.devtools_size.clamp(240.0, 800.0).min(width - 1.0);
@@ -2130,7 +2117,7 @@ impl Browser {
                 log::warn!("resizing content WebView failed: {error:#}");
             }
             let page_visible = !self.overlay
-                && (!self.devtools_open || self.fullscreen || !self.responsive_mode || self.devtools_page_bounds.is_some());
+                && (!self.devtools_open || self.fullscreen || !self.responsive_mode);
             let _ = wv.set_visible(page_visible);
             #[cfg(windows)]
             {
@@ -2154,12 +2141,7 @@ impl Browser {
                 let _ = devtools.set_visible(false);
             }
         }
-        #[cfg(windows)]
-        if self.devtools_open && self.responsive_mode && self.devtools_page_bounds.is_some() && !self.fullscreen && !self.overlay {
-            if let Some(wv) = self.visible_webview() {
-                raise_webview(wv);
-            }
-        }
+
     }
 
     pub fn save(&mut self) {
@@ -2362,10 +2344,13 @@ mod devtools_frontend_tests {
         assert!(script.contains("setTimeout(applyPanelLayout, 100)"));
         assert!(script.contains("rootSplit.setSidebarSize(panelSize)"));
         assert!(script.contains("setInterval(updateMode, 250)"));
-        assert!(script.contains("model.addEventListener?.(\"Updated\", updateMode)"));
-        assert!(script.contains("rootSplit.showBoth()"));
+        assert!(script.contains("window.Screencast?.ScreencastApp?._instance?.()"));
+        assert!(script.contains("app?._enabledSetting?.get?.() && app?._screencastView"));
+        assert!(!script.contains("deviceModeView?.model"));
+        assert!(!script.contains("rootSplit.showBoth()"));
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
+        assert!(script.contains("ScreencastApp owns the Toggle Screencast toolbar state"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
     }
 
