@@ -252,7 +252,7 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     const rootSplit = app?.rootSplitWidget;
     const showMode = rootSplit?.showMode?.();
     if (rootSplit && active && showMode !== "Both") rootSplit.showBoth();
-    else if (rootSplit && !active && showMode !== "OnlySidebar) rootSplit.hideMain();
+    else if (rootSplit && !active && showMode !== "OnlySidebar") rootSplit.hideMain();
     reportResponsiveMode(active);
   }};
   updateMode();
