@@ -318,10 +318,19 @@ fn devtools_init_script(position: &str, size: f64) -> String {
     rootSplit.setSidebarSize(panelSize);
     rootSplit.hideMain();
     installPanelResizer();
-    const model = window.Emulation?.AdvancedApp?.instance?.()?.deviceModeView?.model;
-    const updateMode = () => reportResponsiveMode(Boolean(model?.isDeviceModeOn?.()));
+    let observedModel = null;
+    const updateMode = () => {{
+      const model = window.Emulation?.AdvancedApp?.instance?.()?.deviceModeView?.model;
+      if (model && model !== observedModel) {{
+        observedModel = model;
+        model.addEventListener?.("Updated", updateMode);
+      }}
+      reportResponsiveMode(Boolean(model?.isDeviceModeOn?.()));
+    }};
     updateMode();
-    model?.addEventListener?.("Updated", updateMode);
+    // DeviceModeView can initialize after the root split. Keep checking its state
+    // so late model creation or a missed frontend event cannot strand the layout.
+    setInterval(updateMode, 250);
   }};
   window.addEventListener("load", () => requestAnimationFrame(applyPanelLayout), {{once: true}});
 }})();
@@ -2351,7 +2360,10 @@ mod devtools_frontend_tests {
         assert!(script.contains("__poofDevToolsLayoutInitialized"));
         assert!(script.contains(r#"t: "panel_size""#));
         assert!(script.contains("requestAnimationFrame(applyPanelLayout)"));
-        assert!(script.contains("rootSplit.setSidebarSize(560)"));
+        assert!(script.contains("rootSplit.setSidebarSize(panelSize)"));
+        assert!(script.contains("setInterval(updateMode, 250)"));
+        assert!(script.contains("model.addEventListener?.(\"Updated\", updateMode)"));
+        assert!(script.contains("rootSplit.showBoth()"));
         assert!(script.contains("rootSplit.hideMain()"));
         assert!(script.contains("responsive_mode"));
         assert!(script.contains("__poof_devtools_panel_resizer"));
@@ -2361,8 +2373,8 @@ mod devtools_frontend_tests {
     fn devtools_startup_script_maps_top_docking_to_a_top_sidebar() {
         let script = super::devtools_init_script("top", 420.0);
         assert!(script.contains("JSON.stringify(\"bottom\")"));
-        assert!(script.contains("setSecondIsSidebar(false)"));
-        assert!(script.contains("rootSplit.setSecondIsSidebar(false)"));
+        assert!(script.contains("panelPosition === \"right\" || panelPosition === \"bottom\""));
+        assert!(script.contains("rootSplit.setSecondIsSidebar(panelPosition === \"right\" || panelPosition === \"bottom\")"));
     }
 
     #[test]
