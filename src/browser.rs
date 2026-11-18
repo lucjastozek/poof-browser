@@ -98,7 +98,7 @@ fn raise_webview(wv: &WebView) {
 fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
     use windows::Win32::{
         Foundation::HWND,
-        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, HGDIOBJ, SetWindowRgn},
+        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ},
     };
 
     let mut hwnd = HWND::default();
@@ -430,25 +430,55 @@ pub struct Tab {
 #[serde(tag = "cmd", rename_all = "snake_case")]
 enum Cmd {
     Ready,
-    SidebarCollapsed { collapsed: bool },
-    SidebarCompact { compact: bool },
-    SidebarWidth { width: f64, #[serde(default)] persist: bool },
+    SidebarCollapsed {
+        collapsed: bool,
+    },
+    SidebarCompact {
+        compact: bool,
+    },
+    SidebarWidth {
+        width: f64,
+        #[serde(default)]
+        persist: bool,
+    },
     WindowMinimize,
     WindowToggleMaximize,
     WindowDrag,
     WindowClose,
     /// The sidebar is showing a full-area view (new tab bar, dialogs): hide/show the page.
-    Overlay { open: bool },
-    NewTab { input: String },
-    Navigate { input: String },
-    SelectTab { id: String },
-    CloseTab { id: String },
-    PinTab { id: String },
-    UnpinTab { id: String },
-    FavTab { id: String },
-    UnfavTab { id: String },
-    SwitchSpace { id: String },
-    CycleSpace { dir: i32 },
+    Overlay {
+        open: bool,
+    },
+    NewTab {
+        input: String,
+    },
+    Navigate {
+        input: String,
+    },
+    SelectTab {
+        id: String,
+    },
+    CloseTab {
+        id: String,
+    },
+    PinTab {
+        id: String,
+    },
+    UnpinTab {
+        id: String,
+    },
+    FavTab {
+        id: String,
+    },
+    UnfavTab {
+        id: String,
+    },
+    SwitchSpace {
+        id: String,
+    },
+    CycleSpace {
+        dir: i32,
+    },
     AddSpace {
         name: String,
         icon: String,
@@ -458,48 +488,99 @@ enum Cmd {
         #[serde(default)]
         new_profile: Option<String>,
     },
-    EditSpace { id: String, name: String, icon: String, color: String },
+    EditSpace {
+        id: String,
+        name: String,
+        icon: String,
+        color: String,
+    },
     /// Drag & drop: put a tab into the pinned list, the tab list or the favorites at `index`.
-    MoveTab { id: String, to: String, index: usize },
-    CreateFolder { name: String },
-    RenameFolder { id: String, name: String },
-    DeleteFolder { id: String },
-    ToggleFolderCollapsed { id: String },
-    MoveFolder { id: String, to: String, index: usize },
-    MoveTabToFolder { id: String, folder_id: Option<String> },
-    SetTheme { theme: String },
-    SetAutoPip { on: bool },
+    MoveTab {
+        id: String,
+        to: String,
+        index: usize,
+    },
+    CreateFolder {
+        name: String,
+    },
+    RenameFolder {
+        id: String,
+        name: String,
+    },
+    DeleteFolder {
+        id: String,
+    },
+    ToggleFolderCollapsed {
+        id: String,
+    },
+    MoveFolder {
+        id: String,
+        to: String,
+        index: usize,
+    },
+    MoveTabToFolder {
+        id: String,
+        folder_id: Option<String>,
+    },
+    SetTheme {
+        theme: String,
+    },
+    SetAutoPip {
+        on: bool,
+    },
     UpdateProfileCleanup {
         tab_retention_hours: u64,
         cookie_retention_hours: u64,
         cache_retention_hours: u64,
         history_retention_hours: u64,
     },
-    DeleteSpace { id: String },
+    DeleteSpace {
+        id: String,
+    },
     ListExt,
-    InstallExt { input: String },
-    RemoveExt { dir: String },
+    InstallExt {
+        input: String,
+    },
+    RemoveExt {
+        dir: String,
+    },
     Back,
     Forward,
     Reload,
     DevToolsToggle,
-    DevToolsPosition { position: String },
-    DevToolsSize { size: f64, #[serde(default)] persist: bool },
+    DevToolsPosition {
+        position: String,
+    },
+    DevToolsSize {
+        size: f64,
+        #[serde(default)]
+        persist: bool,
+    },
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 enum PageMsg {
-    Meta { u: Option<String> },
-    Favicon { f: Option<String> },
-    Key { k: String },
-    Fullscreen { active: bool },
+    Meta {
+        u: Option<String>,
+    },
+    Favicon {
+        f: Option<String>,
+    },
+    Key {
+        k: String,
+    },
+    Fullscreen {
+        active: bool,
+    },
     /// Internal (empty tab id only): periodic DevTools poll trigger.
     #[serde(rename = "devtools_tick")]
     DevToolsTick,
     /// Internal (empty tab id only): result of a DevTools poll.
     #[serde(rename = "devtools_state")]
-    DevToolsState { s: Option<DevToolsReport> },
+    DevToolsState {
+        s: Option<DevToolsReport>,
+    },
 }
 
 /// Where everything goes for the current window / DevTools state.
@@ -675,7 +756,11 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
 }
 
 fn clean_icon(s: &str) -> String {
-    if valid_icon(s) { s.to_string() } else { "house".into() }
+    if valid_icon(s) {
+        s.to_string()
+    } else {
+        "house".into()
+    }
 }
 
 fn clip(s: &str, n: usize) -> String {
@@ -723,7 +808,9 @@ const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSm
 fn devtools_frontend_url(port: u16, target_id: &str) -> Result<String> {
     if port == 0
         || target_id.is_empty()
-        || !target_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        || !target_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
         anyhow::bail!("invalid WebView2 DevTools endpoint");
     }
@@ -742,8 +829,14 @@ fn resolve_devtools_frontend(profile_dir: &Path, target_id: &str) -> Result<Stri
     ];
     for _ in 0..100 {
         for path in &port_file {
-            let Ok(contents) = fs::read_to_string(path) else { continue };
-            let Some(port) = contents.lines().next().and_then(|line| line.trim().parse::<u16>().ok()) else {
+            let Ok(contents) = fs::read_to_string(path) else {
+                continue;
+            };
+            let Some(port) = contents
+                .lines()
+                .next()
+                .and_then(|line| line.trim().parse::<u16>().ok())
+            else {
                 continue;
             };
             if let Ok(url) = devtools_frontend_url(port, target_id) {
@@ -756,53 +849,46 @@ fn resolve_devtools_frontend(profile_dir: &Path, target_id: &str) -> Result<Stri
 }
 
 #[cfg(windows)]
-fn register_browser_shortcuts(
-    webview: &WebView,
-    proxy: EventLoopProxy<UserEvent>,
-    tab: String,
-) {
-    use webview2_com::{
-        AcceleratorKeyPressedEventHandler, Microsoft::Web::WebView2::Win32::*,
-    };
+fn register_browser_shortcuts(webview: &WebView, proxy: EventLoopProxy<UserEvent>, tab: String) {
+    use webview2_com::{AcceleratorKeyPressedEventHandler, Microsoft::Web::WebView2::Win32::*};
     use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 
     unsafe {
-        let handler =
-            AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
-                let Some(args) = args else { return Ok(()) };
-                let mut kind = COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN;
-                args.KeyEventKind(&mut kind)?;
-                if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
-                    && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
-                {
+        let handler = AcceleratorKeyPressedEventHandler::create(Box::new(move |_sender, args| {
+            let Some(args) = args else { return Ok(()) };
+            let mut kind = COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN;
+            args.KeyEventKind(&mut kind)?;
+            if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
+                && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
+            {
+                return Ok(());
+            }
+
+            let mut key_event_lparam = 0;
+            args.KeyEventLParam(&mut key_event_lparam)?;
+            let mut virtual_key = 0;
+            args.VirtualKey(&mut virtual_key)?;
+            let is_down = |virtual_key| GetAsyncKeyState(virtual_key) < 0;
+            let command = browser_shortcut(
+                virtual_key,
+                is_down(0x11), // VK_CONTROL
+                is_down(0x12), // VK_MENU
+                is_down(0x10), // VK_SHIFT
+            );
+
+            if let Some(command) = command {
+                args.SetHandled(true)?;
+                // Ignore auto-repeat after suppressing WebView2's default action.
+                if key_event_lparam & (1 << 30) != 0 {
                     return Ok(());
                 }
-
-                let mut key_event_lparam = 0;
-                args.KeyEventLParam(&mut key_event_lparam)?;
-                let mut virtual_key = 0;
-                args.VirtualKey(&mut virtual_key)?;
-                let is_down = |virtual_key| GetAsyncKeyState(virtual_key) < 0;
-                let command = browser_shortcut(
-                    virtual_key,
-                    is_down(0x11), // VK_CONTROL
-                    is_down(0x12), // VK_MENU
-                    is_down(0x10), // VK_SHIFT
-                );
-
-                if let Some(command) = command {
-                    args.SetHandled(true)?;
-                    // Ignore auto-repeat after suppressing WebView2's default action.
-                    if key_event_lparam & (1 << 30) != 0 {
-                        return Ok(());
-                    }
-                    let _ = proxy.send_event(UserEvent::Page {
-                        tab: tab.clone(),
-                        body: json!({ "t": "key", "k": command }).to_string(),
-                    });
-                }
-                Ok(())
-            }));
+                let _ = proxy.send_event(UserEvent::Page {
+                    tab: tab.clone(),
+                    body: json!({ "t": "key", "k": command }).to_string(),
+                });
+            }
+            Ok(())
+        }));
         let mut token = 0;
         if let Err(error) = webview
             .controller()
@@ -824,7 +910,10 @@ impl Browser {
         }
         fs::create_dir_all(root.join("extensions"))?;
         let mut p = Persisted::load(&root.join("state.json"));
-        if !matches!(p.devtools_position.as_str(), "right" | "left" | "bottom" | "top") {
+        if !matches!(
+            p.devtools_position.as_str(),
+            "right" | "left" | "bottom" | "top"
+        ) {
             p.devtools_position = "right".into();
         }
         if !p.devtools_size.is_finite() || p.devtools_size < PANEL_MIN {
@@ -835,20 +924,27 @@ impl Browser {
         let html = include_str!("../ui/sidebar.html")
             .replace(
                 "/*STYLES*/",
-                &format!("<style>{}</style>", [
-                    include_str!("../ui/theme.css"),
-                    include_str!("../ui/styles/base.css"),
-                    include_str!("../ui/styles/components.css"),
-                    include_str!("../ui/styles/topbar.css"),
-                    include_str!("../ui/styles/sidebar.css"),
-                    include_str!("../ui/styles/stage.css"),
-                    include_str!("../ui/styles/start-page.css")
-                ].concat()),
+                &format!(
+                    "<style>{}</style>",
+                    [
+                        include_str!("../ui/theme.css"),
+                        include_str!("../ui/styles/base.css"),
+                        include_str!("../ui/styles/components.css"),
+                        include_str!("../ui/styles/topbar.css"),
+                        include_str!("../ui/styles/sidebar.css"),
+                        include_str!("../ui/styles/stage.css"),
+                        include_str!("../ui/styles/start-page.css")
+                    ]
+                    .concat()
+                ),
             )
             .replace("/*ICONS*/", include_str!("../ui/icons.js"))
             .replace("/*CORE*/", include_str!("../ui/scripts/core.js"))
             .replace("/*SIDEBAR*/", include_str!("../ui/scripts/sidebar.js"))
-            .replace("/*START_PAGE*/", include_str!("../ui/scripts/start-page.js"))
+            .replace(
+                "/*START_PAGE*/",
+                include_str!("../ui/scripts/start-page.js"),
+            )
             .replace("/*DIALOGS*/", include_str!("../ui/scripts/dialogs.js"))
             .replace("/*SETTINGS*/", include_str!("../ui/scripts/settings.js"));
         let mut ui_ctx = WebContext::new(Some(root.join("ui")));
@@ -952,7 +1048,13 @@ impl Browser {
             if self.p.preinstalled.contains(&id) {
                 continue;
             }
-            if self.root.join("extensions").join(&id).join("manifest.json").is_file() {
+            if self
+                .root
+                .join("extensions")
+                .join(&id)
+                .join("manifest.json")
+                .is_file()
+            {
                 self.p.preinstalled.push(id);
             } else {
                 self.spawn_install(id);
@@ -971,7 +1073,12 @@ impl Browser {
                     dir: Some(dir),
                     id: Some(id),
                 },
-                Err(e) => UserEvent::ExtResult { ok: false, msg: format!("Couldn’t install: {e}"), dir: None, id: Some(id) },
+                Err(e) => UserEvent::ExtResult {
+                    ok: false,
+                    msg: format!("Couldn’t install: {e}"),
+                    dir: None,
+                    id: Some(id),
+                },
             };
             let _ = proxy.send_event(ev);
         });
@@ -979,12 +1086,16 @@ impl Browser {
 
     fn toast(&self, msg: &str) {
         let m = serde_json::to_string(msg).unwrap_or_default();
-        let _ = self.sidebar.evaluate_script(&format!("window.__toast&&window.__toast({m})"));
+        let _ = self
+            .sidebar
+            .evaluate_script(&format!("window.__toast&&window.__toast({m})"));
     }
 
     fn push_exts(&self) {
         let list = serde_json::to_string(&store::list(&self.root)).unwrap_or_else(|_| "[]".into());
-        let _ = self.sidebar.evaluate_script(&format!("window.__setExts&&window.__setExts({list})"));
+        let _ = self
+            .sidebar
+            .evaluate_script(&format!("window.__setExts&&window.__setExts({list})"));
     }
 
     pub fn on_user_event(&mut self, ev: UserEvent) {
@@ -1026,10 +1137,15 @@ impl Browser {
                         // Hot-load into every profile that already has a live webview;
                         // the rest pick it up when their first webview is created.
                         let loaded: HashSet<String> = self
-                            .tabs.iter().filter(|t| t.webview.is_some()).map(|t| t.profile_id.clone()).collect();
+                            .tabs
+                            .iter()
+                            .filter(|t| t.webview.is_some())
+                            .map(|t| t.profile_id.clone())
+                            .collect();
                         for pid in &loaded {
                             if let Some(wv) = self
-                                .tabs.iter()
+                                .tabs
+                                .iter()
                                 .find(|t| &t.profile_id == pid && t.webview.is_some())
                                 .and_then(|t| t.webview.as_ref())
                             {
@@ -1077,7 +1193,9 @@ impl Browser {
         if body.len() > 700_000 {
             return;
         }
-        let Ok(msg) = serde_json::from_str::<PageMsg>(body) else { return };
+        let Ok(msg) = serde_json::from_str::<PageMsg>(body) else {
+            return;
+        };
         match msg {
             // Internal messages only come from native code (empty tab id). A page always has
             // its own non-empty id baked in, so it cannot forge them.
@@ -1143,7 +1261,11 @@ impl Browser {
             PageMsg::Key { k } => {
                 // An empty tab ID means the shortcut originated in the sidebar.
                 let active_tab = self.visible.clone().unwrap_or_default();
-                let tab = if tab.is_empty() { active_tab.as_str() } else { tab };
+                let tab = if tab.is_empty() {
+                    active_tab.as_str()
+                } else {
+                    tab
+                };
                 if self.visible.as_deref() != Some(tab) {
                     return;
                 }
@@ -1151,24 +1273,46 @@ impl Browser {
                     "new_tab" => self.new_tab("about:blank"),
                     "focus_url" => {
                         let _ = self.sidebar.focus();
-                        let _ = self.sidebar.evaluate_script("window.__focusUrl && window.__focusUrl()");
+                        let _ = self
+                            .sidebar
+                            .evaluate_script("window.__focusUrl && window.__focusUrl()");
                         Ok(())
                     }
                     "close" => self.close_tab(tab),
                     "reopen" => self.reopen_closed_tab(),
-                    "back" => { self.eval_visible("history.back()"); Ok(()) }
-                    "forward" => { self.eval_visible("history.forward()"); Ok(()) }
-                    "reload" => { self.eval_visible("location.reload()"); Ok(()) }
+                    "back" => {
+                        self.eval_visible("history.back()");
+                        Ok(())
+                    }
+                    "forward" => {
+                        self.eval_visible("history.forward()");
+                        Ok(())
+                    }
+                    "reload" => {
+                        self.eval_visible("location.reload()");
+                        Ok(())
+                    }
                     "space_next" => self.cycle_space(1),
                     "space_prev" => self.cycle_space(-1),
                     "tab_next" => self.cycle_tab(1),
                     "tab_prev" => self.cycle_tab(-1),
-                    "tab_1" | "tab_2" | "tab_3" | "tab_4" | "tab_5" | "tab_6" | "tab_7" | "tab_8" | "tab_last" => {
-                        let index = if k == "tab_last" { usize::MAX } else { k[4..].parse::<usize>().unwrap_or(1).saturating_sub(1) };
+                    "tab_1" | "tab_2" | "tab_3" | "tab_4" | "tab_5" | "tab_6" | "tab_7"
+                    | "tab_8" | "tab_last" => {
+                        let index = if k == "tab_last" {
+                            usize::MAX
+                        } else {
+                            k[4..].parse::<usize>().unwrap_or(1).saturating_sub(1)
+                        };
                         self.activate_tab_index(index)
                     }
-                    "print" => { self.eval_visible("window.print()"); Ok(()) }
-                    "favorite" => { self.set_kind(tab, Kind::Favorite); Ok(()) }
+                    "print" => {
+                        self.eval_visible("window.print()");
+                        Ok(())
+                    }
+                    "favorite" => {
+                        self.set_kind(tab, Kind::Favorite);
+                        Ok(())
+                    }
                     "devtools_toggle" => self.toggle_devtools(),
                     _ => Ok(()),
                 };
@@ -1191,21 +1335,29 @@ impl Browser {
             }
             Cmd::SidebarCompact { compact } => {
                 self.p.sidebar_compact = compact;
-                if compact { self.p.sidebar_collapsed = false; }
+                if compact {
+                    self.p.sidebar_collapsed = false;
+                }
                 self.save();
                 self.relayout();
             }
             Cmd::SidebarWidth { width, persist } => {
                 if width.is_finite() {
                     self.p.sidebar_width = width.clamp(SIDEBAR_MIN_W, SIDEBAR_MAX_W);
-                    if persist { self.save(); }
+                    if persist {
+                        self.save();
+                    }
                     self.relayout();
                 }
             }
             Cmd::WindowMinimize => self.window.set_minimized(true),
             Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
-            Cmd::WindowDrag => { let _ = self.window.drag_window(); }
-            Cmd::WindowClose => { let _ = self.proxy.send_event(UserEvent::CloseWindow); }
+            Cmd::WindowDrag => {
+                let _ = self.window.drag_window();
+            }
+            Cmd::WindowClose => {
+                let _ = self.proxy.send_event(UserEvent::CloseWindow);
+            }
             Cmd::Overlay { open } => {
                 self.overlay = open;
                 if open {
@@ -1234,8 +1386,17 @@ impl Browser {
             Cmd::FavTab { id } => self.set_kind(&id, Kind::Favorite),
             Cmd::SwitchSpace { id } => self.switch_space(&id)?,
             Cmd::CycleSpace { dir } => self.cycle_space(dir)?,
-            Cmd::AddSpace { name, icon, color, profile_id, new_profile } => {
-                let pid = match new_profile.map(|n| clip(n.trim(), 40)).filter(|n| !n.is_empty()) {
+            Cmd::AddSpace {
+                name,
+                icon,
+                color,
+                profile_id,
+                new_profile,
+            } => {
+                let pid = match new_profile
+                    .map(|n| clip(n.trim(), 40))
+                    .filter(|n| !n.is_empty())
+                {
                     Some(n) => {
                         let id = new_id();
                         self.p.profiles.push(Profile {
@@ -1259,11 +1420,20 @@ impl Browser {
                     profile_id: pid,
                     name: clip(name.trim(), 40),
                     icon: clean_icon(&icon),
-                    color: if ok_color(&color) { color } else { "#6dc5e2".into() },
+                    color: if ok_color(&color) {
+                        color
+                    } else {
+                        "#6dc5e2".into()
+                    },
                 });
                 self.switch_space(&id)?;
             }
-            Cmd::EditSpace { id, name, icon, color } => {
+            Cmd::EditSpace {
+                id,
+                name,
+                icon,
+                color,
+            } => {
                 if let Some(s) = self.p.spaces.iter_mut().find(|s| s.id == id) {
                     s.name = clip(name.trim(), 40);
                     s.icon = clean_icon(&icon);
@@ -1279,30 +1449,56 @@ impl Browser {
                 let name = clip(name.trim(), 40);
                 if !name.is_empty() {
                     let space_id = self.cur_space().id.clone();
-                    self.p.folders.push(TabFolder { id: new_id(), space_id, name, collapsed: false, pinned: false, order: usize::MAX });
+                    self.p.folders.push(TabFolder {
+                        id: new_id(),
+                        space_id,
+                        name,
+                        collapsed: false,
+                        pinned: false,
+                        order: usize::MAX,
+                    });
                     self.save();
                 }
             }
             Cmd::RenameFolder { id, name } => {
                 let name = clip(name.trim(), 40);
                 if !name.is_empty() {
-                    if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) {
+                    if let Some(f) = self
+                        .p
+                        .folders
+                        .iter_mut()
+                        .find(|f| f.id == id && f.space_id == self.p.current_space)
+                    {
                         f.name = name;
                         self.save();
                     }
                 }
             }
             Cmd::DeleteFolder { id } => {
-                if self.p.folders.iter().any(|f| f.id == id && f.space_id == self.p.current_space) {
+                if self
+                    .p
+                    .folders
+                    .iter()
+                    .any(|f| f.id == id && f.space_id == self.p.current_space)
+                {
                     self.p.folders.retain(|f| f.id != id);
-                    for t in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())) {
+                    for t in self
+                        .tabs
+                        .iter_mut()
+                        .filter(|t| t.folder_id.as_deref() == Some(id.as_str()))
+                    {
                         t.folder_id = None;
                     }
                     self.save();
                 }
             }
             Cmd::ToggleFolderCollapsed { id } => {
-                if let Some(f) = self.p.folders.iter_mut().find(|f| f.id == id && f.space_id == self.p.current_space) {
+                if let Some(f) = self
+                    .p
+                    .folders
+                    .iter_mut()
+                    .find(|f| f.id == id && f.space_id == self.p.current_space)
+                {
                     f.collapsed = !f.collapsed;
                     self.save();
                 }
@@ -1311,24 +1507,35 @@ impl Browser {
                 let space = self.p.current_space.clone();
                 let pinned = to == "pinned";
                 if pinned || to == "tab" {
-                    if let Some(from) = self.p.folders.iter().position(|f| f.id == id && f.space_id == space) {
+                    if let Some(from) = self
+                        .p
+                        .folders
+                        .iter()
+                        .position(|f| f.id == id && f.space_id == space)
+                    {
                         let mut folder = self.p.folders.remove(from);
                         let old_order = folder.order;
                         let old_pinned = folder.pinned;
                         // Close the gap in the source section, then make room at the exact
                         // mixed tab/folder position selected by the pointer.
-                        for peer in self.p.folders.iter_mut().filter(|f| f.space_id == space && f.pinned == old_pinned && f.order > old_order) {
+                        for peer in self.p.folders.iter_mut().filter(|f| {
+                            f.space_id == space && f.pinned == old_pinned && f.order > old_order
+                        }) {
                             peer.order = peer.order.saturating_sub(1);
                         }
-                        for peer in self.p.folders.iter_mut().filter(|f| f.space_id == space && f.pinned == pinned && f.order >= index) {
+                        for peer in self.p.folders.iter_mut().filter(|f| {
+                            f.space_id == space && f.pinned == pinned && f.order >= index
+                        }) {
                             peer.order = peer.order.saturating_add(1);
                         }
                         folder.pinned = pinned;
                         folder.order = index;
                         self.p.folders.push(folder);
                         let kind = if pinned { Kind::Pinned } else { Kind::Normal };
-                        for tab in self.tabs.iter_mut().filter(|t| t.folder_id.as_deref() == Some(id.as_str())
-                            && t.space_id.as_deref() == Some(space.as_str())) {
+                        for tab in self.tabs.iter_mut().filter(|t| {
+                            t.folder_id.as_deref() == Some(id.as_str())
+                                && t.space_id.as_deref() == Some(space.as_str())
+                        }) {
                             if tab.kind != kind {
                                 tab.home = tab.url.clone();
                                 tab.kind = kind;
@@ -1339,12 +1546,19 @@ impl Browser {
                 }
             }
             Cmd::MoveTabToFolder { id, folder_id } => {
-                let target_pinned = folder_id.as_ref().and_then(|fid| self.p.folders.iter()
-                    .find(|f| f.id == *fid && f.space_id == self.p.current_space))
+                let target_pinned = folder_id
+                    .as_ref()
+                    .and_then(|fid| {
+                        self.p
+                            .folders
+                            .iter()
+                            .find(|f| f.id == *fid && f.space_id == self.p.current_space)
+                    })
                     .map(|f| f.pinned);
                 if folder_id.is_none() || target_pinned.is_some() {
-                    if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id
-                        && t.space_id.as_deref() == Some(self.p.current_space.as_str())) {
+                    if let Some(t) = self.tabs.iter_mut().find(|t| {
+                        t.id == id && t.space_id.as_deref() == Some(self.p.current_space.as_str())
+                    }) {
                         if let Some(pinned) = target_pinned {
                             let kind = if pinned { Kind::Pinned } else { Kind::Normal };
                             if t.kind != kind {
@@ -1379,10 +1593,18 @@ impl Browser {
                 };
                 let profile_id = self.cur_space().profile_id.clone();
                 if let Some(profile) = self.p.profiles.iter_mut().find(|p| p.id == profile_id) {
-                    if valid(tab_retention_hours, false) { profile.tab_retention_hours = tab_retention_hours; }
-                    if valid(cookie_retention_hours, true) { profile.cookie_retention_hours = cookie_retention_hours; }
-                    if valid(cache_retention_hours, true) { profile.cache_retention_hours = cache_retention_hours; }
-                    if valid(history_retention_hours, true) { profile.history_retention_hours = history_retention_hours; }
+                    if valid(tab_retention_hours, false) {
+                        profile.tab_retention_hours = tab_retention_hours;
+                    }
+                    if valid(cookie_retention_hours, true) {
+                        profile.cookie_retention_hours = cookie_retention_hours;
+                    }
+                    if valid(cache_retention_hours, true) {
+                        profile.cache_retention_hours = cache_retention_hours;
+                    }
+                    if valid(history_retention_hours, true) {
+                        profile.history_retention_hours = history_retention_hours;
+                    }
                     profile.last_cleanup_at = 0;
                 }
                 self.save();
@@ -1417,7 +1639,9 @@ impl Browser {
             Cmd::DevToolsSize { size, persist } => {
                 if size.is_finite() {
                     self.p.devtools_size = size.clamp(PANEL_MIN, self.devtools_limit());
-                    if persist { self.save(); }
+                    if persist {
+                        self.save();
+                    }
                     self.relayout();
                 }
             }
@@ -1483,7 +1707,9 @@ impl Browser {
                 }
                 Some(Err(error)) => {
                     self.close_devtools();
-                    self.toast(&format!("Could not identify the active DevTools target: {error}"));
+                    self.toast(&format!(
+                        "Could not identify the active DevTools target: {error}"
+                    ));
                     return Ok(());
                 }
                 Some(Ok(target_id)) => target_id,
@@ -1585,7 +1811,9 @@ impl Browser {
         if self.devtools_tab.is_none() || self.devtools_tab != self.visible {
             return;
         }
-        let Some(devtools) = self.devtools.as_ref() else { return };
+        let Some(devtools) = self.devtools.as_ref() else {
+            return;
+        };
 
         // One poll in flight at a time (with a timeout in case a callback never arrives).
         let now = now_ms();
@@ -1597,12 +1825,20 @@ impl Browser {
 
         let busy = Arc::clone(&self.poll_busy);
         let proxy = self.proxy.clone();
-        let queued = devtools.evaluate_script_with_callback(&self.devtools_sync_call(), move |result| {
-            busy.store(0, Ordering::Release);
-            let payload = if result.trim().is_empty() { "null" } else { result.as_str() };
-            let body = format!(r#"{{"t":"devtools_state","s":{payload}}}"#);
-            let _ = proxy.send_event(UserEvent::Page { tab: String::new(), body });
-        });
+        let queued =
+            devtools.evaluate_script_with_callback(&self.devtools_sync_call(), move |result| {
+                busy.store(0, Ordering::Release);
+                let payload = if result.trim().is_empty() {
+                    "null"
+                } else {
+                    result.as_str()
+                };
+                let body = format!(r#"{{"t":"devtools_state","s":{payload}}}"#);
+                let _ = proxy.send_event(UserEvent::Page {
+                    tab: String::new(),
+                    body,
+                });
+            });
         if queued.is_err() {
             self.poll_busy.store(0, Ordering::Release);
         }
@@ -1669,7 +1905,9 @@ impl Browser {
     /// Drops a tab into a list. `to` is "pinned", "tab" or "fav"; `index` is its position in that list.
     fn move_tab(&mut self, id: &str, to: &str, index: usize) {
         let sp = self.cur_space().clone();
-        let Some(from) = self.tabs.iter().position(|t| t.id == id) else { return };
+        let Some(from) = self.tabs.iter().position(|t| t.id == id) else {
+            return;
+        };
         let mut t = self.tabs.remove(from);
         let kind = match to {
             "pinned" => Kind::Pinned,
@@ -1681,7 +1919,11 @@ impl Browser {
             t.home = t.url.clone();
         }
         t.kind = kind;
-        t.space_id = if kind == Kind::Favorite { None } else { Some(sp.id.clone()) };
+        t.space_id = if kind == Kind::Favorite {
+            None
+        } else {
+            Some(sp.id.clone())
+        };
         let profile = t.profile_id.clone();
         let peers: Vec<usize> = self
             .tabs
@@ -1750,10 +1992,16 @@ impl Browser {
             .with_url(&url)
             .with_initialization_script_for_main_only(INIT_JS, false)
             .with_ipc_handler(move |req| {
-                let _ = p1.send_event(UserEvent::Page { tab: id1.clone(), body: req.into_body() });
+                let _ = p1.send_event(UserEvent::Page {
+                    tab: id1.clone(),
+                    body: req.into_body(),
+                });
             })
             .with_document_title_changed_handler(move |title| {
-                let _ = p2.send_event(UserEvent::Title { tab: id2.clone(), title });
+                let _ = p2.send_event(UserEvent::Title {
+                    tab: id2.clone(),
+                    title,
+                });
             })
             // target=_blank / window.open opens a new tab (OAuth popups need more work).
             .with_new_window_req_handler(move |url, _features| {
@@ -1781,8 +2029,8 @@ impl Browser {
         #[cfg(windows)]
         {
             use webview2_com::{FaviconChangedEventHandler, Microsoft::Web::WebView2::Win32::*};
-            use windows::Win32::System::Com::CoTaskMemFree;
             use windows::core::{Interface, PWSTR};
+            use windows::Win32::System::Com::CoTaskMemFree;
 
             fn current_favicon_uri(core15: &ICoreWebView2_15) -> Option<String> {
                 unsafe {
@@ -1804,14 +2052,20 @@ impl Browser {
             unsafe {
                 if let Ok(core) = wv.controller().CoreWebView2() {
                     if let Ok(core15) = core.cast::<ICoreWebView2_15>() {
-                        let handler = FaviconChangedEventHandler::create(Box::new(move |sender, _| {
-                            let Some(sender) = sender else { return Ok(()) };
-                            let Ok(core15) = sender.cast::<ICoreWebView2_15>() else { return Ok(()) };
-                            let favicon = current_favicon_uri(&core15);
-                            let body = json!({"t": "favicon", "f": favicon}).to_string();
-                            let _ = favicon_proxy.send_event(UserEvent::Page { tab: favicon_tab.clone(), body });
-                            Ok(())
-                        }));
+                        let handler =
+                            FaviconChangedEventHandler::create(Box::new(move |sender, _| {
+                                let Some(sender) = sender else { return Ok(()) };
+                                let Ok(core15) = sender.cast::<ICoreWebView2_15>() else {
+                                    return Ok(());
+                                };
+                                let favicon = current_favicon_uri(&core15);
+                                let body = json!({"t": "favicon", "f": favicon}).to_string();
+                                let _ = favicon_proxy.send_event(UserEvent::Page {
+                                    tab: favicon_tab.clone(),
+                                    body,
+                                });
+                                Ok(())
+                            }));
                         let mut token = 0;
                         if let Err(error) = core15.add_FaviconChanged(&handler, &mut token) {
                             log::warn!("registering WebView2 favicon handler failed: {error}");
@@ -1819,9 +2073,14 @@ impl Browser {
                         // The initial navigation may have started before the handler was attached.
                         let favicon = current_favicon_uri(&core15);
                         let body = json!({"t": "favicon", "f": favicon}).to_string();
-                        let _ = initial_proxy.send_event(UserEvent::Page { tab: initial_tab, body });
+                        let _ = initial_proxy.send_event(UserEvent::Page {
+                            tab: initial_tab,
+                            body,
+                        });
                     } else {
-                        log::warn!("WebView2 runtime lacks native favicon support (ICoreWebView2_15)");
+                        log::warn!(
+                            "WebView2 runtime lacks native favicon support (ICoreWebView2_15)"
+                        );
                     }
                 }
             }
@@ -1839,25 +2098,32 @@ impl Browser {
             unsafe {
                 match wv.controller().CoreWebView2() {
                     Ok(core) => {
-                        let handler = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
-                            let Some(sender) = sender else { return Ok(()) };
-                            let mut contains = BOOL::default();
-                            if let Err(error) = sender.ContainsFullScreenElement(&mut contains) {
-                                log::warn!("reading WebView2 fullscreen state failed: {error}");
-                                return Ok(());
-                            }
-                            let _ = fullscreen_proxy.send_event(UserEvent::Fullscreen {
-                                tab: fullscreen_tab.clone(),
-                                active: contains.as_bool(),
-                            });
-                            Ok(())
-                        }));
+                        let handler = ContainsFullScreenElementChangedEventHandler::create(
+                            Box::new(move |sender, _| {
+                                let Some(sender) = sender else { return Ok(()) };
+                                let mut contains = BOOL::default();
+                                if let Err(error) = sender.ContainsFullScreenElement(&mut contains)
+                                {
+                                    log::warn!("reading WebView2 fullscreen state failed: {error}");
+                                    return Ok(());
+                                }
+                                let _ = fullscreen_proxy.send_event(UserEvent::Fullscreen {
+                                    tab: fullscreen_tab.clone(),
+                                    active: contains.as_bool(),
+                                });
+                                Ok(())
+                            }),
+                        );
                         let mut token = 0;
-                        if let Err(error) = core.add_ContainsFullScreenElementChanged(&handler, &mut token) {
+                        if let Err(error) =
+                            core.add_ContainsFullScreenElementChanged(&handler, &mut token)
+                        {
                             log::warn!("registering WebView2 fullscreen handler failed: {error}");
                         }
                     }
-                    Err(error) => log::warn!("getting WebView2 core for fullscreen handler failed: {error}"),
+                    Err(error) => {
+                        log::warn!("getting WebView2 core for fullscreen handler failed: {error}")
+                    }
                 }
             }
         }
@@ -1872,7 +2138,9 @@ impl Browser {
     fn leave_fullscreen(&mut self) {
         if self.fullscreen {
             if let Some(wv) = self.visible_webview() {
-                let _ = wv.evaluate_script("if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});");
+                let _ = wv.evaluate_script(
+                    "if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});",
+                );
             }
             self.fullscreen = false;
             self.window.set_fullscreen(None);
@@ -1882,10 +2150,17 @@ impl Browser {
 
     fn hide_visible(&mut self) {
         self.leave_fullscreen();
-        let Some(id) = self.visible.take() else { return };
+        let Some(id) = self.visible.take() else {
+            return;
+        };
         self.responsive_mode = false;
         self.responsive_bounds = None;
-        if let Some(wv) = self.tabs.iter().find(|t| t.id == id).and_then(|t| t.webview.as_ref()) {
+        if let Some(wv) = self
+            .tabs
+            .iter()
+            .find(|t| t.id == id)
+            .and_then(|t| t.webview.as_ref())
+        {
             if self.p.auto_pip {
                 pip::on_leave(wv);
             }
@@ -1897,7 +2172,9 @@ impl Browser {
     }
 
     fn activate(&mut self, id: &str) -> Result<()> {
-        let Some(idx) = self.tabs.iter().position(|t| t.id == id) else { return Ok(()) };
+        let Some(idx) = self.tabs.iter().position(|t| t.id == id) else {
+            return Ok(());
+        };
         if self.tabs[idx].kind == Kind::Normal {
             self.tabs[idx].last_active = SystemTime::now();
         }
@@ -1908,7 +2185,8 @@ impl Browser {
         self.ensure_webview(idx)?;
         self.overlay = false;
         self.visible = Some(id.to_string());
-        self.active.insert(self.p.current_space.clone(), id.to_string());
+        self.active
+            .insert(self.p.current_space.clone(), id.to_string());
         self.relayout();
         if let Some(wv) = &self.tabs[idx].webview {
             wv.focus()?;
@@ -1923,7 +2201,9 @@ impl Browser {
     }
 
     fn close_tab(&mut self, id: &str) -> Result<()> {
-        let Some(idx) = self.tabs.iter().position(|t| t.id == id) else { return Ok(()) };
+        let Some(idx) = self.tabs.iter().position(|t| t.id == id) else {
+            return Ok(());
+        };
         let was_visible = self.visible.as_deref() == Some(id);
         if was_visible {
             self.leave_fullscreen();
@@ -1965,8 +2245,12 @@ impl Browser {
 
     /// Tabs reachable from the current space, in sidebar order.
     fn space_tab_ids(&self) -> Vec<String> {
-        self.tabs.iter()
-            .filter(|t| t.space_id.as_deref() == Some(self.p.current_space.as_str()) || t.kind == Kind::Favorite)
+        self.tabs
+            .iter()
+            .filter(|t| {
+                t.space_id.as_deref() == Some(self.p.current_space.as_str())
+                    || t.kind == Kind::Favorite
+            })
             .map(|t| t.id.clone())
             .collect()
     }
@@ -1976,7 +2260,11 @@ impl Browser {
         if ids.len() < 2 {
             return Ok(());
         }
-        let current = self.visible.as_ref().and_then(|id| ids.iter().position(|x| x == id)).unwrap_or(0) as i32;
+        let current = self
+            .visible
+            .as_ref()
+            .and_then(|id| ids.iter().position(|x| x == id))
+            .unwrap_or(0) as i32;
         let next = (current + direction).rem_euclid(ids.len() as i32) as usize;
         self.activate(&ids[next])
     }
@@ -2024,7 +2312,12 @@ impl Browser {
 
     fn cycle_space(&mut self, dir: i32) -> Result<()> {
         let n = self.p.spaces.len() as i32;
-        let cur = self.p.spaces.iter().position(|s| s.id == self.p.current_space).unwrap_or(0) as i32;
+        let cur = self
+            .p
+            .spaces
+            .iter()
+            .position(|s| s.id == self.p.current_space)
+            .unwrap_or(0) as i32;
         let next = (cur + dir).rem_euclid(n) as usize;
         let id = self.p.spaces[next].id.clone();
         self.switch_space(&id)
@@ -2051,14 +2344,21 @@ impl Browser {
     /// Expires inactive normal tabs and applies profile-level browsing-data policies.
     pub fn cleanup_expired_tabs(&mut self) {
         let now = SystemTime::now();
-        let expired: Vec<String> = self.tabs.iter()
+        let expired: Vec<String> = self
+            .tabs
+            .iter()
             .filter(|t| t.kind == Kind::Normal && self.visible.as_deref() != Some(t.id.as_str()))
             .filter(|t| {
-                let hours = self.p.profiles.iter()
+                let hours = self
+                    .p
+                    .profiles
+                    .iter()
                     .find(|p| p.id == t.profile_id)
                     .map(|p| p.tab_retention_hours)
                     .unwrap_or(48);
-                now.duration_since(t.last_active).unwrap_or(Duration::ZERO).as_secs()
+                now.duration_since(t.last_active)
+                    .unwrap_or(Duration::ZERO)
+                    .as_secs()
                     >= hours.saturating_mul(3600)
             })
             .map(|t| t.id.clone())
@@ -2077,31 +2377,53 @@ impl Browser {
         use webview2_com::{
             ClearBrowsingDataCompletedHandler,
             Microsoft::Web::WebView2::Win32::{
-                ICoreWebView2_13, ICoreWebView2Profile2,
+                ICoreWebView2Profile2, ICoreWebView2_13,
+                COREWEBVIEW2_BROWSING_DATA_KINDS_BROWSING_HISTORY,
                 COREWEBVIEW2_BROWSING_DATA_KINDS_COOKIES,
                 COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE,
-                COREWEBVIEW2_BROWSING_DATA_KINDS_BROWSING_HISTORY,
             },
         };
         use windows::core::Interface;
 
-        let now = SystemTime::now().duration_since(UNIX_EPOCH)
-            .unwrap_or(Duration::ZERO).as_secs();
-        let due_profiles: Vec<String> = self.p.profiles.iter()
-            .filter(|p| p.cookie_retention_hours > 0 || p.cache_retention_hours > 0 || p.history_retention_hours > 0)
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or(Duration::ZERO)
+            .as_secs();
+        let due_profiles: Vec<String> = self
+            .p
+            .profiles
+            .iter()
+            .filter(|p| {
+                p.cookie_retention_hours > 0
+                    || p.cache_retention_hours > 0
+                    || p.history_retention_hours > 0
+            })
             .filter(|p| now.saturating_sub(p.last_cleanup_at) >= 3600)
             .map(|p| p.id.clone())
             .collect();
 
         for profile_id in due_profiles {
-            let Some(webview) = self.tabs.iter()
+            let Some(webview) = self
+                .tabs
+                .iter()
                 .find(|t| t.profile_id == profile_id && t.webview.is_some())
                 .and_then(|t| t.webview.as_ref())
-            else { continue };
+            else {
+                continue;
+            };
 
-            let settings = self.p.profiles.iter()
+            let settings = self
+                .p
+                .profiles
+                .iter()
                 .find(|p| p.id == profile_id)
-                .map(|p| (p.cookie_retention_hours, p.cache_retention_hours, p.history_retention_hours))
+                .map(|p| {
+                    (
+                        p.cookie_retention_hours,
+                        p.cache_retention_hours,
+                        p.history_retention_hours,
+                    )
+                })
                 .unwrap_or((0, 0, 0));
 
             let result = (|| -> anyhow::Result<()> {
@@ -2113,11 +2435,17 @@ impl Browser {
                     for (hours, kind) in [
                         (settings.0, COREWEBVIEW2_BROWSING_DATA_KINDS_COOKIES),
                         (settings.1, COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE),
-                        (settings.2, COREWEBVIEW2_BROWSING_DATA_KINDS_BROWSING_HISTORY),
+                        (
+                            settings.2,
+                            COREWEBVIEW2_BROWSING_DATA_KINDS_BROWSING_HISTORY,
+                        ),
                     ] {
-                        if hours == 0 { continue; }
+                        if hours == 0 {
+                            continue;
+                        }
                         let cutoff = now.saturating_sub(hours.saturating_mul(3600)) as f64;
-                        let handler = ClearBrowsingDataCompletedHandler::create(Box::new(|_| Ok(())));
+                        let handler =
+                            ClearBrowsingDataCompletedHandler::create(Box::new(|_| Ok(())));
                         profile2.ClearBrowsingDataInTimeRange(kind, 0.0, cutoff, &handler)?;
                     }
                 }
@@ -2179,8 +2507,12 @@ impl Browser {
     /// Largest panel size that still leaves a usable page.
     fn devtools_limit(&self) -> f64 {
         let [_, _, w, h] = self.content_box();
-        let avail = if matches!(self.p.devtools_position.as_str(), "left" | "right") { w } else { h };
-        (avail - PANEL_GAP - PAGE_MIN).max(PANEL_MIN).min(PANEL_MAX)
+        let avail = if matches!(self.p.devtools_position.as_str(), "left" | "right") {
+            w
+        } else {
+            h
+        };
+        (avail - PANEL_GAP - PAGE_MIN).clamp(PANEL_MIN, PANEL_MAX)
     }
 
     fn devtools_size(&self) -> f64 {
@@ -2244,7 +2576,12 @@ impl Browser {
         };
         out.page = rect_of(page);
         out.header = Some([panel[0], panel[1], panel[2], HEADER_H]);
-        out.tools = Some(rect(panel[0], panel[1] + HEADER_H, panel[2], panel[3] - HEADER_H));
+        out.tools = Some(rect(
+            panel[0],
+            panel[1] + HEADER_H,
+            panel[2],
+            panel[3] - HEADER_H,
+        ));
         out.handle = Some(handle);
         out
     }
@@ -2304,19 +2641,23 @@ impl Browser {
     /// Shows, moves or hides the resize handle and header strip drawn by the sidebar WebView.
     fn sync_devtools_chrome(&self, layout: &Layout) {
         let visible = self.devtools_open && !self.overlay && !self.fullscreen;
-        let cfg = layout.header.filter(|_| visible).map(|header| json!({
-            "header": header,
-            "handle": layout.handle,
-            "position": self.p.devtools_position,
-            "gap": PANEL_GAP,
-            "box": self.content_box(),
-        }));
+        let cfg = layout.header.filter(|_| visible).map(|header| {
+            json!({
+                "header": header,
+                "handle": layout.handle,
+                "position": self.p.devtools_position,
+                "gap": PANEL_GAP,
+                "box": self.content_box(),
+            })
+        });
         if cfg.is_none() && !self.chrome_shown.get() {
             return;
         }
         self.chrome_shown.set(cfg.is_some());
         let arg = cfg.map(|c| c.to_string()).unwrap_or_else(|| "null".into());
-        let _ = self.sidebar.evaluate_script(&format!("({DEVTOOLS_CHROME_JS})({arg})"));
+        let _ = self
+            .sidebar
+            .evaluate_script(&format!("({DEVTOOLS_CHROME_JS})({arg})"));
     }
 
     pub fn save(&mut self) {
@@ -2351,10 +2692,15 @@ impl Browser {
         for (name, u) in DEFAULT_SITES {
             let host = url::Url::parse(u)
                 .ok()
-                .and_then(|x| x.host_str().map(|h| h.trim_start_matches("www.").to_string()))
+                .and_then(|x| {
+                    x.host_str()
+                        .map(|h| h.trim_start_matches("www.").to_string())
+                })
                 .unwrap_or_default();
             if seen.insert(host) {
-                out.push(json!({"label": name, "url": u, "favicon": null, "visits": 0, "popular": true}));
+                out.push(
+                    json!({"label": name, "url": u, "favicon": null, "visits": 0, "popular": true}),
+                );
             }
         }
         out
@@ -2362,10 +2708,15 @@ impl Browser {
 
     /// If the visible tab is a Chrome Web Store detail page, the extension's ID.
     fn store_ext(&self) -> Option<String> {
-        let t = self.visible.as_ref().and_then(|id| self.tabs.iter().find(|t| &t.id == id))?;
+        let t = self
+            .visible
+            .as_ref()
+            .and_then(|id| self.tabs.iter().find(|t| &t.id == id))?;
         let u = url::Url::parse(&t.url).ok()?;
         match u.host_str()? {
-            "chromewebstore.google.com" | "chrome.google.com" if u.path().contains("/detail/") => store::parse_id(u.path()),
+            "chromewebstore.google.com" | "chrome.google.com" if u.path().contains("/detail/") => {
+                store::parse_id(u.path())
+            }
             _ => None,
         }
     }
@@ -2379,13 +2730,17 @@ impl Browser {
             })
         };
         let favorites: Vec<_> = self
-            .tabs.iter()
+            .tabs
+            .iter()
             .filter(|t| t.kind == Kind::Favorite && t.profile_id == sp.profile_id)
-            .map(row).collect();
+            .map(row)
+            .collect();
         let in_space = |k: Kind| -> Vec<_> {
-            self.tabs.iter()
+            self.tabs
+                .iter()
                 .filter(|t| t.kind == k && t.space_id.as_deref() == Some(sp.id.as_str()))
-                .map(row).collect()
+                .map(row)
+                .collect()
         };
         let url = self
             .visible
@@ -2424,6 +2779,8 @@ impl Browser {
                 }))
                 .unwrap_or_else(|| json!({})),
         });
-        let _ = self.sidebar.evaluate_script(&format!("window.__setState({state})"));
+        let _ = self
+            .sidebar
+            .evaluate_script(&format!("window.__setState({state})"));
     }
 }

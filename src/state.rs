@@ -33,7 +33,9 @@ pub struct Profile {
     pub last_cleanup_at: u64,
 }
 
-fn default_tab_retention() -> u64 { 48 }
+fn default_tab_retention() -> u64 {
+    48
+}
 
 /// Many spaces can belong to one profile.
 #[derive(Serialize, Deserialize, Clone)]
@@ -69,7 +71,9 @@ pub struct TabFolder {
     pub order: usize,
 }
 
-fn folder_order_default() -> usize { usize::MAX }
+fn folder_order_default() -> usize {
+    usize::MAX
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Saved {
@@ -92,28 +96,53 @@ fn system() -> String {
     "system".into()
 }
 
-fn default_sidebar_width() -> f64 { 280.0 }
-fn default_devtools_position() -> String { "right".into() }
-fn default_devtools_size() -> f64 { 420.0 }
+fn default_sidebar_width() -> f64 {
+    280.0
+}
+fn default_devtools_position() -> String {
+    "right".into()
+}
+fn default_devtools_size() -> f64 {
+    420.0
+}
 
 /// Space icons are ids of the built-in icon set (e.g. "house"), never emoji.
 pub fn valid_icon(s: &str) -> bool {
-    let builtin = !s.is_empty() && s.len() <= 32
-        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
-    if builtin { return true; }
-    let Some(encoded) = s.strip_prefix("svg:") else { return false };
-    if encoded.len() > 8192 || encoded.is_empty() { return false; }
+    let builtin = !s.is_empty()
+        && s.len() <= 32
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if builtin {
+        return true;
+    }
+    let Some(encoded) = s.strip_prefix("svg:") else {
+        return false;
+    };
+    if encoded.len() > 8192 || encoded.is_empty() {
+        return false;
+    }
     use base64::Engine;
-    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(encoded) else { return false };
-    let Ok(svg) = std::str::from_utf8(&bytes) else { return false };
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(encoded) else {
+        return false;
+    };
+    let Ok(svg) = std::str::from_utf8(&bytes) else {
+        return false;
+    };
     let lower = svg.to_ascii_lowercase();
-    svg.len() <= 6144 && lower.starts_with("<svg")
-        && !lower.contains("<script") && !lower.contains("<foreignobject")
-        && !lower.contains("<iframe") && !lower.contains("<image")
-        && !lower.contains("<!doctype") && !lower.contains("<!entity")
-        && !lower.contains("javascript:") && !lower.contains("url(")
-        && !lower.contains(" onload") && !lower.contains(" onclick")
-        && !lower.contains(" onerror") && !lower.contains("href=")
+    svg.len() <= 6144
+        && lower.starts_with("<svg")
+        && !lower.contains("<script")
+        && !lower.contains("<foreignobject")
+        && !lower.contains("<iframe")
+        && !lower.contains("<image")
+        && !lower.contains("<!doctype")
+        && !lower.contains("<!entity")
+        && !lower.contains("javascript:")
+        && !lower.contains("url(")
+        && !lower.contains(" onload")
+        && !lower.contains(" onclick")
+        && !lower.contains(" onerror")
+        && !lower.contains("href=")
 }
 
 #[derive(Serialize, Deserialize)]
@@ -194,7 +223,10 @@ impl Default for Persisted {
 
 impl Persisted {
     fn sanitize_devtools_preferences(&mut self) {
-        if !matches!(self.devtools_position.as_str(), "right" | "left" | "bottom" | "top") {
+        if !matches!(
+            self.devtools_position.as_str(),
+            "right" | "left" | "bottom" | "top"
+        ) {
             self.devtools_position = default_devtools_position();
         }
         if !self.devtools_size.is_finite() {
@@ -205,7 +237,14 @@ impl Persisted {
 
     pub fn prune_sites(&mut self) {
         while self.sites.len() > 400 {
-            let Some(k) = self.sites.iter().min_by_key(|(_, s)| s.count).map(|(k, _)| k.clone()) else { break };
+            let Some(k) = self
+                .sites
+                .iter()
+                .min_by_key(|(_, s)| s.count)
+                .map(|(k, _)| k.clone())
+            else {
+                break;
+            };
             self.sites.remove(&k);
         }
     }
@@ -221,7 +260,9 @@ impl Persisted {
         // The previous folder implementation forced every folder and its tabs into Pinned.
         // Convert those legacy folders to ordinary tabs once, preserving membership.
         if p.folder_layout_version < 1 {
-            for folder in p.folders.iter_mut() { folder.pinned = false; }
+            for folder in p.folders.iter_mut() {
+                folder.pinned = false;
+            }
             for saved in p.saved.iter_mut().filter(|s| s.folder_id.is_some()) {
                 saved.kind = Kind::Normal;
             }
@@ -233,7 +274,9 @@ impl Persisted {
                 s.icon = "house".into();
             }
         }
-        if !p.sidebar_width.is_finite() { p.sidebar_width = default_sidebar_width(); }
+        if !p.sidebar_width.is_finite() {
+            p.sidebar_width = default_sidebar_width();
+        }
         p.sidebar_width = p.sidebar_width.clamp(180.0, 480.0);
         p.sanitize_devtools_preferences();
         if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
@@ -254,7 +297,6 @@ impl Persisted {
         }
     }
 }
-
 
 #[cfg(test)]
 mod devtools_state_tests {
