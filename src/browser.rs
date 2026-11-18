@@ -2030,7 +2030,12 @@ impl Browser {
                 if let Err(error) = apply_webview_bounds(devtools, bounds, self.window.scale_factor()) {
                     log::warn!("resizing DevTools WebView failed: {error:#}");
                 }
-                let _ = devtools.set_visible(self.devtools_open && !self.fullscreen && !self.overlay);
+                let visible = self.devtools_open && !self.fullscreen && !self.overlay;
+                let _ = devtools.set_visible(visible);
+                #[cfg(windows)]
+                if visible {
+                    raise_webview(devtools);
+                }
             } else {
                 let _ = devtools.set_visible(false);
             }
