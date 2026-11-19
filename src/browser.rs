@@ -2004,15 +2004,19 @@ impl Browser {
                 });
             })
             // target=_blank / window.open opens a new tab (OAuth popups need more work).
-            .with_new_window_req_handler(move |url, _features| {
-                // Auth popups must stay real popups so window.opener / postMessage keep working.
-                let is_auth = url.starts_with("https://accounts.google.com/")
+            .with_new_window_req_handler(move |url, features| {
+                let is_popup = features.size.is_some() || features.position.is_some();
+                let is_blank = url == "about:blank";
+                let is_auth_url = url.starts_with("https://accounts.google.com/")
                     || url.starts_with("https://appleid.apple.com/")
                     || url.starts_with("https://login.microsoftonline.com/")
                     || url.starts_with("https://github.com/login/")
                     || url.contains("/oauth")
-                    || url.contains("/authorize");
-                if is_auth {
+                    || url.contains("/authorize")
+                    || url.contains("/sso")
+                    || url.contains("/signin")
+                    || url.contains("/login");
+                if is_popup || is_blank || is_auth_url {
                     NewWindowResponse::Allow
                 } else {
                     let _ = p3.send_event(UserEvent::OpenTab { url });
