@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, fs, io::Write, path::Path};
 
 pub fn new_id() -> String {
     uuid::Uuid::new_v4().simple().to_string()
@@ -105,6 +105,10 @@ fn default_devtools_position() -> String {
 fn default_devtools_size() -> f64 {
     420.0
 }
+/// Background tabs release their WebView (and its renderer process) after this many idle minutes.
+fn default_tab_sleep_minutes() -> u64 {
+    10
+}
 
 /// Space icons are ids of the built-in icon set (e.g. "house"), never emoji.
 pub fn valid_icon(s: &str) -> bool {
@@ -187,6 +191,10 @@ pub struct Persisted {
     /// Store extensions we already tried to preinstall (so removing one sticks).
     #[serde(default)]
     pub preinstalled: Vec<String>,
+    /// Minutes of inactivity before a background tab is unloaded from memory (0 = never).
+    /// Tabs playing audio are never unloaded. The tab stays in the sidebar and reloads on click.
+    #[serde(default = "default_tab_sleep_minutes")]
+    pub tab_sleep_minutes: u64,
 }
 
 impl Default for Persisted {
@@ -225,6 +233,7 @@ impl Default for Persisted {
             devtools_size: default_devtools_size(),
             sites: HashMap::new(),
             preinstalled: vec![],
+            tab_sleep_minutes: default_tab_sleep_minutes(),
         }
     }
 }
@@ -243,24 +252,34 @@ impl Persisted {
         self.devtools_size = self.devtools_size.clamp(240.0, 800.0);
     }
 
+    /// Keeps the 400 most-visited sites (single sort instead of repeated scans).
     pub fn prune_sites(&mut self) {
-        while self.sites.len() > 400 {
-            let Some(k) = self
-                .sites
-                .iter()
-                .min_by_key(|(_, s)| s.count)
-                .map(|(k, _)| k.clone())
-            else {
-                break;
-            };
-            self.sites.remove(&k);
+        const MAX: usize = 400;
+        if self.sites.len() <= MAX {
+            return;
+        }
+        let mut ranked: Vec<(String, u32)> = self
+            .sites
+            .iter()
+            .map(|(k, s)| (k.clone(), s.count))
+            .collect();
+        ranked.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+        let excess = self.sites.len() - MAX;
+        for (key, _) in ranked.into_iter().take(excess) {
+            self.sites.remove(&key);
         }
     }
 
-    pub fn load(path: &Path) -> Self {
-        let mut p: Self = fs::read_to_string(path)
+    fn read(path: &Path) -> Option<Self> {
+        fs::read_to_string(path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
+    }
+
+    pub fn load(path: &Path) -> Self {
+        // Fall back to the last good backup if the main file is missing or corrupt.
+        let mut p: Self = Self::read(path)
+            .or_else(|| Self::read(&path.with_extension("json.bak")))
             .unwrap_or_default();
         if p.spaces.is_empty() || p.profiles.is_empty() {
             p = Self::default();
@@ -287,6 +306,7 @@ impl Persisted {
         }
         p.sidebar_width = p.sidebar_width.clamp(180.0, 480.0);
         p.sanitize_devtools_preferences();
+        p.tab_sleep_minutes = p.tab_sleep_minutes.min(10_080);
         if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
             p.theme = system();
         }
@@ -296,13 +316,27 @@ impl Persisted {
         p
     }
 
-    pub fn save(&self, path: &Path) {
-        if let Ok(json) = serde_json::to_string_pretty(self) {
-            let tmp = path.with_extension("json.tmp");
-            if fs::write(&tmp, json).is_ok() {
-                let _ = fs::rename(&tmp, path);
-            }
+    /// Writes compact JSON to a temp file, fsyncs, keeps the previous file as `.bak`, then
+    /// swaps the new one in. Returns whether the save succeeded.
+    pub fn save(&self, path: &Path) -> bool {
+        let Ok(json) = serde_json::to_vec(self) else {
+            return false;
+        };
+        let tmp = path.with_extension("json.tmp");
+        let written = (|| -> std::io::Result<()> {
+            let mut file = fs::File::create(&tmp)?;
+            file.write_all(&json)?;
+            file.sync_all()?;
+            Ok(())
+        })();
+        if written.is_err() {
+            let _ = fs::remove_file(&tmp);
+            return false;
         }
+        if path.exists() {
+            let _ = fs::copy(path, path.with_extension("json.bak"));
+        }
+        fs::rename(&tmp, path).is_ok()
     }
 }
 
@@ -338,5 +372,29 @@ mod devtools_state_tests {
         let state = Persisted::default();
         assert!(!state.restore_tabs);
         assert!(state.active_tabs.is_empty());
+    }
+
+    #[test]
+    fn background_tabs_sleep_by_default() {
+        assert_eq!(Persisted::default().tab_sleep_minutes, 10);
+    }
+
+    #[test]
+    fn prune_sites_keeps_the_most_visited() {
+        let mut state = Persisted::default();
+        for i in 0..450u32 {
+            state.sites.insert(
+                format!("h{i}.test"),
+                Site {
+                    url: String::new(),
+                    favicon: None,
+                    count: i,
+                },
+            );
+        }
+        state.prune_sites();
+        assert_eq!(state.sites.len(), 400);
+        assert!(state.sites.contains_key("h449.test"));
+        assert!(!state.sites.contains_key("h0.test"));
     }
 }

@@ -51,6 +51,11 @@ pub enum UserEvent {
         dir: Option<std::path::PathBuf>,
         id: Option<String>,
     },
+    /// A WebView2 render process (or the whole browser process of a profile) died.
+    TabCrashed {
+        tab: String,
+        browser: bool,
+    },
     CloseWindow,
 }
 
@@ -70,6 +75,10 @@ fn poof_icon() -> Option<tao::window::Icon> {
     tao::window::Icon::from_rgba(pixmap.data().to_vec(), size.width(), size.height()).ok()
 }
 
+const MAINTENANCE_EVERY: Duration = Duration::from_secs(60);
+/// How soon a deferred (throttled) state save is flushed.
+const SAVE_FLUSH_AFTER: Duration = Duration::from_millis(1500);
+
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -83,13 +92,15 @@ fn main() -> anyhow::Result<()> {
 
     let mut browser = browser::Browser::new(window, event_loop.create_proxy())?;
 
-    let mut next_maintenance = Instant::now() + Duration::from_secs(60);
+    let mut next_maintenance = Instant::now() + MAINTENANCE_EVERY;
     event_loop.run(move |event, _, flow| {
-        *flow = ControlFlow::WaitUntil(next_maintenance);
         match event {
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
-                browser.cleanup_expired_tabs();
-                next_maintenance = Instant::now() + Duration::from_secs(60);
+                browser.flush_save();
+                if Instant::now() >= next_maintenance {
+                    browser.cleanup_expired_tabs();
+                    next_maintenance = Instant::now() + MAINTENANCE_EVERY;
+                }
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(_),
@@ -99,15 +110,26 @@ fn main() -> anyhow::Result<()> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                browser.save();
+                browser.shutdown();
                 *flow = ControlFlow::Exit;
+                return;
             }
             Event::UserEvent(UserEvent::CloseWindow) => {
-                browser.save();
+                browser.shutdown();
                 *flow = ControlFlow::Exit;
+                return;
             }
             Event::UserEvent(ev) => browser.on_user_event(ev),
             _ => {}
         }
+
+        // Sleep until the next maintenance pass, or sooner if a save is waiting to be flushed.
+        // The loop is otherwise fully idle (no timers, no polling).
+        let deadline = if browser.save_pending() {
+            next_maintenance.min(Instant::now() + SAVE_FLUSH_AFTER)
+        } else {
+            next_maintenance
+        };
+        *flow = ControlFlow::WaitUntil(deadline);
     });
 }

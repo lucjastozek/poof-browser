@@ -7,15 +7,16 @@ use anyhow::Result;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
-    cell::Cell,
-    collections::{HashMap, HashSet},
+    cell::{Cell, RefCell},
+    collections::{hash_map::DefaultHasher, HashMap, HashSet},
     fs,
+    hash::{Hash, Hasher},
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tao::{
     event_loop::EventLoopProxy,
@@ -125,6 +126,59 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
     }
 }
 
+/// Asks WebView2 to trim (LOW) or restore (NORMAL) the memory it keeps for this page. Hidden
+/// tabs get LOW so the engine drops caches and compresses memory right away; best effort, and
+/// silently ignored on runtimes that predate the API.
+#[cfg(windows)]
+fn set_memory_level(wv: &WebView, low: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+    };
+    use windows::core::Interface;
+
+    unsafe {
+        let Ok(core) = wv.controller().CoreWebView2() else {
+            return;
+        };
+        let Ok(core19) = core.cast::<ICoreWebView2_19>() else {
+            return;
+        };
+        let level = if low {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+        } else {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+        };
+        let _ = core19.SetMemoryUsageTargetLevel(level);
+    }
+}
+
+#[cfg(not(windows))]
+fn set_memory_level(_wv: &WebView, _low: bool) {}
+
+/// True while the page is producing sound; such tabs are never put to sleep.
+#[cfg(windows)]
+fn is_playing_audio(wv: &WebView) -> bool {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_8;
+    use windows::core::{Interface, BOOL};
+
+    unsafe {
+        let Ok(core) = wv.controller().CoreWebView2() else {
+            return false;
+        };
+        let Ok(core8) = core.cast::<ICoreWebView2_8>() else {
+            return false;
+        };
+        let mut playing = BOOL::default();
+        core8.IsDocumentPlayingAudio(&mut playing).is_ok() && playing.as_bool()
+    }
+}
+
+#[cfg(not(windows))]
+fn is_playing_audio(_wv: &WebView) -> bool {
+    false
+}
+
 const SIDEBAR_MIN_W: f64 = 180.0;
 const SIDEBAR_MAX_W: f64 = 480.0;
 const SIDEBAR_COMPACT_W: f64 = 56.0;
@@ -139,6 +193,13 @@ const PANEL_GAP: f64 = INSET;
 const PAGE_MIN: f64 = 160.0;
 /// Strip above the DevTools frontend holding the title and the close button.
 const HEADER_H: f64 = 28.0;
+
+/// Largest favicon (URL or data: URI) kept in memory, pushed to the UI and persisted.
+const FAVICON_MAX: usize = 48_000;
+/// Favicons larger than this are kept in memory but not written to state.json.
+const FAVICON_PERSIST_MAX: usize = 16_000;
+/// State writes closer together than this are coalesced and flushed by the event-loop timer.
+const SAVE_MIN_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 const DEFAULT_SITES: &[(&str, &str)] = &[
@@ -422,7 +483,7 @@ pub struct Tab {
     pub host: String, // last host seen (for visit stats)
     pub title: String,
     pub favicon: Option<String>,
-    pub webview: Option<WebView>, // None = not loaded yet (lazy)
+    pub webview: Option<WebView>, // None = not loaded yet (lazy) or put to sleep
     pub last_active: SystemTime,
 }
 
@@ -621,11 +682,20 @@ pub struct Browser {
     /// WebView is placed over the emulated screen.
     responsive_mode: bool,
     responsive_bounds: Option<[f64; 4]>,
-    /// The poll thread only sends ticks while this is set.
+    /// The poll thread only ticks while this is set (and is parked otherwise).
     devtools_polling: Arc<AtomicBool>,
+    poll_thread: std::thread::Thread,
     /// Start time (ms) of the poll in flight, 0 when idle.
     poll_busy: Arc<AtomicU64>,
     chrome_shown: Cell<bool>,
+    /// Hash of the last state pushed to the sidebar; identical states are not re-sent.
+    last_state_hash: Cell<u64>,
+    /// Cached new-tab suggestions, rebuilt only when visit stats change.
+    sugg_cache: RefCell<Option<Vec<Value>>>,
+    save_dirty: bool,
+    last_save: Instant,
+    /// Recent crashes per tab (window start, count), to avoid reload loops.
+    crashes: HashMap<String, (Instant, u32)>,
 }
 
 fn logical(w: &Window) -> (f64, f64) {
@@ -688,7 +758,7 @@ fn ok_url(s: &str, max: usize, allow_data: bool) -> bool {
 
 /// Keeps the last usable icon when WebView2 reports a transient empty result.
 fn update_favicon(current: &mut Option<String>, incoming: Option<String>) -> bool {
-    let Some(favicon) = incoming.filter(|value| ok_url(value, 512_000, true)) else {
+    let Some(favicon) = incoming.filter(|value| ok_url(value, FAVICON_MAX, true)) else {
         return false;
     };
     if current.as_deref() == Some(favicon.as_str()) {
@@ -804,8 +874,10 @@ fn devtools_target_id(webview: &WebView) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("WebView2 returned an invalid DevTools target ID"))
 }
 
+// Extra disabled features (hints/model downloads, media router, translate) trim background
+// work and memory. There must be exactly one --disable-features switch (the last one wins).
 #[cfg(windows)]
-const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-blink-features=AutomationControlled --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=devtools://devtools";
+const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,OptimizationHints,OptimizationGuideModelDownloading,MediaRouter,Translate --disable-blink-features=AutomationControlled --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=devtools://devtools";
 
 #[cfg(windows)]
 fn devtools_frontend_url(port: u16, target_id: &str) -> Result<String> {
@@ -985,15 +1057,14 @@ impl Browser {
             })
             .collect();
 
-        // Only ticks while DevTools is open (see `relayout`).
+        // Only ticks while DevTools is open (see `relayout`); parked (zero wakeups) otherwise.
         let devtools_polling = Arc::new(AtomicBool::new(false));
-        {
+        let poll_thread = {
             let flag = Arc::clone(&devtools_polling);
             let tick = proxy.clone();
-            std::thread::spawn(move || loop {
-                if !flag.load(Ordering::Relaxed) {
-                    std::thread::sleep(Duration::from_millis(200));
-                    continue;
+            let handle = std::thread::spawn(move || loop {
+                while !flag.load(Ordering::Relaxed) {
+                    std::thread::park();
                 }
                 std::thread::sleep(Duration::from_millis(40));
                 let ev = UserEvent::Page {
@@ -1004,7 +1075,8 @@ impl Browser {
                     break;
                 }
             });
-        }
+            handle.thread().clone()
+        };
 
         let initial_active = if p.restore_tabs {
             p.active_tabs.clone()
@@ -1033,8 +1105,14 @@ impl Browser {
             responsive_mode: false,
             responsive_bounds: None,
             devtools_polling,
+            poll_thread,
             poll_busy: Arc::new(AtomicU64::new(0)),
             chrome_shown: Cell::new(false),
+            last_state_hash: Cell::new(0),
+            sugg_cache: RefCell::new(None),
+            save_dirty: false,
+            last_save: Instant::now() - SAVE_MIN_INTERVAL,
+            crashes: HashMap::new(),
         };
         b.apply_theme();
         b.preinstall();
@@ -1116,6 +1194,10 @@ impl Browser {
                     self.close_devtools();
                     self.toast(&message);
                 }
+            }
+            UserEvent::TabCrashed { tab, browser } => {
+                self.recover_tab(&tab, browser);
+                self.push_state();
             }
             UserEvent::Ui(raw) => self.handle_ui(&raw),
             UserEvent::Page { tab, body } => self.handle_page(&tab, &body),
@@ -1224,10 +1306,14 @@ impl Browser {
             }
             PageMsg::Meta { u } => {
                 let mut persist = false;
+                let mut sites_dirty = false;
                 let restore = self.p.restore_tabs;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
+                    let mut url_changed = false;
                     if let Some(u) = u.filter(|u| ok_url(u, 4096, false)) {
-                        t.url = u.clone();
+                        if t.url != u {
+                            url_changed = true;
+                        }
                         if let Ok(parsed) = url::Url::parse(&u) {
                             if let Some(h) = parsed.host_str() {
                                 let host = h.trim_start_matches("www.").to_string();
@@ -1237,32 +1323,45 @@ impl Browser {
                                     let s = self.p.sites.entry(host).or_default();
                                     s.count += 1;
                                     s.url = format!("{}://{}/", parsed.scheme(), h);
+                                    sites_dirty = true;
                                 }
                             }
                         }
+                        t.url = u;
                     }
                     if let Some(fv) = &t.favicon {
                         if let Some(s) = self.p.sites.get_mut(&t.host) {
-                            s.favicon = Some(fv.clone());
+                            if s.favicon.as_ref() != Some(fv) {
+                                s.favicon = Some(fv.clone());
+                                sites_dirty = true;
+                            }
                         }
                     }
-                    persist = t.kind != Kind::Normal || restore;
+                    persist = url_changed && (t.kind != Kind::Normal || restore);
                 }
                 self.p.prune_sites();
+                if sites_dirty {
+                    self.sugg_cache.replace(None);
+                }
                 if persist {
                     self.save();
                 }
             }
             PageMsg::Favicon { f } => {
                 let mut persist = false;
+                let mut sites_dirty = false;
                 let restore = self.p.restore_tabs;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     if update_favicon(&mut t.favicon, f) {
                         if let Some(s) = self.p.sites.get_mut(&t.host) {
                             s.favicon = t.favicon.clone();
+                            sites_dirty = true;
                         }
                         persist = t.kind != Kind::Normal || restore;
                     }
+                }
+                if sites_dirty {
+                    self.sugg_cache.replace(None);
                 }
                 if persist {
                     self.save();
@@ -1333,12 +1432,17 @@ impl Browser {
             }
         }
         // The sidebar is a separate WebView and only sees tab changes through pushed state.
+        // (Identical states are dropped inside push_state.)
         self.push_state();
     }
 
     fn run(&mut self, cmd: Cmd) -> Result<()> {
         match cmd {
-            Cmd::Ready => self.restore_space_tab()?,
+            Cmd::Ready => {
+                // The sidebar just (re)loaded and has no state yet: force a full push.
+                self.last_state_hash.set(0);
+                self.restore_space_tab()?
+            }
             Cmd::SidebarCollapsed { collapsed } => {
                 self.p.sidebar_collapsed = collapsed;
                 self.save();
@@ -1680,16 +1784,16 @@ impl Browser {
         Ok(())
     }
 
-    /// Closes the panel and drops the frontend's connection to the page, which also removes any
-    /// device-mode emulation from the page.
+    /// Closes the panel and drops the frontend WebView (freeing its memory); dropping its
+    /// connection to the page also removes any device-mode emulation from the page.
     fn close_devtools(&mut self) {
         self.devtools_open = false;
         self.devtools_tab = None;
         self.responsive_mode = false;
         self.responsive_bounds = None;
-        if let Some(devtools) = self.devtools.as_ref() {
+        if let Some(devtools) = self.devtools.take() {
             let _ = devtools.set_visible(false);
-            let _ = devtools.load_url("about:blank");
+            drop(devtools);
         }
         self.relayout();
         if let Some(wv) = self.visible_webview() {
@@ -2158,11 +2262,120 @@ impl Browser {
             }
         }
 
+        // Crash recovery: a dead renderer (or browser process) is reported to the main loop,
+        // which recreates the WebView instead of leaving a blank/frozen tab.
+        #[cfg(windows)]
+        {
+            use webview2_com::{Microsoft::Web::WebView2::Win32::*, ProcessFailedEventHandler};
+
+            let crash_proxy = self.proxy.clone();
+            let crash_tab = id.clone();
+            unsafe {
+                match wv.controller().CoreWebView2() {
+                    Ok(core) => {
+                        let handler =
+                            ProcessFailedEventHandler::create(Box::new(move |_sender, args| {
+                                let Some(args) = args else { return Ok(()) };
+                                let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
+                                args.ProcessFailedKind(&mut kind)?;
+                                let browser =
+                                    kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
+                                let render =
+                                    kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED;
+                                if browser || render {
+                                    let _ = crash_proxy.send_event(UserEvent::TabCrashed {
+                                        tab: crash_tab.clone(),
+                                        browser,
+                                    });
+                                }
+                                Ok(())
+                            }));
+                        let mut token = 0;
+                        if let Err(error) = core.add_ProcessFailed(&handler, &mut token) {
+                            log::warn!("registering WebView2 crash handler failed: {error}");
+                        }
+                    }
+                    Err(error) => {
+                        log::warn!("getting WebView2 core for crash handler failed: {error}")
+                    }
+                }
+            }
+        }
+
         if self.ext_done.insert(profile_id) {
             extensions::load_all(&wv, &self.root.join("extensions"));
         }
         self.tabs[idx].webview = Some(wv);
         Ok(())
+    }
+
+    /// Recreates the WebView of a tab whose renderer died, or of every tab of a profile whose
+    /// browser process died. Guards against crash loops.
+    fn recover_tab(&mut self, tab: &str, browser_died: bool) {
+        let Some(profile) = self
+            .tabs
+            .iter()
+            .find(|t| t.id == tab)
+            .map(|t| t.profile_id.clone())
+        else {
+            return;
+        };
+
+        let now = Instant::now();
+        let entry = self.crashes.entry(tab.to_string()).or_insert((now, 0));
+        if now.duration_since(entry.0) > Duration::from_secs(30) {
+            *entry = (now, 0);
+        }
+        entry.1 += 1;
+        let count = entry.1;
+        if count > 3 {
+            self.toast("This page keeps crashing, so it was not reloaded again.");
+            return;
+        }
+
+        let victims: Vec<usize> = self
+            .tabs
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| {
+                t.webview.is_some()
+                    && if browser_died {
+                        t.profile_id == profile
+                    } else {
+                        t.id == tab
+                    }
+            })
+            .map(|(i, _)| i)
+            .collect();
+        if victims.is_empty() {
+            return;
+        }
+
+        let visible_hit = self
+            .visible
+            .as_deref()
+            .map(|v| victims.iter().any(|&i| self.tabs[i].id == v))
+            .unwrap_or(false);
+        if visible_hit {
+            if self.devtools_open {
+                self.close_devtools();
+            }
+            self.leave_fullscreen();
+        }
+        let revive = if visible_hit { self.visible.take() } else { None };
+        for i in victims {
+            self.tabs[i].webview = None;
+        }
+        if browser_died {
+            // The profile's environment is gone, so extensions must be loaded again.
+            self.ext_done.remove(&profile);
+        }
+        if let Some(id) = revive {
+            if let Err(e) = self.activate(&id) {
+                log::error!("could not recover crashed tab: {e:#}");
+            }
+        }
+        self.toast("A page crashed and was reloaded.");
     }
 
     fn leave_fullscreen(&mut self) {
@@ -2185,16 +2398,19 @@ impl Browser {
         };
         self.responsive_mode = false;
         self.responsive_bounds = None;
-        if let Some(wv) = self
-            .tabs
-            .iter()
-            .find(|t| t.id == id)
-            .and_then(|t| t.webview.as_ref())
-        {
-            if self.p.auto_pip {
-                pip::on_leave(wv);
+        let auto_pip = self.p.auto_pip;
+        if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) {
+            // The idle clock (for sleeping the tab) starts when the user leaves it.
+            t.last_active = SystemTime::now();
+            if let Some(wv) = t.webview.as_ref() {
+                if auto_pip {
+                    pip::on_leave(wv);
+                }
+                let _ = wv.set_visible(false);
+                if !is_playing_audio(wv) {
+                    set_memory_level(wv, true);
+                }
             }
-            let _ = wv.set_visible(false);
         }
         if let Some(devtools) = self.devtools.as_ref() {
             let _ = devtools.set_visible(false);
@@ -2205,9 +2421,7 @@ impl Browser {
         let Some(idx) = self.tabs.iter().position(|t| t.id == id) else {
             return Ok(());
         };
-        if self.tabs[idx].kind == Kind::Normal {
-            self.tabs[idx].last_active = SystemTime::now();
-        }
+        self.tabs[idx].last_active = SystemTime::now();
         if self.visible.as_deref() == Some(id) && !self.overlay {
             return Ok(());
         }
@@ -2217,6 +2431,9 @@ impl Browser {
         self.visible = Some(id.to_string());
         self.active
             .insert(self.p.current_space.clone(), id.to_string());
+        if let Some(wv) = &self.tabs[idx].webview {
+            set_memory_level(wv, false);
+        }
         self.relayout();
         if let Some(wv) = &self.tabs[idx].webview {
             wv.focus()?;
@@ -2264,6 +2481,7 @@ impl Browser {
         if was_visible {
             self.restore_space_tab()?;
         }
+        self.prune_ext_done();
         self.save();
         Ok(())
     }
@@ -2365,16 +2583,69 @@ impl Browser {
         }
         self.tabs.retain(|t| t.space_id.as_deref() != Some(id));
         self.p.spaces.retain(|s| s.id != id);
+        // Folders of a deleted space would otherwise live in state.json forever.
+        self.p.folders.retain(|f| f.space_id != id);
         self.active.remove(id);
         if self.p.current_space == id {
             self.p.current_space = self.p.spaces[0].id.clone();
             self.restore_space_tab()?;
         }
+        self.prune_ext_done();
         self.save();
         Ok(())
     }
 
-    /// Expires inactive normal tabs and applies profile-level browsing-data policies.
+    /// A profile whose last WebView is gone loses its WebView2 environment, so its extensions
+    /// have to be loaded again the next time one is created.
+    fn prune_ext_done(&mut self) {
+        let live: HashSet<String> = self
+            .tabs
+            .iter()
+            .filter(|t| t.webview.is_some())
+            .map(|t| t.profile_id.clone())
+            .collect();
+        self.ext_done.retain(|p| live.contains(p));
+    }
+
+    /// Releases the WebView (and with it the renderer process) of background tabs that have been
+    /// idle for `tab_sleep_minutes`. The tab stays in the sidebar at its current URL and reloads
+    /// when selected. The visible tab, the DevTools target and tabs playing audio are kept.
+    fn sleep_idle_tabs(&mut self) {
+        let minutes = self.p.tab_sleep_minutes;
+        if minutes == 0 {
+            return;
+        }
+        let limit = Duration::from_secs(minutes.saturating_mul(60));
+        let now = SystemTime::now();
+        let visible = self.visible.clone();
+        let devtools_tab = self.devtools_tab.clone();
+        let mut slept = false;
+        for t in self.tabs.iter_mut() {
+            let Some(wv) = t.webview.as_ref() else {
+                continue;
+            };
+            if visible.as_deref() == Some(t.id.as_str())
+                || devtools_tab.as_deref() == Some(t.id.as_str())
+            {
+                continue;
+            }
+            if now.duration_since(t.last_active).unwrap_or(Duration::ZERO) < limit {
+                continue;
+            }
+            if is_playing_audio(wv) {
+                t.last_active = now;
+                continue;
+            }
+            t.webview = None;
+            slept = true;
+        }
+        if slept {
+            self.prune_ext_done();
+        }
+    }
+
+    /// Expires inactive normal tabs, puts idle ones to sleep and applies profile-level
+    /// browsing-data policies.
     pub fn cleanup_expired_tabs(&mut self) {
         let now = SystemTime::now();
         let expired: Vec<String> = self
@@ -2401,6 +2672,7 @@ impl Browser {
                 log::warn!("auto-tidy could not close tab: {e:#}");
             }
         }
+        self.sleep_idle_tabs();
         self.cleanup_profile_data();
         self.push_state();
     }
@@ -2664,10 +2936,11 @@ impl Browser {
             }
         }
 
-        self.devtools_polling.store(
-            self.devtools_open && !self.overlay && !self.fullscreen,
-            Ordering::Relaxed,
-        );
+        let want_polling = self.devtools_open && !self.overlay && !self.fullscreen;
+        let was_polling = self.devtools_polling.swap(want_polling, Ordering::Relaxed);
+        if want_polling && !was_polling {
+            self.poll_thread.unpark();
+        }
         self.sync_devtools_chrome(&layout);
     }
 
@@ -2693,7 +2966,33 @@ impl Browser {
             .evaluate_script(&format!("({DEVTOOLS_CHROME_JS})({arg})"));
     }
 
+    /// Marks the state dirty and writes it unless a write just happened; bursts of changes
+    /// (navigation, favicons, drags) are coalesced and flushed by `flush_save` from the event
+    /// loop timer, so the UI thread is not blocked by disk I/O on every event.
     pub fn save(&mut self) {
+        self.save_dirty = true;
+        if self.last_save.elapsed() >= SAVE_MIN_INTERVAL {
+            self.flush_save();
+        }
+    }
+
+    pub fn save_pending(&self) -> bool {
+        self.save_dirty
+    }
+
+    /// Final, unconditional write on exit.
+    pub fn shutdown(&mut self) {
+        self.save_dirty = true;
+        self.flush_save();
+        if let Some(devtools) = self.devtools.take() {
+            drop(devtools);
+        }
+    }
+
+    pub fn flush_save(&mut self) {
+        if !self.save_dirty {
+            return;
+        }
         let restore = self.p.restore_tabs;
         self.p.saved = self
             .tabs
@@ -2712,7 +3011,11 @@ impl Browser {
                     t.home.clone()
                 },
                 title: t.title.clone(),
-                favicon: t.favicon.clone(),
+                // Large inline icons are kept in memory only, not written to disk.
+                favicon: t
+                    .favicon
+                    .clone()
+                    .filter(|f| f.len() <= FAVICON_PERSIST_MAX),
             })
             .collect();
         self.p.active_tabs = if restore {
@@ -2720,7 +3023,13 @@ impl Browser {
         } else {
             HashMap::new()
         };
-        self.p.save(&self.root.join("state.json"));
+        let ok = self.p.save(&self.root.join("state.json"));
+        self.last_save = Instant::now();
+        if ok {
+            self.save_dirty = false;
+        } else {
+            log::warn!("saving state.json failed; will retry");
+        }
     }
 
     /// Visited sites by use first, then popular defaults the user hasn't visited yet.
@@ -2748,6 +3057,17 @@ impl Browser {
             }
         }
         out
+    }
+
+    /// Suggestions are rebuilt only after visit stats changed, not on every state push.
+    fn suggestions_cached(&self) -> std::cell::Ref<'_, [Value]> {
+        if self.sugg_cache.borrow().is_none() {
+            let fresh = self.suggestions();
+            *self.sugg_cache.borrow_mut() = Some(fresh);
+        }
+        std::cell::Ref::map(self.sugg_cache.borrow(), |cache| {
+            cache.as_deref().unwrap_or(&[])
+        })
     }
 
     /// If the visible tab is a Chrome Web Store detail page, the extension's ID.
@@ -2793,6 +3113,8 @@ impl Browser {
             .map(|t| t.url.clone())
             .unwrap_or_default();
 
+        let sugg_ref = self.suggestions_cached();
+        let sugg: &[Value] = &sugg_ref;
         let state = json!({
             "profiles": self.p.profiles,
             "spaces": self.p.spaces,
@@ -2803,7 +3125,7 @@ impl Browser {
             "pinned": in_space(Kind::Pinned),
             "tabs": in_space(Kind::Normal),
             "folders": self.p.folders.iter().filter(|f| f.space_id == sp.id).collect::<Vec<_>>(),
-            "suggestions": self.suggestions(),
+            "suggestions": sugg,
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
@@ -2824,8 +3146,22 @@ impl Browser {
                 }))
                 .unwrap_or_else(|| json!({})),
         });
-        let _ = self
+        drop(sugg_ref);
+
+        // Skip the IPC round-trip and the sidebar re-render when nothing visible changed.
+        let payload = state.to_string();
+        let mut hasher = DefaultHasher::new();
+        payload.hash(&mut hasher);
+        let digest = hasher.finish().max(1);
+        if self.last_state_hash.get() == digest {
+            return;
+        }
+        if self
             .sidebar
-            .evaluate_script(&format!("window.__setState({state})"));
+            .evaluate_script(&format!("window.__setState({payload})"))
+            .is_ok()
+        {
+            self.last_state_hash.set(digest);
+        }
     }
 }
