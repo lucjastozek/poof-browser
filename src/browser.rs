@@ -525,6 +525,9 @@ enum Cmd {
     SetTheme {
         theme: String,
     },
+    SetRestoreTabs {
+        on: bool,
+    },
     SetAutoPip {
         on: bool,
     },
@@ -1003,6 +1006,12 @@ impl Browser {
             });
         }
 
+        let initial_active = if p.restore_tabs {
+            p.active_tabs.clone()
+        } else {
+            HashMap::new()
+        };
+
         let mut b = Self {
             window,
             proxy,
@@ -1013,7 +1022,7 @@ impl Browser {
             ext_done: HashSet::new(),
             p,
             tabs,
-            active: HashMap::new(),
+            active: initial_active,
             visible: None,
             overlay: false,
             fullscreen: false,
@@ -1215,6 +1224,7 @@ impl Browser {
             }
             PageMsg::Meta { u } => {
                 let mut persist = false;
+                let restore = self.p.restore_tabs;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     if let Some(u) = u.filter(|u| ok_url(u, 4096, false)) {
                         t.url = u.clone();
@@ -1236,7 +1246,7 @@ impl Browser {
                             s.favicon = Some(fv.clone());
                         }
                     }
-                    persist = t.kind != Kind::Normal;
+                    persist = t.kind != Kind::Normal || restore;
                 }
                 self.p.prune_sites();
                 if persist {
@@ -1245,12 +1255,13 @@ impl Browser {
             }
             PageMsg::Favicon { f } => {
                 let mut persist = false;
+                let restore = self.p.restore_tabs;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     if update_favicon(&mut t.favicon, f) {
                         if let Some(s) = self.p.sites.get_mut(&t.host) {
                             s.favicon = t.favicon.clone();
                         }
-                        persist = t.kind != Kind::Normal;
+                        persist = t.kind != Kind::Normal || restore;
                     }
                 }
                 if persist {
@@ -1577,6 +1588,10 @@ impl Browser {
                     self.apply_theme();
                     self.save();
                 }
+            }
+            Cmd::SetRestoreTabs { on } => {
+                self.p.restore_tabs = on;
+                self.save();
             }
             Cmd::SetAutoPip { on } => {
                 self.p.auto_pip = on;
@@ -2209,6 +2224,9 @@ impl Browser {
                 pip::on_enter(wv);
             }
         }
+        if self.p.restore_tabs {
+            self.save();
+        }
         if self.devtools_open {
             self.attach_devtools()?;
         }
@@ -2676,21 +2694,32 @@ impl Browser {
     }
 
     pub fn save(&mut self) {
+        let restore = self.p.restore_tabs;
         self.p.saved = self
             .tabs
             .iter()
-            .filter(|t| t.kind != Kind::Normal)
+            .filter(|t| t.kind != Kind::Normal || (restore && t.url != "about:blank"))
             .map(|t| Saved {
                 id: t.id.clone(),
                 profile_id: t.profile_id.clone(),
                 space_id: t.space_id.clone(),
                 kind: t.kind,
                 folder_id: t.folder_id.clone(),
-                url: t.home.clone(),
+                // Pinned/favorite tabs reset to `home`; normal tabs resume where they were.
+                url: if t.kind == Kind::Normal {
+                    t.url.clone()
+                } else {
+                    t.home.clone()
+                },
                 title: t.title.clone(),
                 favicon: t.favicon.clone(),
             })
             .collect();
+        self.p.active_tabs = if restore {
+            self.active.clone()
+        } else {
+            HashMap::new()
+        };
         self.p.save(&self.root.join("state.json"));
     }
 
@@ -2778,6 +2807,7 @@ impl Browser {
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
+            "restore_tabs": self.p.restore_tabs,
             "sidebar_collapsed": self.p.sidebar_collapsed,
             "sidebar_width": self.p.sidebar_width,
             "sidebar_compact": self.p.sidebar_compact,

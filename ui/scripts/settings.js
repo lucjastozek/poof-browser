@@ -126,6 +126,22 @@ function buildSettings(v) {
     S.auto_pip = on;
     send({ cmd: "set_auto_pip", on });
   };
+  const restore = el("button", "switch");
+  restore.type = "button";
+  restore.setAttribute("role", "switch");
+  restore.setAttribute("aria-checked", String(!!S.restore_tabs));
+  const restoreText = el("span", "t");
+  restoreText.append(
+    el("span", null, "Restore tabs on startup"),
+    el("small", null, "Reopen the tabs you had open when you last closed poof"),
+  );
+  restore.append(restoreText, el("span", "track"));
+  restore.onclick = () => {
+    const on = restore.getAttribute("aria-checked") !== "true";
+    restore.setAttribute("aria-checked", String(on));
+    S.restore_tabs = on;
+    send({ cmd: "set_restore_tabs", on });
+  };
   const keys = el("div", "keys");
   [
     ["New tab", ["Ctrl", "T"]],
@@ -252,8 +268,17 @@ function buildSettings(v) {
       history_retention_hours: Number(historyAge.value),
     });
   const devtoolsDock = el("div", "seg");
-  [["right", "Right"], ["left", "Left"], ["bottom", "Bottom"], ["top", "Top"]].forEach(([value, label]) => {
-    const option = el("button", S.devtools_position === value ? "on" : "", label);
+  [
+    ["right", "Right"],
+    ["left", "Left"],
+    ["bottom", "Bottom"],
+    ["top", "Top"],
+  ].forEach(([value, label]) => {
+    const option = el(
+      "button",
+      S.devtools_position === value ? "on" : "",
+      label,
+    );
     option.type = "button";
     option.setAttribute("aria-pressed", String(S.devtools_position === value));
     option.onclick = () => {
@@ -268,10 +293,21 @@ function buildSettings(v) {
     devtoolsDock.append(option);
   });
   const devtoolsSize = el("div", "seg");
-  [[320, "Narrow"], [420, "Default"], [560, "Wide"]].forEach(([value, label]) => {
-    const option = el("button", Number(S.devtools_size || 420) === value ? "on" : "", label);
+  [
+    [320, "Narrow"],
+    [420, "Default"],
+    [560, "Wide"],
+  ].forEach(([value, label]) => {
+    const option = el(
+      "button",
+      Number(S.devtools_size || 420) === value ? "on" : "",
+      label,
+    );
     option.type = "button";
-    option.setAttribute("aria-pressed", String(Number(S.devtools_size || 420) === value));
+    option.setAttribute(
+      "aria-pressed",
+      String(Number(S.devtools_size || 420) === value),
+    );
     option.onclick = () => {
       S.devtools_size = value;
       send({ cmd: "devtools_size", size: value, persist: true });
@@ -287,7 +323,7 @@ function buildSettings(v) {
     field("Appearance", seg),
     field("Developer tools · dock", devtoolsDock),
     field("Developer tools · size", devtoolsSize),
-    field("Browsing", sw),
+    field("Browsing", sw, restore),
     field("Sidebar", compact),
     field("Automatic cleanup", cleanup),
     field(

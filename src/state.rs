@@ -12,7 +12,7 @@ pub enum Kind {
     Favorite,
     /// Belongs to one space, persisted.
     Pinned,
-    /// Ephemeral (not persisted yet; Arc archives these, we just drop them).
+    /// Ephemeral unless `restore_tabs` is on, in which case it is persisted too.
     Normal,
 }
 
@@ -158,6 +158,12 @@ pub struct Persisted {
     pub current_space: String,
     #[serde(default = "yes")]
     pub auto_pip: bool,
+    /// Reopen the tabs that were open when the browser was closed.
+    #[serde(default)]
+    pub restore_tabs: bool,
+    /// Last active tab per space (space id -> tab id); only kept while `restore_tabs` is on.
+    #[serde(default)]
+    pub active_tabs: HashMap<String, String>,
     /// "system" | "light" | "dark"
     #[serde(default = "system")]
     pub theme: String,
@@ -209,6 +215,8 @@ impl Default for Persisted {
             folder_layout_version: 1,
             current_space: sid,
             auto_pip: true,
+            restore_tabs: false,
+            active_tabs: HashMap::new(),
             theme: system(),
             sidebar_width: default_sidebar_width(),
             sidebar_collapsed: false,
@@ -323,5 +331,12 @@ mod devtools_state_tests {
         state.devtools_size = 2_000.0;
         state.sanitize_devtools_preferences();
         assert_eq!(state.devtools_size, 800.0);
+    }
+
+    #[test]
+    fn restore_tabs_is_off_by_default() {
+        let state = Persisted::default();
+        assert!(!state.restore_tabs);
+        assert!(state.active_tabs.is_empty());
     }
 }
