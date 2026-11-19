@@ -13,11 +13,14 @@ dirs = "5"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
 log = "0.4"
-env_logger = "0.11"
+# Only the RUST_LOG filter is needed: no regex / color / timestamp dependencies.
+env_logger = { version = "0.11", default-features = false }
 ureq = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 base64 = "0.22"
-resvg = "0.45"
+# Used only to rasterize the window icon at startup: no text shaping, no raster-image decoders.
+# If the logo SVG ever uses <text> or embedded bitmaps, re-enable "text" / "raster-images".
+resvg = { version = "0.45", default-features = false }
 
 # Windows only: raw WebView2 access (extensions + gesture-enabled JS for auto-PiP).
 # IMPORTANT: these two versions must match the ones wry resolves to.
@@ -30,3 +33,11 @@ windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gd
 resvg = "0.45"
 ico = "0.3"
 winres = "0.1"
+
+# Smaller, faster-starting binary. Panics stay "unwind" (the default) on purpose so a
+# panic can't skip the state save and the process can still log what happened.
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+strip = true

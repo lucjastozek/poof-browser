@@ -12,18 +12,33 @@ const collapseBtn = ib("panelLeftClose", "Collapse sidebar", () => {
 $("topNav").append(collapseBtn);
 
 // Drag the sidebar's right edge to resize it. The native content view is
-// relaid out continuously; only the final width is written to disk.
+// relaid out continuously (at most once per frame); only the final width is
+// written to disk.
 const resizeHandle = $("side-resize");
 let sidebarWidth = 280;
 let resizingSidebar = false;
 let resizePointerId = null;
+let resizeFrame = 0;
 function applySidebarWidth(width, persist = false) {
   sidebarWidth = Math.max(180, Math.min(480, width));
   document.documentElement.style.setProperty(
     "--sidebar-width",
     `${sidebarWidth}px`,
   );
-  send({ cmd: "sidebar_width", width: sidebarWidth, persist });
+  if (persist) {
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+    }
+    send({ cmd: "sidebar_width", width: sidebarWidth, persist: true });
+    return;
+  }
+  if (!resizeFrame) {
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      send({ cmd: "sidebar_width", width: sidebarWidth, persist: false });
+    });
+  }
 }
 resizeHandle.addEventListener("pointerdown", (e) => {
   if (
@@ -85,7 +100,9 @@ $("copyLink").onclick = async () => {
   }
 };
 $("pageToolbar").append(ib("puzzle", "Extensions", () => openView("ext")));
-$("pageToolbar").append(ib("code", "Developer tools (F12)", () => send({ cmd: "devtools_toggle" })));
+$("pageToolbar").append(
+  ib("code", "Developer tools (F12)", () => send({ cmd: "devtools_toggle" })),
+);
 $("winMin").onclick = () => send({ cmd: "window_minimize" });
 $("winMax").onclick = () => send({ cmd: "window_toggle_maximize" });
 $("winClose").onclick = () => send({ cmd: "window_close" });
@@ -184,7 +201,9 @@ function folderNode(s, folder, pinned) {
   head.onpointerdown = (e) => watchFolderDrag(e, head, folder);
   group.append(head);
   const contents = el("div", "folder-contents");
-  contents.append(...members.map((t) => row(t, pinned ? "pin" : "tab")));
+  // A collapsed folder's rows are never visible, so they are not built at all.
+  if (!folder.collapsed)
+    contents.append(...members.map((t) => row(t, pinned ? "pin" : "tab")));
   group.append(contents);
   return group;
 }
@@ -283,11 +302,12 @@ window.__setState = (s) => {
     pending = s;
     return;
   }
-  const key = JSON.stringify(s);
-  if (key === lastKey) return;
-  lastKey = key;
+  // The native side already drops identical states, so no JSON.stringify of the whole
+  // snapshot (favicons included) is needed here. `lastKey` is kept only because the
+  // drag code resets it.
+  lastKey = "";
   S = s;
-  if (Number.isFinite(s.sidebar_width)) {
+  if (Number.isFinite(s.sidebar_width) && !resizingSidebar) {
     sidebarWidth = Math.max(180, Math.min(480, s.sidebar_width));
     document.documentElement.style.setProperty(
       "--sidebar-width",
@@ -636,7 +656,6 @@ function endDrag(drop) {
   if (pending) {
     const p = pending;
     pending = null;
-    lastKey = "";
     window.__setState(p);
   }
 }
