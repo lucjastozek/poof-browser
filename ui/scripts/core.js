@@ -133,6 +133,20 @@ let S = null,
   drag = null,
   noClick = false;
 const curSpace = () => S.spaces.find((x) => x.id === S.current);
+
+/* Resolved favicon sources, keyed by their candidate list. The sidebar rebuilds every row on
+   each state push; without this each rebuild re-ran the whole candidate chain
+   (/favicon.ico, apple-touch-icon, Google's favicon service) and re-created Image objects.
+   Failures are remembered for a few minutes so a dead icon is not retried on every render. */
+const ICON_CACHE_MAX = 400;
+const ICON_FAIL_TTL = 5 * 60 * 1000;
+const iconCache = new Map();
+function rememberIcon(key, src) {
+  iconCache.delete(key);
+  if (iconCache.size >= ICON_CACHE_MAX)
+    iconCache.delete(iconCache.keys().next().value);
+  iconCache.set(key, { src, t: Date.now() });
+}
 function icon(t, guess = true) {
   const w = el("span", "ico");
   const candidates = [];
@@ -162,17 +176,38 @@ function icon(t, guess = true) {
     showFallback();
     return w;
   }
+  const key = candidates.join("|");
+  const cached = iconCache.get(key);
+  if (cached && cached.src === null && Date.now() - cached.t < ICON_FAIL_TTL) {
+    showFallback();
+    return w;
+  }
   const i = new Image();
   i.referrerPolicy = "no-referrer";
   i.draggable = false;
+  i.decoding = "async";
+  if (cached && cached.src) {
+    // Known-good source: one request (served from the HTTP cache), no chain.
+    i.onerror = () => {
+      iconCache.delete(key);
+      showFallback();
+    };
+    w.appendChild(i);
+    i.src = cached.src;
+    return w;
+  }
   let index = 0;
   i.onerror = () => {
     index += 1;
     if (index < candidates.length) i.src = candidates[index];
-    else showFallback();
+    else {
+      rememberIcon(key, null);
+      showFallback();
+    }
   };
   i.onload = () => {
     if (!i.naturalWidth || !i.naturalHeight) i.onerror();
+    else rememberIcon(key, candidates[index]);
   };
   w.appendChild(i);
   i.src = candidates[index];

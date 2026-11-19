@@ -61,7 +61,7 @@ pub enum UserEvent {
 
 fn poof_icon() -> Option<tao::window::Icon> {
     let tree = resvg::usvg::Tree::from_data(
-        include_bytes!("../poof-logo.svg"),
+        include_bytes!("../poof-icon.svg"),
         &resvg::usvg::Options::default(),
     )
     .ok()?;

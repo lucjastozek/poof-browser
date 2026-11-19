@@ -15,6 +15,11 @@ use std::{
 /// Installed automatically on first run: AdBlocker Ultimate.
 pub const PREINSTALL: &[&str] = &["ohahllgiabjaoigichmmfljhkcfikeof"];
 
+/// Largest CRX download accepted.
+const MAX_CRX_BYTES: u64 = 120 * 1024 * 1024;
+/// Largest total unpacked size accepted (guards against zip bombs).
+const MAX_UNPACKED_BYTES: u64 = 400 * 1024 * 1024;
+
 /// Accepts a raw ID or any Web Store URL containing one (32 chars, a–p).
 pub fn parse_id(input: &str) -> Option<String> {
     input
@@ -39,30 +44,10 @@ fn zip_part(b: &[u8]) -> Result<&[u8]> {
     b.get(start..).ok_or_else(|| anyhow!("truncated CRX"))
 }
 
-/// Blocking: call from a worker thread. Returns (folder, display name).
-pub fn install(root: &Path, id: &str) -> Result<(PathBuf, String)> {
-    let url = format!(
-        "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=130.0.0.0&acceptformat=crx2,crx3&x=id%3D{id}%26uc"
-    );
-    let agent = ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(90))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
-        .build();
-    let resp = agent
-        .get(&url)
-        .call()
-        .map_err(|e| anyhow!("download failed: {e}"))?;
-    let mut buf = Vec::new();
-    resp.into_reader()
-        .take(120 * 1024 * 1024)
-        .read_to_end(&mut buf)?;
-
-    let exts = root.join("extensions");
-    let tmp = exts.join(format!("_tmp_{id}"));
-    let _ = fs::remove_dir_all(&tmp);
-    fs::create_dir_all(&tmp)?;
-
-    let mut ar = zip::ZipArchive::new(Cursor::new(zip_part(&buf)?))?;
+/// Unpacks the zip part of a CRX into `dir`, refusing path escapes and oversized archives.
+fn unpack(buf: &[u8], dir: &Path) -> Result<()> {
+    let mut ar = zip::ZipArchive::new(Cursor::new(zip_part(buf)?))?;
+    let mut total: u64 = 0;
     for i in 0..ar.len() {
         let mut f = ar.by_index(i)?;
         let Some(rel) = f.enclosed_name() else {
@@ -77,7 +62,11 @@ pub fn install(root: &Path, id: &str) -> Result<(PathBuf, String)> {
         {
             continue;
         }
-        let out = tmp.join(&rel);
+        total = total.saturating_add(f.size());
+        if total > MAX_UNPACKED_BYTES {
+            bail!("extension is too large once unpacked");
+        }
+        let out = dir.join(&rel);
         if f.is_dir() {
             fs::create_dir_all(&out)?;
         } else {
@@ -85,17 +74,75 @@ pub fn install(root: &Path, id: &str) -> Result<(PathBuf, String)> {
                 fs::create_dir_all(p)?;
             }
             let mut o = fs::File::create(&out)?;
-            std::io::copy(&mut f, &mut o)?;
+            // Never trust the declared size alone.
+            let mut limited = (&mut f).take(MAX_UNPACKED_BYTES);
+            std::io::copy(&mut limited, &mut o)?;
         }
     }
+    Ok(())
+}
+
+/// Blocking: call from a worker thread. Returns (folder, display name).
+pub fn install(root: &Path, id: &str) -> Result<(PathBuf, String)> {
+    let url = format!(
+        "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=130.0.0.0&acceptformat=crx2,crx3&x=id%3D{id}%26uc"
+    );
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(15))
+        .timeout(Duration::from_secs(90))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+        .build();
+    let resp = agent
+        .get(&url)
+        .call()
+        .map_err(|e| anyhow!("download failed: {e}"))?;
+    let mut buf = Vec::new();
+    let read = resp
+        .into_reader()
+        .take(MAX_CRX_BYTES + 1)
+        .read_to_end(&mut buf)?;
+    if read as u64 > MAX_CRX_BYTES {
+        bail!("extension download is too large");
+    }
+
+    let exts = root.join("extensions");
+    let tmp = exts.join(format!("_tmp_{id}"));
+    let old = exts.join(format!("_old_{id}"));
+    let _ = fs::remove_dir_all(&tmp);
+    let _ = fs::remove_dir_all(&old);
+    fs::create_dir_all(&tmp)?;
+
+    // Any failure while unpacking must not leave a half-written staging folder behind.
+    if let Err(e) = unpack(&buf, &tmp) {
+        let _ = fs::remove_dir_all(&tmp);
+        return Err(e);
+    }
+    drop(buf); // free the download before doing the rest
+
     if !tmp.join("manifest.json").is_file() {
         let _ = fs::remove_dir_all(&tmp);
         bail!("package has no manifest.json");
     }
     let name = info_for(&tmp, id).name;
+
+    // Swap the new version in without ever deleting the old one first: if anything fails the
+    // previously installed version is put back.
     let dest = exts.join(id);
-    let _ = fs::remove_dir_all(&dest);
-    fs::rename(&tmp, &dest)?;
+    let had_old = dest.exists();
+    if had_old {
+        if let Err(e) = fs::rename(&dest, &old) {
+            let _ = fs::remove_dir_all(&tmp);
+            return Err(e.into());
+        }
+    }
+    if let Err(e) = fs::rename(&tmp, &dest) {
+        if had_old {
+            let _ = fs::rename(&old, &dest);
+        }
+        let _ = fs::remove_dir_all(&tmp);
+        return Err(e.into());
+    }
+    let _ = fs::remove_dir_all(&old);
     Ok((dest, name))
 }
 
