@@ -404,7 +404,7 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
     ("Chrome Web Store", "https://chromewebstore.google.com/"),
 ];
 
-/// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
+/// Injected into every content page and subframe. Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = include_str!("browser/init_script.js");
 
 /// Draws the DevTools resize handle and header strip. They live in the sidebar WebView, whose IPC
@@ -2811,13 +2811,20 @@ impl Browser {
 
         let (p1, p2, p3) = (self.proxy.clone(), self.proxy.clone(), self.proxy.clone());
         let (id1, id2) = (id.clone(), id.clone());
+        let space_color = self.tabs[idx]
+            .space_id
+            .as_deref()
+            .and_then(|space_id| self.p.spaces.iter().find(|space| space.id == space_id))
+            .map(|space| space.color.as_str())
+            .unwrap_or("#808080");
+        let init_script = INIT_JS.replace("__POOF_SPACE_COLOR__", space_color);
 
         let builder = WebViewBuilder::new_with_web_context(ctx)
             .with_bounds(bounds)
             .with_visible(false)
             .with_devtools(false)
             .with_url(&url)
-            .with_initialization_script_for_main_only(INIT_JS, false)
+            .with_initialization_script_for_main_only(&init_script, false)
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page {
                     tab: id1.clone(),
