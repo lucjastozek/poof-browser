@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 const browser = await chromium.launch({ headless: true });
 await mkdir("artifacts", { recursive: true });
 try {
-  const init = (await readFile("src/browser/init_script.js", "utf8")).replace("__POOF_SPACE_COLOR__", "#205b33");
+  const init = (await readFile("src/browser/init_script.js", "utf8")).replace("__POOF_SPACE_COLOR__", "#205b33").replace("__POOF_INK_COLOR__", "#fffbe6");
   const context = await browser.newContext();
   await context.addInitScript(() => {
     window.__poofMessages = [];
@@ -26,7 +26,8 @@ try {
     decrementDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button:vertical:decrement").display,
     incrementDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button:vertical:increment").display,
     thumbRadius: getComputedStyle(document.documentElement, "::-webkit-scrollbar-thumb").borderRadius,
-    spaceColor: getComputedStyle(document.documentElement).getPropertyValue("--poof-space-color").trim(),
+    spaceColor: getComputedStyle(document.documentElement).getPropertyValue("--space").trim(),
+    inkColor: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim(),
     styleInstalled: !!document.getElementById("__poof_minimal_scrollbars")
   }));
   assert.equal(scrollbarStyles.width, "6px", "Page viewport scrollbar must be six pixels wide");
@@ -34,7 +35,8 @@ try {
   assert.equal(scrollbarStyles.decrementDisplay, "none", "Scrollbar start arrow must be hidden");
   assert.equal(scrollbarStyles.incrementDisplay, "none", "Scrollbar end arrow must be hidden");
   assert.equal(scrollbarStyles.thumbRadius, "999px", "Scrollbar thumb must be fully rounded");
-  assert.equal(scrollbarStyles.spaceColor, "#205b33", "Scrollbar tint must use the active space color");
+  assert.equal(scrollbarStyles.spaceColor, "#205b33", "Scrollbar tint must use the active space token");
+  assert.equal(scrollbarStyles.inkColor, "#fffbe6", "Scrollbar contrast must use the active ink token");
   assert.equal(scrollbarStyles.styleInstalled, true, "Minimal scrollbar stylesheet must be installed");
   await page.evaluate(() => window.dispatchEvent(new Event("load")));
   await page.waitForFunction(() => window.__poofMessages.some(m => m.t === "meta"));
