@@ -19,24 +19,18 @@
   // at document start in every frame; reattach if a site replaces its document root
   // or removes injected styles during client-side navigation.
   var scrollbarStyleText =
-    ":root{--space:__POOF_SPACE_COLOR__;--ink:__POOF_INK_COLOR__}" +
-    "html,body,*{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,var(--space) 22%,var(--ink)) transparent!important}" +
-    "html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{width:6px!important;height:6px!important;background:transparent!important}" +
-    "html::-webkit-scrollbar-track,body::-webkit-scrollbar-track,*::-webkit-scrollbar-track," +
-    "html::-webkit-scrollbar-corner,body::-webkit-scrollbar-corner,*::-webkit-scrollbar-corner{background:transparent!important}" +
-    "html::-webkit-scrollbar-thumb,body::-webkit-scrollbar-thumb,*::-webkit-scrollbar-thumb{" +
-    "background-color:color-mix(in srgb,color-mix(in srgb,var(--space) 22%,var(--ink)) 24%,transparent)!important;" +
+    ":root{--poof-scrollbar-surface:__POOF_SURFACE_COLOR__;--poof-scrollbar-ink:__POOF_INK_COLOR__}" +
+    "html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,var(--poof-scrollbar-ink) 22%,transparent) var(--poof-scrollbar-surface)!important}" +
+    "html::-webkit-scrollbar{width:6px!important;height:6px!important;background:var(--poof-scrollbar-surface)!important}" +
+    "html::-webkit-scrollbar-track,html::-webkit-scrollbar-corner{background:var(--poof-scrollbar-surface)!important}" +
+    "html::-webkit-scrollbar-thumb{" +
+    "background-color:color-mix(in srgb,var(--poof-scrollbar-ink) 24%,transparent)!important;" +
     "border:2px solid transparent!important;background-clip:content-box!important;border-radius:999px!important}" +
-    "html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,*::-webkit-scrollbar-thumb:hover{" +
-    "background-color:color-mix(in srgb,color-mix(in srgb,var(--space) 32%,var(--ink)) 38%,transparent)!important}" +
-    "html::-webkit-scrollbar-button,body::-webkit-scrollbar-button,*::-webkit-scrollbar-button," +
-    "html::-webkit-scrollbar-button:single-button,body::-webkit-scrollbar-button:single-button,*::-webkit-scrollbar-button:single-button," +
+    "html::-webkit-scrollbar-thumb:hover{" +
+    "background-color:color-mix(in srgb,var(--poof-scrollbar-ink) 38%,transparent)!important}" +
+    "html::-webkit-scrollbar-button,html::-webkit-scrollbar-button:single-button," +
     "html::-webkit-scrollbar-button:vertical:decrement,html::-webkit-scrollbar-button:vertical:increment," +
-    "html::-webkit-scrollbar-button:horizontal:decrement,html::-webkit-scrollbar-button:horizontal:increment," +
-    "body::-webkit-scrollbar-button:vertical:decrement,body::-webkit-scrollbar-button:vertical:increment," +
-    "body::-webkit-scrollbar-button:horizontal:decrement,body::-webkit-scrollbar-button:horizontal:increment," +
-    "*::-webkit-scrollbar-button:vertical:decrement,*::-webkit-scrollbar-button:vertical:increment," +
-    "*::-webkit-scrollbar-button:horizontal:decrement,*::-webkit-scrollbar-button:horizontal:increment{" +
+    "html::-webkit-scrollbar-button:horizontal:decrement,html::-webkit-scrollbar-button:horizontal:increment{" +
     "display:none!important;width:0!important;height:0!important;min-width:0!important;min-height:0!important}";
   var scrollbarStyle = null;
   function installScrollbarStyle() {
