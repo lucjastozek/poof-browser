@@ -15,6 +15,17 @@
       window.ipc.postMessage(JSON.stringify(o));
     } catch (e) {}
   }
+  // Inject in every frame. The top-document-only fullscreen relay below returns
+  // early in child frames, but each frame owns its own page scrollbars.
+  var scrollbarStyle = document.createElement("style");
+  scrollbarStyle.textContent =
+    "*{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}" +
+    "*::-webkit-scrollbar{width:8px!important;height:8px!important}" +
+    "*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent!important}" +
+    "*::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 24%,transparent)!important;border:3px solid transparent!important;background-clip:content-box!important;border-radius:99px!important}" +
+    "*::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:content-box!important}" +
+    "*::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}";
+  (document.head || document.documentElement).appendChild(scrollbarStyle);
   // Sites with their own full player UI (YouTube) handle fullscreen natively.
   // Our video-only workaround would fight their layout and show a second set of controls.
   var nativePlayer = /(^|\.)(youtube\.com|youtube-nocookie\.com)$/.test(
@@ -203,10 +214,6 @@
     },
     false,
   );
-  var scrollbarStyle = document.createElement("style");
-  scrollbarStyle.textContent =
-    "html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 18%,transparent) transparent!important}::-webkit-scrollbar{width:4px!important;height:4px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 18%,transparent)!important;border-radius:99px!important;border:1px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 30%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}";
-  (document.head || document.documentElement).appendChild(scrollbarStyle);
 
   // URL reporting. Event-driven instead of a permanent 1.5s timer, so idle and background
   // tabs run no JavaScript at all: SPA navigations are caught by wrapping the History API
