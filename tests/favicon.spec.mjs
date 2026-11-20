@@ -20,6 +20,16 @@ try {
   }));
   await page.goto("https://example.test/");
   await page.addScriptTag({ content: init });
+  const scrollbarStyles = await page.evaluate(() => ({
+    width: getComputedStyle(document.documentElement, "::-webkit-scrollbar").width,
+    buttonDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button").display,
+    thumbRadius: getComputedStyle(document.documentElement, "::-webkit-scrollbar-thumb").borderRadius,
+    styleInstalled: !!document.getElementById("__poof_minimal_scrollbars")
+  }));
+  assert.equal(scrollbarStyles.width, "6px", "Page viewport scrollbar must be six pixels wide");
+  assert.equal(scrollbarStyles.buttonDisplay, "none", "Native scrollbar arrow buttons must be hidden");
+  assert.equal(scrollbarStyles.thumbRadius, "999px", "Scrollbar thumb must be fully rounded");
+  assert.equal(scrollbarStyles.styleInstalled, true, "Minimal scrollbar stylesheet must be installed");
   await page.evaluate(() => window.dispatchEvent(new Event("load")));
   await page.waitForFunction(() => window.__poofMessages.some(m => m.t === "meta"));
   const meta = await page.evaluate(() => window.__poofMessages.find(m => m.t === "meta"));
