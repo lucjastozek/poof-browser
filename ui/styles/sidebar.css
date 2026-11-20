@@ -18,6 +18,7 @@
   position: relative;
   transition: width 0.18s var(--ease);
 }
+
 body.compact #side {
   flex-basis: 56px;
   min-width: 56px;
@@ -172,35 +173,13 @@ body.collapsed #side #toast {
   padding-right: 4px;
   min-height: 0;
   position: relative;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 #pane::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  display: none;
 }
-#pane::-webkit-scrollbar-track,
-#pane::-webkit-scrollbar-corner {
-  background: transparent;
-}
-#pane::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--ink) 22%, transparent);
-  border: 1px solid transparent;
-  background-clip: padding-box;
-  border-radius: 99px;
-}
-#pane::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--ink) 36%, transparent);
-  background-clip: padding-box;
-}
-#pane::-webkit-scrollbar-button,
-#pane::-webkit-scrollbar-button:single-button {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-}
-#pane {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--ink) 24%, transparent) transparent;
-}
+
 .hdr {
   display: flex;
   align-items: center;
