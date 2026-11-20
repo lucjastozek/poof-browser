@@ -19,16 +19,16 @@
   // at document start in every frame; reattach if a site replaces its document root
   // or removes injected styles during client-side navigation.
   var scrollbarStyleText =
-    ":root{--poof-space-color:__POOF_SPACE_COLOR__}" +
-    "html,body,*{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,var(--poof-space-color) 22%,currentColor) transparent!important}" +
+    ":root{--space:__POOF_SPACE_COLOR__;--ink:__POOF_INK_COLOR__}" +
+    "html,body,*{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,var(--space) 22%,var(--ink)) transparent!important}" +
     "html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{width:6px!important;height:6px!important;background:transparent!important}" +
     "html::-webkit-scrollbar-track,body::-webkit-scrollbar-track,*::-webkit-scrollbar-track," +
     "html::-webkit-scrollbar-corner,body::-webkit-scrollbar-corner,*::-webkit-scrollbar-corner{background:transparent!important}" +
     "html::-webkit-scrollbar-thumb,body::-webkit-scrollbar-thumb,*::-webkit-scrollbar-thumb{" +
-    "background-color:color-mix(in srgb,color-mix(in srgb,var(--poof-space-color) 22%,currentColor) 48%,transparent)!important;" +
+    "background-color:color-mix(in srgb,color-mix(in srgb,var(--space) 22%,var(--ink)) 24%,transparent)!important;" +
     "border:2px solid transparent!important;background-clip:content-box!important;border-radius:999px!important}" +
     "html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,*::-webkit-scrollbar-thumb:hover{" +
-    "background-color:color-mix(in srgb,color-mix(in srgb,var(--poof-space-color) 32%,currentColor) 66%,transparent)!important}" +
+    "background-color:color-mix(in srgb,color-mix(in srgb,var(--space) 32%,var(--ink)) 38%,transparent)!important}" +
     "html::-webkit-scrollbar-button,body::-webkit-scrollbar-button,*::-webkit-scrollbar-button," +
     "html::-webkit-scrollbar-button:single-button,body::-webkit-scrollbar-button:single-button,*::-webkit-scrollbar-button:single-button," +
     "html::-webkit-scrollbar-button:vertical:decrement,html::-webkit-scrollbar-button:vertical:increment," +
