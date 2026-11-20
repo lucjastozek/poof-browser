@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 const browser = await chromium.launch({ headless: true });
 await mkdir("artifacts", { recursive: true });
 try {
-  const init = (await readFile("src/browser/init_script.js", "utf8")).replace("__POOF_SPACE_COLOR__", "#205b33").replace("__POOF_INK_COLOR__", "#fffbe6");
+  const init = (await readFile("src/browser/init_script.js", "utf8")).replace("__POOF_SURFACE_COLOR__", "#e8e4d2").replace("__POOF_INK_COLOR__", "#050505");
   const context = await browser.newContext();
   await context.addInitScript(() => {
     window.__poofMessages = [];
@@ -16,7 +16,7 @@ try {
   const page = await context.newPage();
   await page.route("https://example.test/**", route => route.fulfill({
     status: 200, contentType: "text/html",
-    body: "<title>Example</title><link rel='icon' href='/favicon.ico'>",
+    body: "<title>Example</title><link rel='icon' href='/favicon.ico'><div id='inner-scroll' style='width:100px;height:100px;overflow:auto'><div style='height:300px;width:300px'></div></div>",
   }));
   await page.goto("https://example.test/");
   await page.addScriptTag({ content: init });
@@ -26,8 +26,9 @@ try {
     decrementDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button:vertical:decrement").display,
     incrementDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button:vertical:increment").display,
     thumbRadius: getComputedStyle(document.documentElement, "::-webkit-scrollbar-thumb").borderRadius,
-    spaceColor: getComputedStyle(document.documentElement).getPropertyValue("--space").trim(),
-    inkColor: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim(),
+    surfaceColor: getComputedStyle(document.documentElement).getPropertyValue("--poof-scrollbar-surface").trim(),
+    inkColor: getComputedStyle(document.documentElement).getPropertyValue("--poof-scrollbar-ink").trim(),
+    innerScrollbarWidth: getComputedStyle(document.querySelector("#inner-scroll"), "::-webkit-scrollbar").width,
     styleInstalled: !!document.getElementById("__poof_minimal_scrollbars")
   }));
   assert.equal(scrollbarStyles.width, "6px", "Page viewport scrollbar must be six pixels wide");
@@ -35,8 +36,9 @@ try {
   assert.equal(scrollbarStyles.decrementDisplay, "none", "Scrollbar start arrow must be hidden");
   assert.equal(scrollbarStyles.incrementDisplay, "none", "Scrollbar end arrow must be hidden");
   assert.equal(scrollbarStyles.thumbRadius, "999px", "Scrollbar thumb must be fully rounded");
-  assert.equal(scrollbarStyles.spaceColor, "#205b33", "Scrollbar tint must use the active space token");
-  assert.equal(scrollbarStyles.inkColor, "#fffbe6", "Scrollbar contrast must use the active ink token");
+  assert.equal(scrollbarStyles.surfaceColor, "#e8e4d2", "Scrollbar track must use the app surface token value");
+  assert.equal(scrollbarStyles.inkColor, "#050505", "Scrollbar thumb must respect light mode ink");
+  assert.equal(scrollbarStyles.innerScrollbarWidth, "auto", "Inner website scrollbars must keep their native styling");
   assert.equal(scrollbarStyles.styleInstalled, true, "Minimal scrollbar stylesheet must be installed");
   await page.evaluate(() => window.dispatchEvent(new Event("load")));
   await page.waitForFunction(() => window.__poofMessages.some(m => m.t === "meta"));
