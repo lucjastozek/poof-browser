@@ -113,13 +113,13 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --ink: var(--beige);
-  --ink-2: color-mix(in srgb, var(--beige) 66%, var(--black));
-  --ink-3: color-mix(in srgb, var(--beige) 42%, var(--black));
+  --ink-2: color-mix(in srgb, var(--beige) 66%, var(--chrome));
+  --ink-3: color-mix(in srgb, var(--beige) 42%, var(--chrome));
   --line: color-mix(in srgb, var(--beige) 10%, transparent);
   --line-2: color-mix(in srgb, var(--beige) 18%, transparent);
-  --stage: color-mix(in srgb, var(--beige) 4.5%, var(--black));
-  --surface: color-mix(in srgb, var(--beige) 3%, var(--black));
-  --raised: color-mix(in srgb, var(--beige) 11%, var(--black));
+  --stage: color-mix(in srgb, var(--beige) 4.5%, var(--chrome));
+  --surface: color-mix(in srgb, var(--beige) 9%, var(--chrome));
+  --raised: color-mix(in srgb, var(--beige) 11%, var(--chrome));
   --chrome: color-mix(
     in srgb,
     var(--space) 17%,
