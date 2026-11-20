@@ -2823,8 +2823,17 @@ impl Browser {
             _ => self.window.theme() == Theme::Dark,
         };
         let ink_color = if dark { "#fffbe6" } else { "#050505" };
+        // Mirror the semantic --surface token from ui/theme.css without exposing
+        // a generic --surface variable to the website's own styles.
+        let surface_color = if dark {
+            format!(
+                "color-mix(in srgb, #fffbe6 9%, color-mix(in srgb, {space_color} 17%, color-mix(in srgb, #fffbe6 2.5%, #050505)))"
+            )
+        } else {
+            "color-mix(in srgb, #fff 68%, #ff fbe6)".replace(" ", "")
+        };
         let init_script = INIT_JS
-            .replace("__POOF_SPACE_COLOR__", space_color)
+            .replace("__POOF_SURFACE_COLOR__", &surface_color)
             .replace("__POOF_INK_COLOR__", ink_color);
 
         let builder = WebViewBuilder::new_with_web_context(ctx)
