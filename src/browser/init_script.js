@@ -205,7 +205,7 @@
   );
   var scrollbarStyle = document.createElement("style");
   scrollbarStyle.textContent =
-    "html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}::-webkit-scrollbar{width:6px!important;height:6px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 28%,transparent)!important;border-radius:99px!important;border:2px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}";
+    "html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 18%,transparent) transparent!important}::-webkit-scrollbar{width:4px!important;height:4px!important}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 18%,transparent)!important;border-radius:99px!important;border:1px solid transparent!important;background-clip:padding-box!important}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 30%,transparent)!important;background-clip:padding-box!important}::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}";
   (document.head || document.documentElement).appendChild(scrollbarStyle);
 
   // URL reporting. Event-driven instead of a permanent 1.5s timer, so idle and background
