@@ -15,17 +15,35 @@
       window.ipc.postMessage(JSON.stringify(o));
     } catch (e) {}
   }
-  // Inject in every frame. The top-document-only fullscreen relay below returns
-  // early in child frames, but each frame owns its own page scrollbars.
-  var scrollbarStyle = document.createElement("style");
-  scrollbarStyle.textContent =
-    "*{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,currentColor 24%,transparent) transparent!important}" +
-    "*::-webkit-scrollbar{width:8px!important;height:8px!important}" +
-    "*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent!important}" +
-    "*::-webkit-scrollbar-thumb{background:color-mix(in srgb,currentColor 24%,transparent)!important;border:3px solid transparent!important;background-clip:content-box!important;border-radius:99px!important}" +
-    "*::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,currentColor 42%,transparent)!important;background-clip:content-box!important}" +
-    "*::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}";
-  (document.head || document.documentElement).appendChild(scrollbarStyle);
+  // Keep WebView2's native, full-width scrollbars out of the page UI. This runs
+  // at document start in every frame; reattach if a site replaces its document root
+  // or removes injected styles during client-side navigation.
+  var scrollbarStyleText =
+    "html,body,*{scrollbar-width:thin!important;scrollbar-color:rgba(160,160,160,.5) transparent!important}" +
+    "html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{width:6px!important;height:6px!important;background:transparent!important}" +
+    "html::-webkit-scrollbar-track,body::-webkit-scrollbar-track,*::-webkit-scrollbar-track," +
+    "html::-webkit-scrollbar-corner,body::-webkit-scrollbar-corner,*::-webkit-scrollbar-corner{background:transparent!important}" +
+    "html::-webkit-scrollbar-thumb,body::-webkit-scrollbar-thumb,*::-webkit-scrollbar-thumb{" +
+    "background-color:rgba(170,170,170,.55)!important;border:2px solid transparent!important;" +
+    "background-clip:content-box!important;border-radius:999px!important}" +
+    "html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,*::-webkit-scrollbar-thumb:hover{" +
+    "background-color:rgba(210,210,210,.8)!important}" +
+    "html::-webkit-scrollbar-button,body::-webkit-scrollbar-button,*::-webkit-scrollbar-button{" +
+    "display:none!important;width:0!important;height:0!important;min-width:0!important;min-height:0!important}";
+  var scrollbarStyle = null;
+  function installScrollbarStyle() {
+    if (!document.documentElement) return;
+    if (scrollbarStyle && scrollbarStyle.isConnected) return;
+    scrollbarStyle = document.createElement("style");
+    scrollbarStyle.id = "__poof_minimal_scrollbars";
+    scrollbarStyle.textContent = scrollbarStyleText;
+    (document.head || document.documentElement).appendChild(scrollbarStyle);
+  }
+  installScrollbarStyle();
+  new MutationObserver(installScrollbarStyle).observe(document, {
+    childList: true,
+    subtree: true
+  });
   // Sites with their own full player UI (YouTube) handle fullscreen natively.
   // Our video-only workaround would fight their layout and show a second set of controls.
   var nativePlayer = /(^|\.)(youtube\.com|youtube-nocookie\.com)$/.test(
