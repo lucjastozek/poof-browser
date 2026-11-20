@@ -360,7 +360,6 @@ window.__setState = (s) => {
   const dots = [];
   let lastP = null;
   s.spaces.forEach((x) => {
-    if (lastP && lastP !== x.profile_id) dots.push(el("i", "vsep"));
     const b = el("button", "sp" + (x.id === s.current ? " on" : ""));
     b.append(sic(x.icon, 17));
     const pn = (s.profiles.find((p) => p.id === x.profile_id) || {}).name || "";
