@@ -20,17 +20,15 @@
   // or removes injected styles during client-side navigation.
   var scrollbarStyleText =
     ":root{--poof-scrollbar-surface:__POOF_SURFACE_COLOR__;--poof-scrollbar-ink:__POOF_INK_COLOR__}" +
-    "html{scrollbar-width:thin!important;scrollbar-color:color-mix(in srgb,var(--poof-scrollbar-ink) 22%,transparent) var(--poof-scrollbar-surface)!important}" +
-    "html::-webkit-scrollbar{width:6px!important;height:6px!important;background:var(--poof-scrollbar-surface)!important}" +
-    "html::-webkit-scrollbar-track,html::-webkit-scrollbar-corner{background:var(--poof-scrollbar-surface)!important}" +
-    "html::-webkit-scrollbar-thumb{" +
+    "html::-webkit-scrollbar:vertical{width:6px!important;background:var(--poof-scrollbar-surface)!important}" +
+    "html::-webkit-scrollbar-track:vertical{background:var(--poof-scrollbar-surface)!important}" +
+    "html::-webkit-scrollbar-thumb:vertical{" +
     "background-color:color-mix(in srgb,var(--poof-scrollbar-ink) 24%,transparent)!important;" +
     "border:2px solid transparent!important;background-clip:content-box!important;border-radius:999px!important}" +
-    "html::-webkit-scrollbar-thumb:hover{" +
+    "html::-webkit-scrollbar-thumb:vertical:hover{" +
     "background-color:color-mix(in srgb,var(--poof-scrollbar-ink) 38%,transparent)!important}" +
-    "html::-webkit-scrollbar-button,html::-webkit-scrollbar-button:single-button," +
-    "html::-webkit-scrollbar-button:vertical:decrement,html::-webkit-scrollbar-button:vertical:increment," +
-    "html::-webkit-scrollbar-button:horizontal:decrement,html::-webkit-scrollbar-button:horizontal:increment{" +
+    "html::-webkit-scrollbar-button:vertical,html::-webkit-scrollbar-button:vertical:single-button," +
+    "html::-webkit-scrollbar-button:vertical:decrement,html::-webkit-scrollbar-button:vertical:increment{" +
     "display:none!important;width:0!important;height:0!important;min-width:0!important;min-height:0!important}";
   var scrollbarStyle = null;
   function installScrollbarStyle() {
