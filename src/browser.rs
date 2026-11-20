@@ -2830,7 +2830,7 @@ impl Browser {
                 "color-mix(in srgb, #fffbe6 9%, color-mix(in srgb, {space_color} 17%, color-mix(in srgb, #fffbe6 2.5%, #050505)))"
             )
         } else {
-            "color-mix(in srgb, #fff 68%, #ff fbe6)".replace(" ", "")
+            "color-mix(in srgb, #fff 68%, #fffbe6)".to_string()
         };
         let init_script = INIT_JS
             .replace("__POOF_SURFACE_COLOR__", &surface_color)
