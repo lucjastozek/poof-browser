@@ -21,8 +21,10 @@ try {
   await page.goto("https://example.test/");
   await page.addScriptTag({ content: init });
   const scrollbarStyles = await page.evaluate(() => ({
-    width: getComputedStyle(document.documentElement, "::-webkit-scrollbar").width,
-    buttonDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button").display,
+    width: getComputedStyle(document.documentElement, "::-webkit-scrollbar:vertical").width,
+    horizontalWidth: getComputedStyle(document.documentElement, "::-webkit-scrollbar:horizontal").width,
+    buttonDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button:vertical").display,
+    horizontalButtonDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button:horizontal").display,
     decrementDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button:vertical:decrement").display,
     incrementDisplay: getComputedStyle(document.documentElement, "::-webkit-scrollbar-button:vertical:increment").display,
     thumbRadius: getComputedStyle(document.documentElement, "::-webkit-scrollbar-thumb").borderRadius,
@@ -32,7 +34,9 @@ try {
     styleInstalled: !!document.getElementById("__poof_minimal_scrollbars")
   }));
   assert.equal(scrollbarStyles.width, "6px", "Page viewport scrollbar must be six pixels wide");
-  assert.equal(scrollbarStyles.buttonDisplay, "none", "Native scrollbar arrow buttons must be hidden");
+  assert.equal(scrollbarStyles.buttonDisplay, "none", "Vertical viewport scrollbar arrow buttons must be hidden");
+  assert.notEqual(scrollbarStyles.horizontalWidth, "6px", "Horizontal viewport scrollbar must remain unchanged");
+  assert.notEqual(scrollbarStyles.horizontalButtonDisplay, "none", "Horizontal scrollbar buttons must remain unchanged");
   assert.equal(scrollbarStyles.decrementDisplay, "none", "Scrollbar start arrow must be hidden");
   assert.equal(scrollbarStyles.incrementDisplay, "none", "Scrollbar end arrow must be hidden");
   assert.equal(scrollbarStyles.thumbRadius, "999px", "Scrollbar thumb must be fully rounded");
