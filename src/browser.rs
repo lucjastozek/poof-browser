@@ -2817,7 +2817,15 @@ impl Browser {
             .and_then(|space_id| self.p.spaces.iter().find(|space| space.id == space_id))
             .map(|space| space.color.as_str())
             .unwrap_or("#808080");
-        let init_script = INIT_JS.replace("__POOF_SPACE_COLOR__", space_color);
+        let dark = match self.p.theme.as_str() {
+            "dark" => true,
+            "light" => false,
+            _ => self.window.theme() == Theme::Dark,
+        };
+        let ink_color = if dark { "#fffbe6" } else { "#050505" };
+        let init_script = INIT_JS
+            .replace("__POOF_SPACE_COLOR__", space_color)
+            .replace("__POOF_INK_COLOR__", ink_color);
 
         let builder = WebViewBuilder::new_with_web_context(ctx)
             .with_bounds(bounds)
