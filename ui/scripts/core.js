@@ -13,11 +13,8 @@ const svg = (set, n, s = 16) => {
     ["viewBox", "0 0 24 24"],
     ["width", s],
     ["height", s],
-    ["fill", "none"],
-    ["stroke", "currentColor"],
-    ["stroke-width", "1.75"],
-    ["stroke-linecap", "round"],
-    ["stroke-linejoin", "round"],
+    // MingCute icons are filled shapes (each path carries fill="currentColor"), not strokes.
+    ["fill", "currentColor"],
     ["aria-hidden", "true"],
   ].forEach(([k, v]) => e.setAttribute(k, v));
   e.innerHTML = set[n] || "";
@@ -33,8 +30,54 @@ const sic = (n, s) => {
     i.alt = "";
     return i;
   }
-  return svg(SPACE_ICONS, SPACE_ICONS[n] ? n : "house", s);
+  return svg(SPACE_ICONS, spaceIconName(n), s);
 };
+/* Saved spaces may hold older names (Lucide, or MingCute's "home_1_line" spelling). Resolve
+   them to a key that exists in SPACE_ICONS: exact name, then SPACE_ALIASES (Lucide names that
+   MingCute spells differently, built by tools/gen-icons.mjs), then a normalised spelling.
+   Anything unknown falls back to "house". */
+const spaceIconName = (n) => {
+  if (typeof n !== "string") return "house";
+  const k = n
+    .toLowerCase()
+    .replace(/_line$/, "")
+    .replace(/_/g, "-");
+  for (const c of [n, k]) {
+    if (SPACE_ICONS[c]) return c;
+    const a = SPACE_ALIASES[c];
+    if (a && SPACE_ICONS[a]) return a;
+  }
+  return "house";
+};
+/* Every MingCute icon is shipped gzipped in SPACE_ICONS_PACKED (the page itself must stay under
+   WebView2's 2 MB NavigateToString limit). Unpack it in the background and merge it into
+   SPACE_ICONS; the small embedded set works immediately. The space picker should read
+   SPACE_ICONS when it opens, or await window.__spaceIconsReady first. */
+window.__spaceIconsReady = (async () => {
+  try {
+    if (typeof SPACE_ICONS_PACKED !== "string" || !window.DecompressionStream)
+      return;
+    const bin = Uint8Array.from(atob(SPACE_ICONS_PACKED), (ch) =>
+      ch.charCodeAt(0),
+    );
+    const stream = new Blob([bin])
+      .stream()
+      .pipeThrough(new DecompressionStream("gzip"));
+    Object.assign(SPACE_ICONS, JSON.parse(await new Response(stream).text()));
+    // Spaces that use an icon that was not embedded showed the "house" fallback until now.
+    if (
+      typeof S !== "undefined" &&
+      S &&
+      window.__setState &&
+      S.spaces.some(
+        (sp) => sp.icon !== "house" && spaceIconName(sp.icon) === "house",
+      )
+    )
+      window.__setState(S);
+  } catch (e) {
+    console.warn("space icons failed to unpack", e);
+  }
+})();
 const ib = (n, tip, fn) => {
   const b = el("button", "ib");
   b.title = tip;
