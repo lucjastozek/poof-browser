@@ -149,8 +149,8 @@ body.collapsed #side #toast {
   background: transparent;
 }
 .tile .ico img {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
 }
 .tile.on {
   background: var(--raised);

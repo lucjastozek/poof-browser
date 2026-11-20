@@ -119,7 +119,6 @@
   overflow: hidden;
   font-weight: 600;
   font-size: 11px;
-  background: var(--hover);
   color: var(--ink-2);
 }
 .ico img {

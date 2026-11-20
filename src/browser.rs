@@ -1,6 +1,9 @@
 use crate::{
     extensions, pip,
-    state::{new_id, valid_icon, Kind, Persisted, Profile, Saved, Space, TabFolder},
+    state::{
+        load_history, new_id, save_history, valid_icon, HistoryEntry, Kind, Persisted, Profile,
+        Saved, Space, TabFolder,
+    },
     store, UserEvent,
 };
 use anyhow::Result;
@@ -35,12 +38,10 @@ use wry::WebViewExtWindows;
 #[cfg(windows)]
 fn apply_webview_bounds(wv: &WebView, bounds: Rect, scale: f64) -> Result<()> {
     use windows::Win32::{
-        Foundation::HWND,
+        Foundation::{HWND, RECT},
         UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER},
     };
 
-    // Wry's set_bounds positions the child HWND asynchronously on Windows, which visibly lags
-    // behind rapid pointer-move events, so the HWND is also positioned synchronously.
     wv.set_bounds(bounds)?;
     let position = bounds.position.to_physical(scale);
     let size = bounds.size.to_physical::<i32>(scale);
@@ -59,6 +60,15 @@ fn apply_webview_bounds(wv: &WebView, bounds: Rect, scale: f64) -> Result<()> {
             size.height,
             SWP_NOACTIVATE | SWP_NOZORDER,
         )?;
+        // Set the controller's own bounds synchronously too, so the renderer's viewport
+        // follows the window right away instead of keeping its previous size.
+        wv.controller().SetBounds(RECT {
+            left: 0,
+            top: 0,
+            right: size.width,
+            bottom: size.height,
+        })?;
+        wv.controller().NotifyParentWindowPositionChanged()?;
     }
     Ok(())
 }
@@ -200,6 +210,29 @@ const FAVICON_MAX: usize = 48_000;
 const FAVICON_PERSIST_MAX: usize = 16_000;
 /// State writes closer together than this are coalesced and flushed by the event-loop timer.
 const SAVE_MIN_INTERVAL: Duration = Duration::from_secs(2);
+/// History entries kept at most, across all profiles (oldest dropped first).
+const HISTORY_MAX: usize = 5000;
+/// History rows sent to the history view at once.
+const HISTORY_SHOWN: usize = 500;
+
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Ctrl or the middle mouse button is held: a link opened now belongs in a background tab.
+#[cfg(windows)]
+fn background_click_modifier() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    unsafe { GetAsyncKeyState(0x11) < 0 || GetAsyncKeyState(0x04) < 0 } // VK_CONTROL, VK_MBUTTON
+}
+
+#[cfg(not(windows))]
+fn background_click_modifier() -> bool {
+    false
+}
 
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 const DEFAULT_SITES: &[(&str, &str)] = &[
@@ -582,7 +615,18 @@ enum Cmd {
     MoveTabToFolder {
         id: String,
         folder_id: Option<String>,
+        /// Position among the folder's tabs (None = end).
+        #[serde(default)]
+        index: Option<usize>,
     },
+    ListHistory {
+        #[serde(default)]
+        query: String,
+    },
+    DeleteHistory {
+        id: String,
+    },
+    ClearHistory,
     SetTheme {
         theme: String,
     },
@@ -637,6 +681,14 @@ enum PageMsg {
     Fullscreen {
         active: bool,
     },
+    /// Internal (empty tab id only): open a link in a background tab (Ctrl/middle click).
+    #[serde(rename = "open_background")]
+    OpenBackground {
+        u: String,
+    },
+    /// Internal (empty tab id only): re-run the layout once the window has settled.
+    #[serde(rename = "relayout")]
+    Relayout,
     /// Internal (empty tab id only): periodic DevTools poll trigger.
     #[serde(rename = "devtools_tick")]
     DevToolsTick,
@@ -696,6 +748,19 @@ pub struct Browser {
     last_save: Instant,
     /// Recent crashes per tab (window start, count), to avoid reload loops.
     crashes: HashMap<String, (Instant, u32)>,
+    history: Vec<HistoryEntry>,
+    history_dirty: bool,
+    last_history_save: Instant,
+    /// Filter currently typed into the history view.
+    history_query: String,
+    /// Last URL written to history per tab, so the same page is not logged twice.
+    logged_urls: HashMap<String, String>,
+    /// Tabs opened in the background that have not been visited yet (keeps ctrl+click order).
+    bg_tabs: HashSet<String>,
+    /// Whether the sidebar WebView is currently painted as a black backdrop (fullscreen).
+    fs_css: Cell<bool>,
+    /// The window was maximized when fullscreen started, so it can be maximized again afterwards.
+    was_maximized: bool,
 }
 
 fn logical(w: &Window) -> (f64, f64) {
@@ -814,7 +879,7 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
         0x52 => Some("reload"),    // R
         0x50 => Some("print"),     // P
         0x44 => Some("favorite"),  // D
-        0x31 => Some("tab_1"),
+        0x48 => Some("history"),   // H        0x31 => Some("tab_1"),
         0x32 => Some("tab_2"),
         0x33 => Some("tab_3"),
         0x34 => Some("tab_4"),
@@ -1021,7 +1086,8 @@ impl Browser {
                 include_str!("../ui/scripts/start-page.js"),
             )
             .replace("/*DIALOGS*/", include_str!("../ui/scripts/dialogs.js"))
-            .replace("/*SETTINGS*/", include_str!("../ui/scripts/settings.js"));
+            .replace("/*SETTINGS*/", include_str!("../ui/scripts/settings.js"))
+            .replace("/*HISTORY*/", include_str!("../ui/scripts/history.js"));
         let mut ui_ctx = WebContext::new(Some(root.join("ui")));
         let ptx = proxy.clone();
         let sidebar = WebViewBuilder::new_with_web_context(&mut ui_ctx)
@@ -1078,6 +1144,7 @@ impl Browser {
             handle.thread().clone()
         };
 
+        let history = load_history(&root.join("history.json"));
         let initial_active = if p.restore_tabs {
             p.active_tabs.clone()
         } else {
@@ -1113,9 +1180,18 @@ impl Browser {
             save_dirty: false,
             last_save: Instant::now() - SAVE_MIN_INTERVAL,
             crashes: HashMap::new(),
+            history,
+            history_dirty: false,
+            last_history_save: Instant::now(),
+            history_query: String::new(),
+            logged_urls: HashMap::new(),
+            bg_tabs: HashSet::new(),
+            fs_css: Cell::new(false),
+            was_maximized: false,
         };
         b.apply_theme();
         b.preinstall();
+        b.prune_history();
         Ok(b)
     }
 
@@ -1205,6 +1281,21 @@ impl Browser {
             UserEvent::Title { tab, title } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     t.title = clip(&title, 300);
+                    if !t.title.is_empty() {
+                        let (pid, url, ttl) =
+                            (t.profile_id.clone(), t.url.clone(), t.title.clone());
+                        if let Some(h) = self
+                            .history
+                            .iter_mut()
+                            .rev()
+                            .find(|h| h.profile_id == pid && h.url == url)
+                        {
+                            if h.title != ttl {
+                                h.title = ttl;
+                                self.history_dirty = true;
+                            }
+                        }
+                    }
                 }
                 self.push_state();
             }
@@ -1270,13 +1361,31 @@ impl Browser {
             return;
         }
         self.fullscreen = active;
-        self.window.set_fullscreen(if active {
-            Some(tao::window::Fullscreen::Borderless(None))
+        if active {
+            self.was_maximized = self.window.is_maximized();
+            if self.was_maximized {
+                self.window.set_maximized(false);
+            }
+            self.window
+                .set_fullscreen(Some(tao::window::Fullscreen::Borderless(None)));
         } else {
-            None
-        });
-        let _ = self.sidebar.set_visible(!active);
+            self.window.set_fullscreen(None);
+            if self.was_maximized {
+                self.window.set_maximized(true);
+                self.was_maximized = false;
+            }
+        }
         self.relayout();
+        let proxy = self.proxy.clone();
+        std::thread::spawn(move || {
+            for ms in [30u64, 120, 300, 700] {
+                std::thread::sleep(Duration::from_millis(ms));
+                let _ = proxy.send_event(UserEvent::Page {
+                    tab: String::new(),
+                    body: r#"{"t":"relayout"}"#.to_string(),
+                });
+            }
+        });
     }
 
     /// Messages from web pages are untrusted: strict parsing, size limits, own-tab only.
@@ -1296,6 +1405,12 @@ impl Browser {
                 }
                 return;
             }
+            PageMsg::Relayout => {
+                if tab.is_empty() {
+                    self.relayout();
+                }
+                return;
+            }
             PageMsg::DevToolsState { s } => {
                 if tab.is_empty() {
                     if let Some(report) = s {
@@ -1307,10 +1422,14 @@ impl Browser {
             PageMsg::Meta { u } => {
                 let mut persist = false;
                 let mut sites_dirty = false;
+                let mut visit: Option<(String, String)> = None;
                 let restore = self.p.restore_tabs;
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     let mut url_changed = false;
                     if let Some(u) = u.filter(|u| ok_url(u, 4096, false)) {
+                        if self.logged_urls.get(tab).map(String::as_str) != Some(u.as_str()) {
+                            visit = Some((t.profile_id.clone(), u.clone()));
+                        }
                         if t.url != u {
                             url_changed = true;
                         }
@@ -1340,11 +1459,22 @@ impl Browser {
                     persist = url_changed && (t.kind != Kind::Normal || restore);
                 }
                 self.p.prune_sites();
+                if let Some((profile_id, url)) = visit {
+                    self.record_visit(tab, profile_id, url);
+                }
                 if sites_dirty {
                     self.sugg_cache.replace(None);
                 }
                 if persist {
                     self.save();
+                }
+            }
+            PageMsg::OpenBackground { u } => {
+                // Internal only: a page always carries its own non-empty tab id, so it cannot forge this.
+                if tab.is_empty() && ok_url(&u, 4096, false) {
+                    if let Err(e) = self.open_background_tab(&u) {
+                        log::error!("{e:#}");
+                    }
                 }
             }
             PageMsg::Favicon { f } => {
@@ -1369,6 +1499,15 @@ impl Browser {
             }
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
             PageMsg::Key { k } => {
+                if k == "history" {
+                    if tab.is_empty() || self.visible.as_deref() == Some(tab) {
+                        let _ = self.sidebar.focus();
+                        let _ = self
+                            .sidebar
+                            .evaluate_script("window.__toggleHistory && window.__toggleHistory()");
+                    }
+                    return;
+                }
                 // An empty tab ID means the shortcut originated in the sidebar.
                 let active_tab = self.visible.clone().unwrap_or_default();
                 let tab = if tab.is_empty() {
@@ -1660,20 +1799,28 @@ impl Browser {
                     }
                 }
             }
-            Cmd::MoveTabToFolder { id, folder_id } => {
+            Cmd::MoveTabToFolder {
+                id,
+                folder_id,
+                index,
+            } => {
+                let space = self.p.current_space.clone();
                 let target_pinned = folder_id
                     .as_ref()
                     .and_then(|fid| {
                         self.p
                             .folders
                             .iter()
-                            .find(|f| f.id == *fid && f.space_id == self.p.current_space)
+                            .find(|f| f.id == *fid && f.space_id == space)
                     })
                     .map(|f| f.pinned);
                 if folder_id.is_none() || target_pinned.is_some() {
-                    if let Some(t) = self.tabs.iter_mut().find(|t| {
-                        t.id == id && t.space_id.as_deref() == Some(self.p.current_space.as_str())
-                    }) {
+                    if let Some(from) = self
+                        .tabs
+                        .iter()
+                        .position(|t| t.id == id && t.space_id.as_deref() == Some(space.as_str()))
+                    {
+                        let mut t = self.tabs.remove(from);
                         if let Some(pinned) = target_pinned {
                             let kind = if pinned { Kind::Pinned } else { Kind::Normal };
                             if t.kind != kind {
@@ -1681,10 +1828,48 @@ impl Browser {
                                 t.kind = kind;
                             }
                         }
-                        t.folder_id = folder_id;
+                        t.folder_id = folder_id.clone();
+                        let pos = if folder_id.is_some() {
+                            // Insert before the index-th remaining tab of the folder, or after the last.
+                            let peers: Vec<usize> = self
+                                .tabs
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, x)| {
+                                    x.space_id.as_deref() == Some(space.as_str())
+                                        && x.folder_id == folder_id
+                                })
+                                .map(|(i, _)| i)
+                                .collect();
+                            match index.and_then(|i| peers.get(i).copied()) {
+                                Some(p) => p,
+                                None => peers.last().map(|i| i + 1).unwrap_or(self.tabs.len()),
+                            }
+                        } else {
+                            from.min(self.tabs.len())
+                        };
+                        self.tabs.insert(pos, t);
                         self.save();
                     }
                 }
+            }
+            Cmd::ListHistory { query } => {
+                self.history_query = clip(query.trim(), 200);
+                self.push_history();
+            }
+            Cmd::DeleteHistory { id } => {
+                let before = self.history.len();
+                self.history.retain(|h| h.id != id);
+                if self.history.len() != before {
+                    self.history_dirty = true;
+                }
+                self.push_history();
+            }
+            Cmd::ClearHistory => {
+                let pid = self.cur_space().profile_id.clone();
+                self.history.retain(|h| h.profile_id != pid);
+                self.history_dirty = true;
+                self.push_history();
             }
             Cmd::SetTheme { theme } => {
                 if matches!(theme.as_str(), "system" | "light" | "dark") {
@@ -1727,6 +1912,7 @@ impl Browser {
                     profile.last_cleanup_at = 0;
                 }
                 self.save();
+                self.prune_history();
             }
             Cmd::ListExt => self.push_exts(),
             Cmd::InstallExt { input } => match store::parse_id(&input) {
@@ -2126,6 +2312,8 @@ impl Browser {
             .with_new_window_req_handler(move |url, features| {
                 let is_popup = features.size.is_some() || features.position.is_some();
                 let is_blank = url == "about:blank";
+                // Ctrl+click / middle click: open behind the current tab instead of switching to it.
+                let in_background = !is_popup && !is_blank && background_click_modifier();
                 let is_auth_url = url.starts_with("https://accounts.google.com/")
                     || url.starts_with("https://appleid.apple.com/")
                     || url.starts_with("https://login.microsoftonline.com/")
@@ -2135,7 +2323,14 @@ impl Browser {
                     || url.contains("/sso")
                     || url.contains("/signin")
                     || url.contains("/login");
-                if is_popup || is_blank || is_auth_url {
+                if in_background {
+                    let body = json!({ "t": "open_background", "u": url }).to_string();
+                    let _ = p3.send_event(UserEvent::Page {
+                        tab: String::new(),
+                        body,
+                    });
+                    NewWindowResponse::Deny
+                } else if is_popup || is_blank || is_auth_url {
                     NewWindowResponse::Allow
                 } else {
                     let _ = p3.send_event(UserEvent::OpenTab { url });
@@ -2157,6 +2352,48 @@ impl Browser {
 
         #[cfg(windows)]
         register_browser_shortcuts(&wv, self.proxy.clone(), id.clone());
+        // Every top-level URL change (link clicks, redirects, history.pushState) is reported by
+        // WebView2 itself, so the address bar no longer depends on the page-side script.
+        #[cfg(windows)]
+        {
+            use webview2_com::SourceChangedEventHandler;
+            use windows::core::PWSTR;
+            use windows::Win32::System::Com::CoTaskMemFree;
+
+            let source_proxy = self.proxy.clone();
+            let source_tab = id.clone();
+            unsafe {
+                match wv.controller().CoreWebView2() {
+                    Ok(core) => {
+                        let handler =
+                            SourceChangedEventHandler::create(Box::new(move |sender, _| {
+                                let Some(sender) = sender else { return Ok(()) };
+                                let mut uri = PWSTR::null();
+                                if sender.Source(&mut uri).is_err() || uri.is_null() {
+                                    return Ok(());
+                                }
+                                let value = uri.to_string().ok();
+                                CoTaskMemFree(Some(uri.0 as *const std::ffi::c_void));
+                                if let Some(value) = value {
+                                    let body = json!({ "t": "meta", "u": value }).to_string();
+                                    let _ = source_proxy.send_event(UserEvent::Page {
+                                        tab: source_tab.clone(),
+                                        body,
+                                    });
+                                }
+                                Ok(())
+                            }));
+                        let mut token = 0;
+                        if let Err(error) = core.add_SourceChanged(&handler, &mut token) {
+                            log::warn!("registering WebView2 source handler failed: {error}");
+                        }
+                    }
+                    Err(error) => {
+                        log::warn!("getting WebView2 core for source handler failed: {error}")
+                    }
+                }
+            }
+        }
 
         // WebView2's original favicon URI lets the sidebar render SVGs and multi-resolution
         // ICO/PNG sources without rasterizing every icon to a small PNG snapshot first.
@@ -2276,7 +2513,8 @@ impl Browser {
                         let handler =
                             ProcessFailedEventHandler::create(Box::new(move |_sender, args| {
                                 let Some(args) = args else { return Ok(()) };
-                                let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
+                                let mut kind =
+                                    COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
                                 args.ProcessFailedKind(&mut kind)?;
                                 let browser =
                                     kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
@@ -2362,7 +2600,11 @@ impl Browser {
             }
             self.leave_fullscreen();
         }
-        let revive = if visible_hit { self.visible.take() } else { None };
+        let revive = if visible_hit {
+            self.visible.take()
+        } else {
+            None
+        };
         for i in victims {
             self.tabs[i].webview = None;
         }
@@ -2387,7 +2629,11 @@ impl Browser {
             }
             self.fullscreen = false;
             self.window.set_fullscreen(None);
-            let _ = self.sidebar.set_visible(true);
+            if self.was_maximized {
+                self.window.set_maximized(true);
+                self.was_maximized = false;
+            }
+            self.sync_fullscreen_backdrop();
         }
     }
 
@@ -2422,6 +2668,7 @@ impl Browser {
             return Ok(());
         };
         self.tabs[idx].last_active = SystemTime::now();
+        self.bg_tabs.remove(id);
         if self.visible.as_deref() == Some(id) && !self.overlay {
             return Ok(());
         }
@@ -2467,7 +2714,9 @@ impl Browser {
                 let _ = devtools.set_visible(false);
             }
         }
+        self.bg_tabs.remove(id);
         if self.tabs[idx].kind == Kind::Normal {
+            self.logged_urls.remove(id);
             self.closed_tabs.insert(0, self.tabs[idx].url.clone());
             self.closed_tabs.truncate(25);
             self.tabs.remove(idx);
@@ -2492,6 +2741,149 @@ impl Browser {
         }
         let url = self.closed_tabs.remove(0);
         self.new_tab(&url)
+    }
+
+    /// Opens a link in a new tab right behind the current one without switching to it.
+    fn open_background_tab(&mut self, url: &str) -> Result<()> {
+        let sp = self.cur_space().clone();
+        let opener = self
+            .visible
+            .as_ref()
+            .and_then(|v| self.tabs.iter().position(|t| &t.id == v))
+            .filter(|&i| {
+                self.tabs[i].kind == Kind::Normal
+                    && self.tabs[i].space_id.as_deref() == Some(sp.id.as_str())
+            });
+        let folder_id = opener.and_then(|i| self.tabs[i].folder_id.clone());
+        let id = new_id();
+        let tab = Tab {
+            id: id.clone(),
+            profile_id: sp.profile_id,
+            space_id: Some(sp.id),
+            kind: Kind::Normal,
+            folder_id,
+            home: url.to_string(),
+            url: url.to_string(),
+            host: String::new(),
+            title: String::new(),
+            favicon: None,
+            webview: None,
+            last_active: SystemTime::now(),
+        };
+        let pos = match opener {
+            Some(i) => {
+                // Several ctrl+clicks in a row keep their click order.
+                let mut at = i + 1;
+                while at < self.tabs.len() && self.bg_tabs.contains(&self.tabs[at].id) {
+                    at += 1;
+                }
+                at
+            }
+            None => self.tabs.len(),
+        };
+        self.tabs.insert(pos, tab);
+        self.bg_tabs.insert(id.clone());
+        // Start loading right away (hidden); the tab is not activated.
+        if let Some(idx) = self.tabs.iter().position(|t| t.id == id) {
+            if let Err(e) = self.ensure_webview(idx) {
+                log::warn!("could not start background tab: {e:#}");
+            }
+        }
+        if self.p.restore_tabs {
+            self.save();
+        }
+        Ok(())
+    }
+
+    fn record_visit(&mut self, tab: &str, profile_id: String, url: String) {
+        self.logged_urls.insert(tab.to_string(), url.clone());
+        // DuckDuckGo's click-tracking redirect is not a page the user visited.
+        if url.contains("duckduckgo.com/l/") {
+            return;
+        }
+        let ts = now_secs();
+        if let Some(last) = self
+            .history
+            .iter()
+            .rev()
+            .find(|h| h.profile_id == profile_id)
+        {
+            if last.url == url && ts.saturating_sub(last.ts) < 30 {
+                return;
+            }
+        }
+        self.history.push(HistoryEntry {
+            id: new_id(),
+            profile_id,
+            url,
+            title: String::new(),
+            ts,
+        });
+        if self.history.len() > HISTORY_MAX {
+            let excess = self.history.len() - HISTORY_MAX;
+            self.history.drain(..excess);
+        }
+        self.history_dirty = true;
+    }
+
+    /// Applies each profile's "history retention" setting to the history log.
+    fn prune_history(&mut self) {
+        let now = now_secs();
+        let retention: HashMap<String, u64> = self
+            .p
+            .profiles
+            .iter()
+            .map(|p| (p.id.clone(), p.history_retention_hours))
+            .collect();
+        let before = self.history.len();
+        self.history.retain(
+            |h| match retention.get(&h.profile_id).copied().unwrap_or(0) {
+                0 => true,
+                hours => now.saturating_sub(h.ts) < hours.saturating_mul(3600),
+            },
+        );
+        if self.history.len() > HISTORY_MAX {
+            let excess = self.history.len() - HISTORY_MAX;
+            self.history.drain(..excess);
+        }
+        if self.history.len() != before {
+            self.history_dirty = true;
+        }
+    }
+
+    fn push_history(&self) {
+        let pid = self.cur_space().profile_id.clone();
+        let q = self.history_query.to_lowercase();
+        let rows: Vec<Value> = self
+            .history
+            .iter()
+            .rev()
+            .filter(|h| {
+                h.profile_id == pid
+                    && (q.is_empty()
+                        || h.url.to_lowercase().contains(&q)
+                        || h.title.to_lowercase().contains(&q))
+            })
+            .take(HISTORY_SHOWN)
+            .map(|h| json!({ "id": h.id, "url": h.url, "title": h.title, "ts": h.ts }))
+            .collect();
+        let payload = serde_json::to_string(&rows).unwrap_or_else(|_| "[]".into());
+        let _ = self.sidebar.evaluate_script(&format!(
+            "window.__setHistory&&window.__setHistory({payload})"
+        ));
+    }
+
+    fn flush_history(&mut self, force: bool) {
+        if !self.history_dirty || (!force && self.last_history_save.elapsed() < SAVE_MIN_INTERVAL) {
+            return;
+        }
+        let ok = save_history(&self.history, &self.root.join("history.json"));
+        self.last_history_save = Instant::now();
+        if ok {
+            self.history_dirty = false;
+        } else {
+            log::warn!("saving history.json failed; will retry");
+        }
     }
 
     /// Tabs reachable from the current space, in sidebar order.
@@ -2674,6 +3066,7 @@ impl Browser {
         }
         self.sleep_idle_tabs();
         self.cleanup_profile_data();
+        self.prune_history();
         self.push_state();
     }
 
@@ -2898,7 +3291,8 @@ impl Browser {
         }
         let scale = self.window.scale_factor();
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
-        let _ = self.sidebar.set_visible(!self.fullscreen);
+        let _ = self.sidebar.set_visible(true);
+        self.sync_fullscreen_backdrop();
         let layout = self.layout();
 
         let page_shown = !self.overlay && layout.page_visible;
@@ -2911,6 +3305,9 @@ impl Browser {
             {
                 let [_, _, cw, ch] = self.content_box();
                 apply_webview_radius(wv, cw, ch, scale, !self.fullscreen && !self.devtools_open);
+                unsafe {
+                    let _ = wv.controller().NotifyParentWindowPositionChanged();
+                }
                 if page_shown && self.devtools_open && self.responsive_mode {
                     raise_webview(wv);
                 }
@@ -2942,6 +3339,20 @@ impl Browser {
             self.poll_thread.unpark();
         }
         self.sync_devtools_chrome(&layout);
+    }
+
+    /// While a page is fullscreen the sidebar WebView stays in place but turns solid black with
+    /// its UI hidden, so any frame the page hasn't painted yet shows black, not the bare window.
+    fn sync_fullscreen_backdrop(&self) {
+        if self.fs_css.get() == self.fullscreen {
+            return;
+        }
+        self.fs_css.set(self.fullscreen);
+        let js = format!(
+            r#"(()=>{{let s=document.getElementById("__poof_fs");if(!s){{s=document.createElement("style");s.id="__poof_fs";s.textContent="html.poof-fs,html.poof-fs body{{background:#000!important}}html.poof-fs body>*{{visibility:hidden!important}}";document.head.appendChild(s);}}document.documentElement.classList.toggle("poof-fs",{});}})()"#,
+            self.fullscreen
+        );
+        let _ = self.sidebar.evaluate_script(&js);
     }
 
     /// Shows, moves or hides the resize handle and header strip drawn by the sidebar WebView.
@@ -2977,12 +3388,13 @@ impl Browser {
     }
 
     pub fn save_pending(&self) -> bool {
-        self.save_dirty
+        self.save_dirty || self.history_dirty
     }
 
     /// Final, unconditional write on exit.
     pub fn shutdown(&mut self) {
         self.save_dirty = true;
+        self.flush_history(true);
         self.flush_save();
         if let Some(devtools) = self.devtools.take() {
             drop(devtools);
@@ -2990,6 +3402,7 @@ impl Browser {
     }
 
     pub fn flush_save(&mut self) {
+        self.flush_history(false);
         if !self.save_dirty {
             return;
         }
@@ -3012,10 +3425,7 @@ impl Browser {
                 },
                 title: t.title.clone(),
                 // Large inline icons are kept in memory only, not written to disk.
-                favicon: t
-                    .favicon
-                    .clone()
-                    .filter(|f| f.len() <= FAVICON_PERSIST_MAX),
+                favicon: t.favicon.clone().filter(|f| f.len() <= FAVICON_PERSIST_MAX),
             })
             .collect();
         self.p.active_tabs = if restore {

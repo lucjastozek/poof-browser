@@ -169,7 +169,6 @@ function folderNode(s, folder, pinned) {
     e.stopPropagation();
     renameFolderInline(label, folder);
   };
-  const count = el("span", "folder-count", String(members.length));
   const actions = el("span", "folder-actions");
   actions.append(
     ib("pencil", "Rename folder", () => renameFolderInline(label, folder)),
@@ -177,7 +176,7 @@ function folderNode(s, folder, pinned) {
       send({ cmd: "delete_folder", id: folder.id }),
     ),
   );
-  head.append(toggle, glyph, label, count, actions);
+  head.append(toggle, glyph, label, actions);
   head.setAttribute("role", "button");
   head.tabIndex = 0;
   head.setAttribute("aria-expanded", String(!folder.collapsed));
@@ -407,8 +406,44 @@ url.addEventListener("focus", () => {
     url.select();
   }
 });
-url.addEventListener("input", () => {
+// Inline autofill: while typing, complete the address with the best matching visited
+// (or popular) site and leave the completion selected, so Backspace removes it and
+// Enter accepts it.
+function autofillFor(typed) {
+  if (!S || !typed || /\s/.test(typed)) return null;
+  const bare = typed
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "");
+  if (!bare || bare.includes("/")) return null;
+  for (const s of S.suggestions || []) {
+    let host;
+    try {
+      host = new URL(s.url).host.replace(/^www\./, "").toLowerCase();
+    } catch (_) {
+      continue;
+    }
+    if (host.length > bare.length && host.startsWith(bare))
+      return typed + host.slice(bare.length);
+  }
+  return null;
+}
+url.addEventListener("input", (e) => {
   urlDraft = url.value;
+  if (
+    e.isComposing ||
+    e.inputType !== "insertText" ||
+    url.selectionStart !== url.value.length ||
+    url.selectionEnd !== url.value.length
+  )
+    return;
+  const typed = url.value;
+  const full = autofillFor(typed);
+  if (full) {
+    url.value = full;
+    url.setSelectionRange(typed.length, full.length);
+    urlDraft = full;
+  }
 });
 url.addEventListener("blur", syncUrl);
 url.addEventListener("keydown", (e) => {
@@ -589,8 +624,33 @@ function updateDrag(ev) {
       ? null
       : document.elementFromPoint(x, y)?.closest(".tab-folder");
   const folderTarget = folderGroup?.querySelector(".folder-head");
-  if (folderTarget?.dataset.folderId)
+  if (folderTarget?.dataset.folderId) {
     zone = "folder:" + folderTarget.dataset.folderId;
+    const contents = folderGroup.querySelector(".folder-contents");
+    const rows = [...contents.children].filter((c) => c !== d.row);
+    const headBottom = folderTarget.getBoundingClientRect().bottom;
+    idx = 0;
+    rows.forEach((c) => {
+      const r = c.getBoundingClientRect();
+      if (r.top + r.height / 2 < y) idx++;
+    });
+    if (y <= headBottom || !rows.length) {
+      // Over the folder header (or an empty folder): drop at the end.
+      idx = rows.length;
+      box = null;
+    } else {
+      // Over the folder's tabs: show the insertion line between them.
+      const ref = rows[idx];
+      const r = (ref || rows[rows.length - 1]).getBoundingClientRect();
+      const cb = contents.getBoundingClientRect();
+      box = {
+        left: cb.left + 6,
+        top: ref ? r.top : r.bottom,
+        width: cb.width - 12,
+        height: 2,
+      };
+    }
+  }
   d.zone = zone;
   d.idx = idx;
   const ind = $("ind");
@@ -645,7 +705,12 @@ function endDrag(drop) {
       if (d.zone === "pinned" || d.zone === "tab")
         send({ cmd: "move_folder", id: d.id, to: d.zone, index: d.idx });
     } else if (d.zone.startsWith("folder:"))
-      send({ cmd: "move_tab_to_folder", id: d.id, folder_id: d.zone.slice(7) });
+      send({
+        cmd: "move_tab_to_folder",
+        id: d.id,
+        folder_id: d.zone.slice(7),
+        index: d.idx,
+      });
     else {
       const to =
         d.zone === "pinned" ? "pinned" : d.zone === "fav" ? "fav" : "tab";

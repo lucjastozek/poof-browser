@@ -340,6 +340,43 @@ impl Persisted {
     }
 }
 
+/// One visited page. Stored in history.json, separate from state.json, so frequent writes stay small.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct HistoryEntry {
+    pub id: String,
+    pub profile_id: String,
+    pub url: String,
+    #[serde(default)]
+    pub title: String,
+    /// Unix seconds.
+    pub ts: u64,
+}
+
+pub fn load_history(path: &Path) -> Vec<HistoryEntry> {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_history(entries: &[HistoryEntry], path: &Path) -> bool {
+    let Ok(json) = serde_json::to_vec(entries) else {
+        return false;
+    };
+    let tmp = path.with_extension("json.tmp");
+    let written = (|| -> std::io::Result<()> {
+        let mut file = fs::File::create(&tmp)?;
+        file.write_all(&json)?;
+        file.sync_all()?;
+        Ok(())
+    })();
+    if written.is_err() {
+        let _ = fs::remove_file(&tmp);
+        return false;
+    }
+    fs::rename(&tmp, path).is_ok()
+}
+
 #[cfg(test)]
 mod devtools_state_tests {
     use super::*;
