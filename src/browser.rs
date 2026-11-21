@@ -218,6 +218,8 @@ const HISTORY_SHOWN: usize = 500;
 /// Most icons / largest single icon accepted from the sidebar for the DevTools frontend.
 const DEVTOOLS_ICONS_MAX: usize = 120;
 const DEVTOOLS_ICON_BYTES: usize = 12_000;
+/// Rendered size (px) of every icon in the DevTools frontend; tune to match the sidebar icons.
+const DEVTOOLS_ICON_PX: f64 = 14.0;
 
 /// Mingcute icons for the DevTools frontend (iconify-json/mingcute, line style), keyed by the
 /// frontend's own icon names. Icons from the sidebar's `ic()` override these where they exist.
@@ -1149,7 +1151,8 @@ try {
     // Per-element override: the frontend's icon elements read their image from variables whose
     // names differ between versions, so each <devtools-icon> is also masked directly with the
     // browser's icon. Names with no equivalent are reported back (and logged natively).
-    if (cfg.icons) st.icons = cfg.icons;
+        if (cfg.icons) st.icons = cfg.icons;
+    const px = cfg.icon_px || 14;
     if (st.icons && Date.now() - (st.iconAt || 0) > 250) {
     st.iconAt = Date.now();
     const misses = st.misses || (st.misses = new Set());
@@ -1160,13 +1163,17 @@ try {
         const name = el.name || el.getAttribute("name") || "";
         const uri = st.icons[name];
         if (!uri) { if (name && misses.size < 60) misses.add(name); continue; }
-        if (el.dataset.poofIcon === name) continue;
-        el.dataset.poofIcon = name;
+        const tag = name + "|" + px;
+        if (el.dataset.poofIcon === tag) continue;
+        el.dataset.poofIcon = tag;
         const v = `url("${uri}")`;
         for (const [k, val] of [["-webkit-mask-image", v], ["mask-image", v], ["-webkit-mask-size", "contain"],
             ["mask-size", "contain"], ["-webkit-mask-repeat", "no-repeat"], ["mask-repeat", "no-repeat"],
             ["-webkit-mask-position", "center"], ["mask-position", "center"]])
             el.style.setProperty(k, val, "important");
+        // One small, uniform size for every icon (the frontend's own sizes are ~20px).
+        for (const k of ["width", "height", "min-width", "min-height", "max-width", "max-height"])
+            el.style.setProperty(k, px + "px", "important");
         }
     };
     swap(document);
@@ -1179,6 +1186,18 @@ try {
     if (st.themeKey !== themeKey) {
     st.themeKey = themeKey;
     const sp = cfg.accent;
+        const sbCss = c => `
+    *::-webkit-scrollbar{width:10px!important;height:10px!important;background:transparent!important}
+    *::-webkit-scrollbar-track,*::-webkit-scrollbar-track-piece,*::-webkit-scrollbar-corner{
+        background:transparent!important;border:0!important}
+    *::-webkit-scrollbar-button{display:none!important;width:0!important;height:0!important}
+    *::-webkit-scrollbar-thumb{min-height:32px;min-width:32px;border-radius:999px!important;
+        border:3px solid transparent!important;background-clip:padding-box!important;
+        background-color:color-mix(in srgb,${c} 45%,transparent)!important}
+    *::-webkit-scrollbar-thumb:hover{border-width:2px!important;
+        background-color:color-mix(in srgb,${c} 80%,transparent)!important}`;
+    if (!st.sheet) st.sheet = new CSSStyleSheet();
+    st.sheet.replaceSync(sbCss(sp));
     const tokens = cfg.dark ? `
         color-scheme:dark;
         --p-space:${sp};
@@ -1228,21 +1247,21 @@ try {
         --monospace-font-size:12px!important;
         --source-code-font-size:12px!important;
 
-        /* surfaces: chrome first, then two small steps up */
-        --sys-color-cdt-base-container:var(--p-chrome)!important;
-        --sys-color-base:var(--p-chrome)!important;
-        --sys-color-base-container:var(--p-chrome)!important;
-        --sys-color-surface:var(--p-chrome)!important;
-        --sys-color-surface-bright:var(--p-chrome)!important;
+        /* surfaces: one card color, flat toolbars, a step up only for popovers */
+        --sys-color-cdt-base-container:var(--p-surface)!important;
+        --sys-color-base:var(--p-surface)!important;
+        --sys-color-base-container:var(--p-surface)!important;
+        --sys-color-surface:var(--p-surface)!important;
+        --sys-color-surface-bright:var(--p-surface)!important;
         --sys-color-surface1:var(--p-surface)!important;
         --sys-color-surface2:var(--p-surface)!important;
-        --sys-color-surface3:var(--p-raised)!important;
-        --sys-color-surface4:var(--p-raised)!important;
-        --sys-color-surface5:var(--p-raised)!important;
+        --sys-color-surface3:var(--p-surface)!important;
+        --sys-color-surface4:var(--p-surface)!important;
+        --sys-color-surface5:var(--p-surface)!important;
         --sys-color-surface-container:var(--p-surface)!important;
         --sys-color-surface-container-high:var(--p-raised)!important;
         --sys-color-surface-variant:var(--p-surface)!important;
-        --sys-color-neutral-container:var(--p-surface)!important;
+        --sys-color-neutral-container:var(--p-raised)!important;
 
         /* selection: neutral, not space */
         --sys-color-tonal-container:var(--p-select)!important;
@@ -1311,7 +1330,7 @@ try {
         --icon-primary:var(--p-accent)!important;
 
         /* legacy variables some panels still read */
-        --color-background:var(--p-chrome)!important;
+        --color-background:var(--p-surface)!important;
         --color-background-elevation-1:var(--p-surface)!important;
         --color-background-elevation-2:var(--p-raised)!important;
         --color-text-primary:var(--p-ink)!important;
@@ -1319,15 +1338,24 @@ try {
         --color-text-disabled:var(--p-ink3)!important;
         --color-details-hairline:var(--p-line)!important;
         --color-primary:var(--p-accent)!important;
-        scrollbar-color:color-mix(in srgb,var(--p-ink) 24%,transparent) transparent;
     }
-    html,body,.root-view{background:var(--p-chrome)!important;color:var(--p-ink)!important;
+    html,body,.root-view{background:var(--p-surface)!important;color:var(--p-ink)!important;
         font-family:var(--default-font-family)!important;font-size:12px}
     ::selection{background:color-mix(in srgb,var(--p-space) 35%,transparent)}`;
     // Also make the frontend's own light/dark mode match (best effort).
     import("./core/common/common.js").then(m => {
         m.Settings.Settings.instance().moduleSetting("uiTheme").set(cfg.dark ? "dark" : "default");
     }).catch(() => {});
+    }
+
+        if (st.sheet && Date.now() - (st.sheetAt || 0) > 300) {
+    st.sheetAt = Date.now();
+    const adopt = root => {
+        if (!root.adoptedStyleSheets.includes(st.sheet))
+            root.adoptedStyleSheets = [...root.adoptedStyleSheets, st.sheet];
+        for (const el of root.querySelectorAll("*")) if (el.shadowRoot) adopt(el.shadowRoot);
+    };
+    adopt(document);
     }
 
     // A click on the device emulation button (or Ctrl+Shift+M) expands the frontend immediately.
@@ -3188,6 +3216,7 @@ impl Browser {
             "dark": dark,
             "accent": self.cur_space().color,
             "icons_key": self.devtools_icons_version,
+            "icon_px": DEVTOOLS_ICON_PX,
         });
         if self.devtools_icons_version != 0 && !self.devtools_icons_applied {
             cfg["icons"] = json!(self.devtools_icons);
@@ -4469,6 +4498,11 @@ impl Browser {
                 Some(bounds) => {
                     if let Err(error) = apply_webview_bounds(devtools, bounds, scale) {
                         log::warn!("resizing DevTools WebView failed: {error:#}");
+                    }
+                    #[cfg(windows)]
+                    {
+                        let size = bounds.size.to_logical::<f64>(scale);
+                        apply_webview_radius(devtools, size.width, size.height, scale, true);
                     }
                     let show = self.devtools_open
                         && !self.overlay
