@@ -113,6 +113,17 @@ $("titlebar").addEventListener("dblclick", (e) => {
 $("window-drag").addEventListener("pointerdown", (e) => {
   if (e.button === 0) send({ cmd: "window_drag" });
 });
+// Backup: drag from any empty part of the topbar, in case #window-drag is covered or collapsed.
+$("titlebar").addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || e.target.closest("#window-drag")) return;
+  if (
+    e.target.closest(
+      "button,input,textarea,select,a,[role=button],.window-controls",
+    )
+  )
+    return;
+  send({ cmd: "window_drag" });
+});
 {
   const w = el("span", "ico");
   w.append(ic("plus", 15));

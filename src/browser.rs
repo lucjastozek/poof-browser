@@ -2678,7 +2678,10 @@ impl Browser {
             Cmd::WindowMinimize => self.window.set_minimized(true),
             Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
             Cmd::WindowDrag => {
-                let _ = self.window.drag_window();
+                log::debug!("window_drag received");
+                if let Err(e) = self.window.drag_window() {
+                    log::warn!("drag_window failed: {e}");
+                }
             }
             Cmd::WindowClose => {
                 let _ = self.proxy.send_event(UserEvent::CloseWindow);
