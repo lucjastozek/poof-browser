@@ -781,6 +781,146 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = include_str!("browser/init_script.js");
 
+const SCROLLBAR_JS: &str = r##"
+(() => {
+    if (window.__poofSb) return;
+    let color = "#6dc5e2";
+    let host = null, thumb = null, hideT = 0, drag = null, hover = false, ready = false, raf = 0;
+
+    const root = () => document.documentElement;
+    const scroller = () => document.scrollingElement || document.documentElement;
+    const fill = () => "color-mix(in srgb, " + color + " 65%, transparent)";
+
+    // The scrollbar that applies to the viewport comes from <html>, or from <body> when
+    // <html> leaves overflow at its default.
+    const scrollable = () => {
+        const r = root(), b = document.body;
+        let ov = getComputedStyle(r).overflowY;
+        if (ov === "visible" && b) ov = getComputedStyle(b).overflowY;
+        return ov !== "hidden" && ov !== "clip";
+    };
+
+    const layout = () => {
+        if (!thumb) return false;
+        const s = scroller();
+        const ch = s.clientHeight, sh = s.scrollHeight;
+        if (document.fullscreenElement || sh - ch <= 1 || !scrollable()) {
+            thumb.style.display = "none";
+            return false;
+        }
+        thumb.style.display = "block";
+        const th = Math.max(40, Math.round(ch * ch / sh));
+        const y = (s.scrollTop / (sh - ch)) * (ch - th);
+        thumb.style.height = th + "px";
+        thumb.style.transform = "translateY(" + Math.max(0, y) + "px)";
+        return true;
+    };
+
+    const show = () => {
+        if (!layout()) return;
+        if (host && !host.isConnected && root()) root().appendChild(host);
+        thumb.classList.add("on");
+        clearTimeout(hideT);
+        hideT = setTimeout(() => {
+            if (!drag && !hover) thumb.classList.remove("on");
+        }, 900);
+    };
+
+    const build = () => {
+        const r = root();
+        if (!r || ready) return;
+        ready = true;
+
+        const hide = document.createElement("style");
+        hide.textContent =
+            "html{scrollbar-width:none !important}" +
+            "html::-webkit-scrollbar{display:none !important;width:0 !important;height:0 !important}";
+        r.appendChild(hide);
+
+        host = document.createElement("div");
+        host.style.cssText =
+            "position:fixed!important;top:0!important;right:0!important;bottom:0!important;" +
+            "width:0!important;height:100%!important;z-index:2147483647!important;" +
+            "pointer-events:none!important;display:block!important;margin:0!important;" +
+            "padding:0!important;border:0!important;background:none!important;";
+        const sh = host.attachShadow({ mode: "closed" });
+        const st = document.createElement("style");
+        st.textContent =
+            ".t{position:absolute;right:2px;top:0;width:6px;border-radius:999px;display:none;" +
+            "opacity:0;transition:opacity .25s,width .12s;pointer-events:none;will-change:transform}" +
+            ".t.on{opacity:1;pointer-events:auto}" +
+            ".t:hover,.t.drag{width:10px}";
+        thumb = document.createElement("div");
+        thumb.className = "t";
+        thumb.style.background = fill();
+        sh.append(st, thumb);
+        r.appendChild(host);
+
+        thumb.addEventListener("pointerenter", () => { hover = true; clearTimeout(hideT); });
+        thumb.addEventListener("pointerleave", () => { hover = false; show(); });
+        thumb.addEventListener("pointerdown", e => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            thumb.setPointerCapture(e.pointerId);
+            drag = { y: e.clientY, top: scroller().scrollTop };
+            thumb.classList.add("drag");
+        });
+        thumb.addEventListener("pointermove", e => {
+            if (!drag) return;
+            const s = scroller();
+            const range = s.scrollHeight - s.clientHeight;
+            const track = s.clientHeight - thumb.offsetHeight;
+            if (track > 0) s.scrollTop = drag.top + (e.clientY - drag.y) * range / track;
+        });
+        const end = () => {
+            if (!drag) return;
+            drag = null;
+            thumb.classList.remove("drag");
+            show();
+        };
+        thumb.addEventListener("pointerup", end);
+        thumb.addEventListener("pointercancel", end);
+
+        window.addEventListener("scroll", () => { if (!drag) show(); }, { passive: true });
+        window.addEventListener("mousemove", e => {
+            if (e.clientX >= window.innerWidth - 14) show();
+        }, { passive: true });
+        window.addEventListener("resize", layout, { passive: true });
+        window.addEventListener("load", layout);
+        document.addEventListener("fullscreenchange", layout);
+
+        if (window.ResizeObserver) {
+            const ro = new ResizeObserver(() => {
+                if (raf) return;
+                raf = requestAnimationFrame(() => { raf = 0; layout(); });
+            });
+            ro.observe(r);
+            if (document.body) ro.observe(document.body);
+            else document.addEventListener("DOMContentLoaded", () => document.body && ro.observe(document.body));
+        }
+        layout();
+    };
+
+    window.__poofSb = c => {
+        if (!/^#[0-9a-fA-F]{6}$/.test(c)) return;
+        color = c;
+        if (thumb) { thumb.style.background = fill(); return; }
+        if (root()) { build(); return; }
+        // Document start: <html> does not exist yet; wait for it, never touch the document itself.
+        const mo = new MutationObserver(() => {
+            if (root()) { mo.disconnect(); build(); }
+        });
+        mo.observe(document, { childList: true });
+    };
+    window.__poofSb("__ACCENT__");
+})();
+"##;
+
+fn scrollbar_script(accent: &str) -> String {
+    let accent = if ok_color(accent) { accent } else { "#6dc5e2" };
+    SCROLLBAR_JS.replace("__ACCENT__", accent)
+}
+
 /// Draws the DevTools resize handle and header strip. They live in the sidebar WebView, whose IPC
 /// is known to work, so neither depends on the DevTools frontend. Called with a config object,
 /// or null to hide both. The first call also sends the browser's own icon set to the native side,
@@ -2368,6 +2508,9 @@ impl Browser {
                 if persist {
                     self.save();
                 }
+                if self.visible.as_deref() == Some(tab) {
+                    self.sync_scrollbar();
+                }
             }
             PageMsg::OpenBackground { u } => {
                 // Internal only: a page always carries its own non-empty tab id, so it cannot forge this.
@@ -2598,6 +2741,7 @@ impl Browser {
                     }
                 }
                 self.save();
+                self.sync_scrollbar();
             }
             Cmd::DeleteSpace { id } => self.delete_space(&id)?,
             Cmd::MoveTab { id, to, index } => self.move_tab(&id, &to, index),
@@ -3232,6 +3376,7 @@ impl Browser {
         let profile_id = self.tabs[idx].profile_id.clone();
         let url = self.tabs[idx].url.clone();
         let bounds = self.content_rect();
+        let accent = self.cur_space().color.clone(); // <- add
         let dir = self.root.join("profiles").join(&profile_id);
         let ctx = self
             .contexts
@@ -3247,6 +3392,7 @@ impl Browser {
             .with_devtools(false)
             .with_url(&url)
             .with_initialization_script_for_main_only(INIT_JS, false)
+            .with_initialization_script_for_main_only(scrollbar_script(&accent), false)
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page {
                     tab: id1.clone(),
@@ -3635,6 +3781,7 @@ impl Browser {
             set_memory_level(wv, false);
         }
         self.relayout();
+        self.sync_scrollbar();
         if let Some(wv) = &self.tabs[idx].webview {
             wv.focus()?;
             if self.p.auto_pip {
@@ -4667,5 +4814,13 @@ impl Browser {
             }
         }
         Ok(())
+    }
+
+    /// Pushes the current space color into the visible page's scrollbar style.
+    fn sync_scrollbar(&self) {
+        let c = &self.cur_space().color;
+        if ok_color(c) {
+            self.eval_visible(&format!("window.__poofSb&&window.__poofSb('{c}')"));
+        }
     }
 }
