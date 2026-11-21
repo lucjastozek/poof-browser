@@ -4,10 +4,38 @@
 //! Windows we call the DevTools protocol `Runtime.evaluate` with `userGesture: true`.
 use wry::WebView;
 
+/// Injected into every page (main frame). Remembers which videos the user started themselves,
+/// so autoplaying stories, feed previews and ads are never popped out.
+pub const TRACK_JS: &str = r#"(() => {
+  if (window.__poofUV) return;
+  const uv = (window.__poofUV = new WeakSet());
+  const WINDOW_MS = 2500;
+  const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"]);
+  let last = 0;
+  const stamp = e => {
+    if (!e.isTrusted) return;
+    if (e.type === "keydown" && SCROLL_KEYS.has(e.key)) return;
+    last = performance.now();
+  };
+  for (const t of ["pointerdown", "mousedown", "touchstart", "keydown", "click"])
+    window.addEventListener(t, stamp, true);
+  const mark = e => {
+    const v = e.target;
+    if (v instanceof HTMLVideoElement && performance.now() - last < WINDOW_MS) uv.add(v);
+  };
+  document.addEventListener("play", mark, true);
+  document.addEventListener("volumechange", mark, true);
+})();"#;
+
 const ENTER_JS: &str = r#"(async () => {
   if (document.pictureInPictureElement) return;
+  const uv = window.__poofUV;
+  if (!uv) return;
   const vs = [...document.querySelectorAll('video')].filter(v =>
-    !v.paused && !v.ended && v.readyState > 2 && v.videoWidth > 0 && !v.disablePictureInPicture);
+    uv.has(v) &&
+    !v.paused && !v.ended && v.readyState > 2 && v.videoWidth >= 240 &&
+    !v.disablePictureInPicture &&
+    !v.closest('.ad-showing, .ad-interrupting'));
   if (!vs.length) return;
   vs.sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight);
   try { await vs[0].requestPictureInPicture(); } catch (e) {}

@@ -3422,6 +3422,7 @@ impl Browser {
             .with_url(&url)
             .with_initialization_script_for_main_only(INIT_JS, false)
             .with_initialization_script_for_main_only(scrollbar_script(&accent), false)
+            .with_initialization_script_for_main_only(pip::TRACK_JS, false)
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page {
                     tab: id1.clone(),
