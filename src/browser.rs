@@ -241,6 +241,8 @@ const FAVICON_MAX: usize = 48_000;
 const FAVICON_PERSIST_MAX: usize = 16_000;
 /// State writes closer together than this are coalesced and flushed by the event-loop timer.
 const SAVE_MIN_INTERVAL: Duration = Duration::from_secs(2);
+/// Title-driven sidebar updates closer together than this are coalesced.
+const STATE_MIN_INTERVAL: Duration = Duration::from_millis(150);
 /// History entries kept at most, across all profiles (oldest dropped first).
 const HISTORY_MAX: usize = 5000;
 /// History rows sent to the history view at once.
@@ -1818,6 +1820,12 @@ enum PageMsg {
     },
     /// The page's WebView took keyboard focus (used to track the active split pane).
     Focus,
+    /// A video was started by the user on this page, so auto-PIP may apply when leaving it.
+    Vid,
+    /// The page started / stopped showing a Picture-in-Picture window.
+    Pip {
+        active: bool,
+    },
     /// Internal (empty tab id only): open a link in a background tab (Ctrl/middle click).
     #[serde(rename = "open_background")]
     OpenBackground {
@@ -1944,6 +1952,15 @@ pub struct Browser {
     split_chrome_shown: Cell<bool>,
     tab_drag: bool,
     saved_splits: Vec<Split>,
+    /// Tabs where the user started a video (only those are worth waking for auto-PIP).
+    vid_tabs: HashSet<String>,
+    /// Tabs currently showing a Picture-in-Picture window: never slept or memory-trimmed.
+    pip_tabs: HashSet<String>,
+    /// Hidden tabs whose WebView2 memory target is currently LOW.
+    low_mem: HashSet<String>,
+    /// When the sidebar last received a state snapshot, and whether a newer one is waiting.
+    last_push: Cell<Instant>,
+    state_dirty: Cell<bool>,
 }
 
 fn logical(w: &Window) -> (f64, f64) {
@@ -2405,6 +2422,11 @@ impl Browser {
             split_chrome_shown: Cell::new(false),
             tab_drag: false,
             saved_splits: Vec::new(),
+            vid_tabs: HashSet::new(),
+            pip_tabs: HashSet::new(),
+            low_mem: HashSet::new(),
+            last_push: Cell::new(Instant::now() - STATE_MIN_INTERVAL),
+            state_dirty: Cell::new(false),
         };
         b.apply_theme();
         b.preinstall();
@@ -2514,7 +2536,12 @@ impl Browser {
                         }
                     }
                 }
-                self.push_state();
+                // Pages that animate their title must not re-render the sidebar every tick.
+                if self.last_push.get().elapsed() >= STATE_MIN_INTERVAL {
+                    self.push_state();
+                } else {
+                    self.state_dirty.set(true);
+                }
             }
             UserEvent::OpenTab { url } => {
                 if ok_url(&url, 4096, false) {
@@ -2805,6 +2832,33 @@ impl Browser {
                 if let Err(e) = r {
                     log::error!("{e:#}");
                 }
+            }
+            PageMsg::Vid => {
+                if !tab.is_empty() && self.tabs.iter().any(|t| t.id == tab) {
+                    self.vid_tabs.insert(tab.to_string());
+                }
+                return;
+            }
+            PageMsg::Pip { active } => {
+                if !tab.is_empty() && self.tabs.iter().any(|t| t.id == tab) {
+                    if active {
+                        self.pip_tabs.insert(tab.to_string());
+                        // A PIP window keeps playing; give the page its normal memory budget.
+                        if self.low_mem.remove(tab) {
+                            if let Some(wv) = self
+                                .tabs
+                                .iter()
+                                .find(|t| t.id == tab)
+                                .and_then(|t| t.webview.as_ref())
+                            {
+                                set_memory_level(wv, false);
+                            }
+                        }
+                    } else {
+                        self.pip_tabs.remove(tab);
+                    }
+                }
+                return;
             }
             PageMsg::Focus => {
                 if self.split_has(tab) && self.visible.as_deref() != Some(tab) {
@@ -4014,19 +4068,27 @@ impl Browser {
         };
         self.responsive_mode = false;
         self.responsive_bounds = None;
-        let auto_pip = self.p.auto_pip;
+        // Only wake the page for auto-PIP when the user actually started a video on it.
+        let try_pip = self.p.auto_pip && self.vid_tabs.contains(&id);
+        let mut trimmed = false;
         if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) {
             // The idle clock (for sleeping the tab) starts when the user leaves it.
             t.last_active = SystemTime::now();
             if let Some(wv) = t.webview.as_ref() {
-                if auto_pip {
+                if try_pip {
                     pip::on_leave(wv);
                 }
                 let _ = wv.set_visible(false);
-                if !is_playing_audio(wv) {
+                // A page that may be about to pop out a video keeps its memory budget until
+                // the next maintenance pass (`trim_hidden_tabs`) knows whether PIP started.
+                if !try_pip && !is_playing_audio(wv) {
                     set_memory_level(wv, true);
+                    trimmed = true;
                 }
             }
+        }
+        if trimmed {
+            self.low_mem.insert(id);
         }
         if let Some(devtools) = self.devtools.as_ref() {
             let _ = devtools.set_visible(false);
@@ -4072,14 +4134,16 @@ impl Browser {
         self.visible = Some(id.to_string());
         self.active
             .insert(self.p.current_space.clone(), id.to_string());
-        if let Some(wv) = &self.tabs[idx].webview {
-            set_memory_level(wv, false);
+        if self.low_mem.remove(id) {
+            if let Some(wv) = &self.tabs[idx].webview {
+                set_memory_level(wv, false);
+            }
         }
         self.relayout();
         self.sync_scrollbar();
         if let Some(wv) = &self.tabs[idx].webview {
             wv.focus()?;
-            if self.p.auto_pip {
+            if self.p.auto_pip && self.vid_tabs.contains(id) {
                 pip::on_enter(wv);
             }
         }
@@ -4450,6 +4514,46 @@ impl Browser {
             .map(|t| t.profile_id.clone())
             .collect();
         self.ext_done.retain(|p| live.contains(p));
+        // Per-tab bookkeeping dies with the WebView it describes.
+        let loaded: HashSet<&str> = self
+            .tabs
+            .iter()
+            .filter(|t| t.webview.is_some())
+            .map(|t| t.id.as_str())
+            .collect();
+        self.vid_tabs.retain(|id| loaded.contains(id.as_str()));
+        self.pip_tabs.retain(|id| loaded.contains(id.as_str()));
+        self.low_mem.retain(|id| loaded.contains(id.as_str()));
+    }
+
+    /// Keeps hidden pages as small as possible: pages that are neither playing audio nor
+    /// showing a PIP window get the LOW memory target (this also covers a PIP window that was
+    /// closed, or audio that stopped, after the tab was left); pages that started doing either
+    /// get their normal budget back.
+    fn trim_hidden_tabs(&mut self) {
+        let visible = self.visible.clone();
+        let split_ids: Vec<String> = self
+            .split
+            .iter()
+            .flat_map(|s| [s.a.clone(), s.b.clone()])
+            .collect();
+        for t in self.tabs.iter() {
+            let Some(wv) = t.webview.as_ref() else {
+                continue;
+            };
+            if visible.as_deref() == Some(t.id.as_str()) || split_ids.contains(&t.id) {
+                continue;
+            }
+            let busy = self.pip_tabs.contains(&t.id) || is_playing_audio(wv);
+            let low = self.low_mem.contains(&t.id);
+            if busy && low {
+                set_memory_level(wv, false);
+                self.low_mem.remove(&t.id);
+            } else if !busy && !low {
+                set_memory_level(wv, true);
+                self.low_mem.insert(t.id.clone());
+            }
+        }
     }
 
     /// Releases the WebView (and with it the renderer process) of background tabs that have been
@@ -4470,6 +4574,7 @@ impl Browser {
             .iter()
             .flat_map(|s| [s.a.clone(), s.b.clone()])
             .collect();
+        let pip_tabs = &self.pip_tabs;
         for t in self.tabs.iter_mut() {
             let Some(wv) = t.webview.as_ref() else {
                 continue;
@@ -4477,6 +4582,7 @@ impl Browser {
             if visible.as_deref() == Some(t.id.as_str())
                 || devtools_tab.as_deref() == Some(t.id.as_str())
                 || split_ids.contains(&t.id)
+                || pip_tabs.contains(&t.id)
             {
                 continue;
             }
@@ -4525,6 +4631,8 @@ impl Browser {
             }
         }
         self.sleep_idle_tabs();
+        self.prune_ext_done();
+        self.trim_hidden_tabs();
         self.cleanup_profile_data();
         self.prune_history();
         self.push_state();
@@ -4912,6 +5020,18 @@ impl Browser {
         self.save_dirty || self.history_dirty
     }
 
+    /// How long the event loop may sleep before something deferred must be flushed
+    /// (a coalesced sidebar update sooner than a throttled disk write).
+    pub fn flush_delay(&self) -> Option<Duration> {
+        if self.state_dirty.get() {
+            Some(STATE_MIN_INTERVAL)
+        } else if self.save_pending() {
+            Some(Duration::from_millis(1500))
+        } else {
+            None
+        }
+    }
+
     /// Final, unconditional write on exit.
     pub fn shutdown(&mut self) {
         self.save_dirty = true;
@@ -4923,6 +5043,9 @@ impl Browser {
     }
 
     pub fn flush_save(&mut self) {
+        if self.state_dirty.get() {
+            self.push_state();
+        }
         self.flush_history(false);
         if !self.save_dirty {
             return;
@@ -5095,6 +5218,8 @@ impl Browser {
         let mut hasher = DefaultHasher::new();
         payload.hash(&mut hasher);
         let digest = hasher.finish().max(1);
+        self.last_push.set(Instant::now());
+        self.state_dirty.set(false);
         if self.last_state_hash.get() == digest {
             return;
         }

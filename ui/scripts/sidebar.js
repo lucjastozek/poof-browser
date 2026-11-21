@@ -541,6 +541,7 @@ window.__setState = (s) => {
   prevIdx = idx;
   $("addExt").hidden = !s.store_ext;
   syncUrl();
+  ensureSpaceIcons(s);
   if (!s.active && !ov)
     openView("newtab"); /* no page open: show the start page */
 };

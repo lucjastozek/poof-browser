@@ -37,9 +37,9 @@ function buildSpace(v, mode) {
     : sp.color.toLowerCase();
   let icn = add
     ? "sparkles"
-    : SPACE_ICONS[sp.icon] || sp.icon.startsWith("svg:")
+    : sp.icon.startsWith("svg:")
       ? sp.icon
-      : "house";
+      : spaceIconName(sp.icon);
   let [H, SA, V] = rgb2hsv(hex2rgb(color));
   V = Math.max(V, 0.2);
   applyColor(color);
@@ -62,9 +62,14 @@ function buildSpace(v, mode) {
   upload.accept = ".svg,image/svg+xml";
   upload.hidden = true;
   const uploadBtn = btn("sm ghost", "Upload SVG", () => upload.click());
+  // Thousands of inline SVG nodes are expensive; show the first batch and let search narrow it.
+  const ICON_GRID_MAX = 300;
   const paintIcons = () => {
     const q = iconSearch.value.trim().toLowerCase();
-    const names = Object.keys(SPACE_ICONS).filter((n) => n.includes(q));
+    const all = Object.keys(SPACE_ICONS).filter((n) => n.includes(q));
+    const names = all.slice(0, ICON_GRID_MAX);
+    if (icn && !icn.startsWith("svg:") && SPACE_ICONS[icn] && !names.includes(icn) && !q)
+      names.unshift(icn);
     grid.replaceChildren(
       ...names.map((n) => {
         const b = el("button", n === icn ? "on" : "");
@@ -78,6 +83,9 @@ function buildSpace(v, mode) {
         };
         return b;
       }),
+      ...(all.length > names.length
+        ? [el("div", "note", `Showing ${names.length} of ${all.length}. Search to find more.`)]
+        : []),
     );
   };
   iconSearch.addEventListener("input", paintIcons);
@@ -371,5 +379,14 @@ function buildSpace(v, mode) {
   };
   paintIcons();
   sync();
+  // The full icon set is fetched from the native side only while this editor is open.
+  window.__loadSpaceIcons().then(() => {
+    if (ov && ov.startsWith("space")) {
+      if (!add && !icn.startsWith("svg:") && SPACE_ICONS[spaceIconName(sp.icon)])
+        icn = spaceIconName(sp.icon);
+      paintIcons();
+      sync();
+    }
+  });
   setTimeout(() => name.focus(), 30);
 }

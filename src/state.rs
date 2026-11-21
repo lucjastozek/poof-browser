@@ -271,9 +271,9 @@ impl Persisted {
     }
 
     fn read(path: &Path) -> Option<Self> {
-        fs::read_to_string(path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
+        // Parse straight from the file; no second in-memory copy of the whole document.
+        let file = fs::File::open(path).ok()?;
+        serde_json::from_reader(std::io::BufReader::new(file)).ok()
     }
 
     pub fn load(path: &Path) -> Self {
@@ -319,14 +319,13 @@ impl Persisted {
     /// Writes compact JSON to a temp file, fsyncs, keeps the previous file as `.bak`, then
     /// swaps the new one in. Returns whether the save succeeded.
     pub fn save(&self, path: &Path) -> bool {
-        let Ok(json) = serde_json::to_vec(self) else {
-            return false;
-        };
         let tmp = path.with_extension("json.tmp");
+        // Serialized straight into a buffered file: no whole-document Vec in memory.
         let written = (|| -> std::io::Result<()> {
-            let mut file = fs::File::create(&tmp)?;
-            file.write_all(&json)?;
-            file.sync_all()?;
+            let mut w = std::io::BufWriter::new(fs::File::create(&tmp)?);
+            serde_json::to_writer(&mut w, self)?;
+            w.flush()?;
+            w.get_ref().sync_all()?;
             Ok(())
         })();
         if written.is_err() {
@@ -353,21 +352,19 @@ pub struct HistoryEntry {
 }
 
 pub fn load_history(path: &Path) -> Vec<HistoryEntry> {
-    fs::read_to_string(path)
+    fs::File::open(path)
         .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
+        .and_then(|f| serde_json::from_reader(std::io::BufReader::new(f)).ok())
         .unwrap_or_default()
 }
 
 pub fn save_history(entries: &[HistoryEntry], path: &Path) -> bool {
-    let Ok(json) = serde_json::to_vec(entries) else {
-        return false;
-    };
     let tmp = path.with_extension("json.tmp");
     let written = (|| -> std::io::Result<()> {
-        let mut file = fs::File::create(&tmp)?;
-        file.write_all(&json)?;
-        file.sync_all()?;
+        let mut w = std::io::BufWriter::new(fs::File::create(&tmp)?);
+        serde_json::to_writer(&mut w, entries)?;
+        w.flush()?;
+        w.get_ref().sync_all()?;
         Ok(())
     })();
     if written.is_err() {

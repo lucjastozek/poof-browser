@@ -76,8 +76,6 @@ fn poof_icon() -> Option<tao::window::Icon> {
 }
 
 const MAINTENANCE_EVERY: Duration = Duration::from_secs(60);
-/// How soon a deferred (throttled) state save is flushed.
-const SAVE_FLUSH_AFTER: Duration = Duration::from_millis(1500);
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -123,12 +121,11 @@ fn main() -> anyhow::Result<()> {
             _ => {}
         }
 
-        // Sleep until the next maintenance pass, or sooner if a save is waiting to be flushed.
-        // The loop is otherwise fully idle (no timers, no polling).
-        let deadline = if browser.save_pending() {
-            next_maintenance.min(Instant::now() + SAVE_FLUSH_AFTER)
-        } else {
-            next_maintenance
+        // Sleep until the next maintenance pass, or sooner if a deferred sidebar update or save is
+        // waiting to be flushed. The loop is otherwise fully idle (no timers, no polling).
+        let deadline = match browser.flush_delay() {
+            Some(delay) => next_maintenance.min(Instant::now() + delay),
+            None => next_maintenance,
         };
         *flow = ControlFlow::WaitUntil(deadline);
     });

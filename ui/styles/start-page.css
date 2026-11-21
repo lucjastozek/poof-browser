@@ -220,6 +220,10 @@
   background: var(--hover);
   color: var(--ink);
 }
+.icons .note {
+  grid-column: 1 / -1;
+  padding: 6px 4px;
+}
 .icons button.on {
   background: var(--accent);
   color: var(--accent-ink);
