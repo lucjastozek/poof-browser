@@ -106,10 +106,20 @@ fn raise_webview(wv: &WebView) {
 }
 
 #[cfg(windows)]
-fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, rounded: bool) {
+fn apply_webview_radius(
+    wv: &WebView,
+    width: f64,
+    height: f64,
+    scale: f64,
+    rounded: bool,
+    hole: Option<[f64; 4]>, // [x, y, w, h] cut out of the page, relative to the WebView
+) {
     use windows::Win32::{
         Foundation::HWND,
-        Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ},
+        Graphics::Gdi::{
+            CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ,
+            RGN_DIFF,
+        },
     };
 
     let mut hwnd = HWND::default();
@@ -117,23 +127,44 @@ fn apply_webview_radius(wv: &WebView, width: f64, height: f64, scale: f64, round
         if wv.controller().ParentWindow(&mut hwnd).is_err() || hwnd.0.is_null() {
             return;
         }
-        if !rounded {
+        if !rounded && hole.is_none() {
             let _ = SetWindowRgn(hwnd, None, true);
             return;
         }
-
-        let width = (width * scale).round().max(1.0) as i32;
-        let height = (height * scale).round().max(1.0) as i32;
-        let radius = (8.0 * scale).round().max(1.0) as i32;
-        let region = CreateRoundRectRgn(0, 0, width, height, radius * 2, radius * 2);
+        let w = (width * scale).round().max(1.0) as i32;
+        let h = (height * scale).round().max(1.0) as i32;
+        let rad = (8.0 * scale).round().max(1.0) as i32;
+        let region = if rounded {
+            CreateRoundRectRgn(0, 0, w, h, rad * 2, rad * 2)
+        } else {
+            CreateRectRgn(0, 0, w, h)
+        };
         if region.0.is_null() {
             return;
         }
-        // SetWindowRgn takes ownership of the region only when it succeeds.
+        if let Some([hx, hy, hw, hh]) = hole {
+            let l = (hx * scale).round() as i32;
+            let t = (hy * scale).round() as i32;
+            let r = ((hx + hw) * scale).round() as i32;
+            let b = ((hy + hh) * scale).round() as i32;
+            if r > 0 && l < w {
+                let cut = CreateRoundRectRgn(l, t, r, b, rad * 2, rad * 2);
+                if !cut.0.is_null() {
+                    let _ = CombineRgn(Some(region), Some(region), Some(cut), RGN_DIFF);
+                    let _ = DeleteObject(HGDIOBJ(cut.0));
+                }
+            }
+        }
         if SetWindowRgn(hwnd, Some(region), true) == 0 {
             let _ = DeleteObject(HGDIOBJ(region.0));
         }
     }
+}
+
+fn rect_parts(r: Rect, scale: f64) -> (f64, f64, f64, f64) {
+    let p = r.position.to_logical::<f64>(scale);
+    let s = r.size.to_logical::<f64>(scale);
+    (p.x, p.y, s.width, s.height)
 }
 
 /// Asks WebView2 to trim (LOW) or restore (NORMAL) the memory it keeps for this page. Hidden
@@ -780,6 +811,8 @@ const DEFAULT_SITES: &[(&str, &str)] = &[
     ("Chrome Web Store", "https://chromewebstore.google.com/"),
 ];
 
+const PEEK_X: f64 = INSET; // left edge of the peek card; lines up with the page edge
+
 /// Injected into every content page (top frame only). Reports URL/favicon, forwards shortcuts.
 const INIT_JS: &str = include_str!("browser/init_script.js");
 
@@ -787,6 +820,7 @@ const SCROLLBAR_JS: &str = r##"
 (() => {
     if (window.__poofSb) return;
     let color = "#6dc5e2";
+    let on = __VISIBLE__;
     let host = null, thumb = null, hideT = 0, drag = null, hover = false, ready = false, raf = 0;
 
     const root = () => document.documentElement;
@@ -806,7 +840,7 @@ const SCROLLBAR_JS: &str = r##"
         if (!thumb) return false;
         const s = scroller();
         const ch = s.clientHeight, sh = s.scrollHeight;
-        if (document.fullscreenElement || sh - ch <= 1 || !scrollable()) {
+        if (!on || document.fullscreenElement || sh - ch <= 1 || !scrollable()) {
             thumb.style.display = "none";
             return false;
         }
@@ -903,6 +937,12 @@ const SCROLLBAR_JS: &str = r##"
         layout();
     };
 
+    window.__poofSbVisible = v => {
+        on = !!v;
+        if (!thumb) return;
+        if (on) show(); else { thumb.classList.remove("on"); layout(); }
+    };
+
     window.__poofSb = c => {
         if (!/^#[0-9a-fA-F]{6}$/.test(c)) return;
         color = c;
@@ -918,9 +958,11 @@ const SCROLLBAR_JS: &str = r##"
 })();
 "##;
 
-fn scrollbar_script(accent: &str) -> String {
+fn scrollbar_script(accent: &str, visible: bool) -> String {
     let accent = if ok_color(accent) { accent } else { "#6dc5e2" };
-    SCROLLBAR_JS.replace("__ACCENT__", accent)
+    SCROLLBAR_JS
+        .replace("__ACCENT__", accent)
+        .replace("__VISIBLE__", if visible { "true" } else { "false" })
 }
 
 /// Draws the DevTools resize handle and header strip. They live in the sidebar WebView, whose IPC
@@ -1475,6 +1517,61 @@ try {
 })
 "##;
 
+const SPLIT_CHROME_JS: &str = r##"
+(cfg => {
+let ui = window.__poofSplitUi;
+if (!cfg) { if (ui) ui.handle.style.display = "none"; return; }
+if (!ui) {
+    const post = m => window.ipc.postMessage(JSON.stringify(m));
+    const handle = document.createElement("div");
+    handle.style.cssText = "position:fixed;z-index:10;touch-action:none;user-select:none;display:none;background:var(--chrome)";    
+    const line = document.createElement("i");
+    line.style.cssText = "position:absolute;border-radius:2px;background:transparent;transition:background .12s";
+    handle.appendChild(line);
+    let drag = null, raf = 0, last = 0;
+    const ratioAt = e => {
+        const [x, y, w, h] = ui.cfg.box, g = ui.cfg.gap;
+        return ui.cfg.stacked ? (e.clientY - y - g / 2) / (h - g) : (e.clientX - x - g / 2) / (w - g);
+    };
+    const send = (ratio, persist) => post({ cmd: "split_ratio", ratio, persist });
+    handle.addEventListener("pointerenter", () => { if (drag === null) line.style.background = "var(--space)"; });
+    handle.addEventListener("pointerleave", () => { if (drag === null) line.style.background = "transparent"; });
+    handle.addEventListener("pointerdown", e => {
+        if (e.button !== 0) return;
+        drag = e.pointerId; handle.setPointerCapture(drag);
+        line.style.background = "var(--space)"; e.preventDefault();
+    });
+    handle.addEventListener("pointermove", e => {
+        if (drag !== e.pointerId) return;
+        last = ratioAt(e);
+        if (!raf) raf = requestAnimationFrame(() => { raf = 0; send(last, false); });
+    });
+    const end = e => {
+        if (drag !== e.pointerId) return;
+        drag = null;
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        send(ratioAt(e), true);
+        line.style.background = "transparent";
+    };
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+    document.body.append(handle);
+    ui = window.__poofSplitUi = { cfg, handle, line };
+}
+ui.cfg = cfg;
+const [x, y, w, h] = cfg.handle;
+const pad = 8; // = the pane corner radius
+const [hx, hy, hw, hh] = cfg.stacked
+    ? [x, y - pad, w, h + 2 * pad]
+    : [x - pad, y, w + 2 * pad, h];
+Object.assign(ui.handle.style, { display: "block", left: hx + "px", top: hy + "px",
+    width: hw + "px", height: hh + "px", cursor: cfg.stacked ? "row-resize" : "col-resize" });
+Object.assign(ui.line.style, cfg.stacked
+    ? { left: "0", right: "0", top: "50%", bottom: "auto", width: "auto", height: "2px", transform: "translateY(-50%)" }
+    : { top: "0", bottom: "0", left: "50%", right: "auto", height: "auto", width: "2px", transform: "translateX(-50%)" });
+})
+"##;
+
 /// What the DevTools frontend reports back to the native side.
 #[derive(Deserialize, Default)]
 struct DevToolsReport {
@@ -1657,6 +1754,34 @@ enum Cmd {
     SwitcherPick {
         id: String,
     },
+    SidebarPeek {
+        open: bool,
+    },
+    SplitTab {
+        id: String,
+        /// The tab that was dropped on; it becomes the other pane. Defaults to the visible tab.
+        #[serde(default)]
+        target: Option<String>,
+        #[serde(default)]
+        stacked: bool,
+        /// The dragged tab becomes the first (left/top) pane.
+        #[serde(default)]
+        first: bool,
+    },
+    SplitClose {
+        #[serde(default)]
+        id: Option<String>,
+    },
+    SplitOrientation,
+    SplitRatio {
+        ratio: f64,
+        #[serde(default)]
+        persist: bool,
+    },
+    ToggleScrollbar,
+    TabDrag {
+        active: bool,
+    },
     #[serde(rename = "devtools_toggle", alias = "dev_tools_toggle")]
     DevToolsToggle,
     #[serde(rename = "devtools_position", alias = "dev_tools_position")]
@@ -1691,6 +1816,8 @@ enum PageMsg {
     Fullscreen {
         active: bool,
     },
+    /// The page's WebView took keyboard focus (used to track the active split pane).
+    Focus,
     /// Internal (empty tab id only): open a link in a background tab (Ctrl/middle click).
     #[serde(rename = "open_background")]
     OpenBackground {
@@ -1718,6 +1845,8 @@ struct Layout {
     header: Option<[f64; 4]>,
     /// [x, y, w, h] of the resize handle (docked mode only).
     handle: Option<[f64; 4]>,
+    other: Option<Rect>,
+    split_handle: Option<[f64; 4]>,
 }
 
 struct Switcher {
@@ -1725,6 +1854,15 @@ struct Switcher {
     index: usize,
     /// A sidebar view (new tab bar etc.) was already open when the switcher started.
     prev_overlay: bool,
+}
+
+#[derive(Clone)]
+struct Split {
+    a: String,            // first pane (left / top)
+    b: String,            // second pane (right / bottom)
+    stacked: bool,        // true = top/bottom
+    ratio: f64,           // share of the first pane
+    prev_collapsed: bool, // sidebar state to restore when leaving split view
 }
 
 #[cfg(windows)]
@@ -1800,6 +1938,12 @@ pub struct Browser {
     /// Tab ids, most recently used first.
     mru: Vec<String>,
     switcher: Option<Switcher>,
+    split: Option<Split>,
+    peek: bool,
+    scrollbar_visible: bool,
+    split_chrome_shown: Cell<bool>,
+    tab_drag: bool,
+    saved_splits: Vec<Split>,
 }
 
 fn logical(w: &Window) -> (f64, f64) {
@@ -1925,6 +2069,8 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
             0x49 => Some("devtools_toggle"), // I
             0x54 => Some("reopen"),          // T
             0x52 => Some("reload"),          // R
+            0x45 => Some("split_toggle"),    // E
+            0x4F => Some("split_orient"),    // O
             VK_TAB => Some("tab_prev"),
             _ => None,
         };
@@ -1946,6 +2092,7 @@ fn browser_shortcut(key: u32, ctrl: bool, alt: bool, shift: bool) -> Option<&'st
         0x37 => Some("tab_7"),
         0x38 => Some("tab_8"),
         0x39 => Some("tab_last"),
+        0x53 => Some("toggle_scrollbar"), // S
         VK_TAB => Some("tab_next"),
         _ => None,
     }
@@ -2252,6 +2399,12 @@ impl Browser {
             was_maximized: false,
             mru: Vec::new(),
             switcher: None,
+            split: None,
+            peek: false,
+            scrollbar_visible: true,
+            split_chrome_shown: Cell::new(false),
+            tab_drag: false,
+            saved_splits: Vec::new(),
         };
         b.apply_theme();
         b.preinstall();
@@ -2586,6 +2739,10 @@ impl Browser {
                 } else {
                     tab
                 };
+                if self.split_has(tab) && self.visible.as_deref() != Some(tab) {
+                    let id = tab.to_string();
+                    let _ = self.focus_split_pane(&id);
+                }
                 if self.visible.as_deref() != Some(tab) {
                     return;
                 }
@@ -2634,10 +2791,27 @@ impl Browser {
                         Ok(())
                     }
                     "devtools_toggle" => self.toggle_devtools(),
+                    "split_toggle" => self.toggle_split(),
+                    "split_orient" => {
+                        self.toggle_split_orientation();
+                        Ok(())
+                    }
+                    "toggle_scrollbar" => {
+                        self.toggle_scrollbar();
+                        Ok(())
+                    }
                     _ => Ok(()),
                 };
                 if let Err(e) = r {
                     log::error!("{e:#}");
+                }
+            }
+            PageMsg::Focus => {
+                if self.split_has(tab) && self.visible.as_deref() != Some(tab) {
+                    let id = tab.to_string();
+                    if let Err(e) = self.focus_split_pane(&id) {
+                        log::error!("{e:#}");
+                    }
                 }
             }
         }
@@ -2651,10 +2825,12 @@ impl Browser {
             Cmd::Ready => {
                 // The sidebar just (re)loaded and has no state yet: force a full push.
                 self.last_state_hash.set(0);
+                self.tab_drag = false;
                 self.restore_space_tab()?
             }
             Cmd::SidebarCollapsed { collapsed } => {
                 self.p.sidebar_collapsed = collapsed;
+                self.peek = false;
                 self.save();
                 self.relayout();
             }
@@ -2675,6 +2851,41 @@ impl Browser {
                     self.relayout();
                 }
             }
+            Cmd::SidebarPeek { open } => {
+                let want = open && self.p.sidebar_collapsed && !self.fullscreen;
+                if want != self.peek {
+                    self.peek = want;
+                    self.relayout();
+                }
+            }
+            Cmd::SplitTab {
+                id,
+                target,
+                stacked,
+                first,
+            } => self.open_split(&id, target.as_deref(), stacked, first)?,
+            Cmd::TabDrag { active } => {
+                if self.tab_drag != active {
+                    self.tab_drag = active;
+                    self.relayout();
+                }
+            }
+            Cmd::SplitClose { id } => match id {
+                Some(id) if !self.split_has(&id) => {
+                    self.saved_splits.retain(|s| s.a != id && s.b != id)
+                }
+                _ => self.close_split(),
+            },
+            Cmd::SplitOrientation => self.toggle_split_orientation(),
+            Cmd::SplitRatio { ratio, persist: _ } => {
+                if ratio.is_finite() {
+                    if let Some(sp) = self.split.as_mut() {
+                        sp.ratio = ratio.clamp(0.15, 0.85);
+                    }
+                    self.relayout();
+                }
+            }
+            Cmd::ToggleScrollbar => self.toggle_scrollbar(),
             Cmd::WindowMinimize => self.window.set_minimized(true),
             Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
             Cmd::WindowDrag => {
@@ -3058,6 +3269,10 @@ impl Browser {
     }
 
     fn toggle_devtools(&mut self) -> Result<()> {
+        if !self.devtools_open && self.split.is_some() {
+            self.toast("Close split view to use Developer Tools.");
+            return Ok(());
+        }
         if self.devtools_open {
             self.close_devtools();
             return Ok(());
@@ -3410,6 +3625,7 @@ impl Browser {
         let bounds = self.content_rect();
         let accent = self.cur_space().color.clone(); // <- add
         let dir = self.root.join("profiles").join(&profile_id);
+        let sb_on = self.scrollbar_visible;
         let ctx = self
             .contexts
             .entry(profile_id.clone())
@@ -3424,7 +3640,7 @@ impl Browser {
             .with_devtools(false)
             .with_url(&url)
             .with_initialization_script_for_main_only(INIT_JS, false)
-            .with_initialization_script_for_main_only(scrollbar_script(&accent), false)
+            .with_initialization_script_for_main_only(scrollbar_script(&accent, sb_on), false)
             .with_initialization_script_for_main_only(pip::TRACK_JS, false)
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page {
@@ -3629,6 +3845,26 @@ impl Browser {
             }
         }
 
+        #[cfg(windows)]
+        {
+            use webview2_com::FocusChangedEventHandler;
+            let focus_proxy = self.proxy.clone();
+            let focus_tab = id.clone();
+            unsafe {
+                let handler = FocusChangedEventHandler::create(Box::new(move |_, _| {
+                    let _ = focus_proxy.send_event(UserEvent::Page {
+                        tab: focus_tab.clone(),
+                        body: r#"{"t":"focus"}"#.to_string(),
+                    });
+                    Ok(())
+                }));
+                let mut token = 0;
+                if let Err(error) = wv.controller().add_GotFocus(&handler, &mut token) {
+                    log::warn!("registering WebView2 focus handler failed: {error}");
+                }
+            }
+        }
+
         // Crash recovery: a dead renderer (or browser process) is reported to the main loop,
         // which recreates the WebView instead of leaving a blank/frozen tab.
         #[cfg(windows)]
@@ -3688,6 +3924,9 @@ impl Browser {
         else {
             return;
         };
+        if self.split.is_some() && (browser_died || self.split_has(tab)) {
+            self.close_split();
+        }
 
         let now = Instant::now();
         let entry = self.crashes.entry(tab.to_string()).or_insert((now, 0));
@@ -3768,6 +4007,7 @@ impl Browser {
     }
 
     fn hide_visible(&mut self) {
+        self.end_split();
         self.leave_fullscreen();
         let Some(id) = self.visible.take() else {
             return;
@@ -3801,6 +4041,28 @@ impl Browser {
         self.mru.retain(|x| x != id);
         self.mru.insert(0, id.to_string());
         self.bg_tabs.remove(id);
+        if self.split.is_some() {
+            if self.split_has(id) {
+                return self.focus_split_pane(id);
+            }
+            self.end_split();
+        }
+
+        if self.split.is_none() {
+            let pair = self
+                .saved_splits
+                .iter()
+                .find(|s| {
+                    (s.a == id || s.b == id)
+                        && self.tabs.iter().any(|t| t.id == s.a)
+                        && self.tabs.iter().any(|t| t.id == s.b)
+                })
+                .cloned();
+            if let Some(pair) = pair {
+                return self.restore_split(pair, id);
+            }
+        }
+
         if self.visible.as_deref() == Some(id) && !self.overlay {
             return Ok(());
         }
@@ -3834,6 +4096,11 @@ impl Browser {
         let Some(idx) = self.tabs.iter().position(|t| t.id == id) else {
             return Ok(());
         };
+        if self.split_has(id) {
+            self.end_split();
+            self.relayout();
+        }
+        self.saved_splits.retain(|s| s.a != id && s.b != id);
         let was_visible = self.visible.as_deref() == Some(id);
         if was_visible {
             self.leave_fullscreen();
@@ -3876,6 +4143,9 @@ impl Browser {
         };
         if self.tabs[idx].webview.is_none() {
             return Ok(());
+        }
+        if self.split_has(id) {
+            self.close_split();
         }
         if self.visible.as_deref() == Some(id) {
             // Move to a neighbouring tab first, so the unloaded one is not reloaded right away.
@@ -4195,12 +4465,18 @@ impl Browser {
         let visible = self.visible.clone();
         let devtools_tab = self.devtools_tab.clone();
         let mut slept = false;
+        let split_ids: Vec<String> = self
+            .split
+            .iter()
+            .flat_map(|s| [s.a.clone(), s.b.clone()])
+            .collect();
         for t in self.tabs.iter_mut() {
             let Some(wv) = t.webview.as_ref() else {
                 continue;
             };
             if visible.as_deref() == Some(t.id.as_str())
                 || devtools_tab.as_deref() == Some(t.id.as_str())
+                || split_ids.contains(&t.id)
             {
                 continue;
             }
@@ -4240,6 +4516,7 @@ impl Browser {
                     .as_secs()
                     >= hours.saturating_mul(3600)
             })
+            .filter(|t| !self.split_has(&t.id))
             .map(|t| t.id.clone())
             .collect();
         for id in expired {
@@ -4407,7 +4684,29 @@ impl Browser {
             tools: None,
             header: None,
             handle: None,
+            other: None,
+            split_handle: None,
         };
+
+        if !self.fullscreen && !self.devtools_open {
+            if let Some((first, second, handle)) = self.split_rects() {
+                let second_focused = self
+                    .split
+                    .as_ref()
+                    .map(|s| self.visible.as_deref() == Some(s.b.as_str()))
+                    .unwrap_or(false);
+                let (mine, theirs) = if second_focused {
+                    (second, first)
+                } else {
+                    (first, second)
+                };
+                out.page = rect_of(mine);
+                out.other = Some(rect_of(theirs));
+                out.split_handle = Some(handle);
+                return out;
+            }
+        }
+
         if !self.devtools_open || self.fullscreen {
             return out;
         }
@@ -4478,21 +4777,54 @@ impl Browser {
         self.sync_fullscreen_backdrop();
         let layout = self.layout();
 
-        let page_shown = !self.overlay && layout.page_visible;
+        let hide_pages = self.overlay || self.tab_drag;
+        let page_shown = !hide_pages && layout.page_visible;
         if let Some(wv) = self.visible_webview() {
             if let Err(error) = apply_webview_bounds(wv, layout.page, scale) {
                 log::warn!("resizing content WebView failed: {error:#}");
             }
-            let _ = wv.set_visible(page_shown);
+            let _ = wv.set_visible(!hide_pages);
             #[cfg(windows)]
             {
-                let [_, _, cw, ch] = self.content_box();
-                apply_webview_radius(wv, cw, ch, scale, !self.fullscreen && !self.devtools_open);
+                let (px, py, pw, ph) = rect_parts(layout.page, scale);
+                apply_webview_radius(
+                    wv,
+                    pw,
+                    ph,
+                    scale,
+                    !self.fullscreen && !self.devtools_open,
+                    self.peek_hole(px, py),
+                );
                 unsafe {
                     let _ = wv.controller().NotifyParentWindowPositionChanged();
                 }
                 if page_shown && self.devtools_open && self.responsive_mode {
                     raise_webview(wv);
+                }
+            }
+        }
+        if let Some(wv) = self
+            .split_other_id()
+            .and_then(|id| self.tabs.iter().find(|t| t.id == id))
+            .and_then(|t| t.webview.as_ref())
+        {
+            match layout.other {
+                Some(r) => {
+                    if let Err(error) = apply_webview_bounds(wv, r, scale) {
+                        log::warn!("resizing split WebView failed: {error:#}");
+                    }
+                    #[cfg(windows)]
+                    {
+                        let (px, py, pw, ph) = rect_parts(r, scale);
+                        apply_webview_radius(wv, pw, ph, scale, true, self.peek_hole(px, py));
+                        unsafe {
+                            let _ = wv.controller().NotifyParentWindowPositionChanged();
+                        }
+                    }
+                    let _ = wv.set_visible(!self.overlay);
+                }
+                None => {
+                    let _ = wv.set_visible(false);
                 }
             }
         }
@@ -4506,7 +4838,7 @@ impl Browser {
                     #[cfg(windows)]
                     {
                         let size = bounds.size.to_logical::<f64>(scale);
-                        apply_webview_radius(devtools, size.width, size.height, scale, true);
+                        apply_webview_radius(devtools, size.width, size.height, scale, true, None);
                     }
                     let show = self.devtools_open
                         && !self.overlay
@@ -4527,6 +4859,7 @@ impl Browser {
             self.poll_thread.unpark();
         }
         self.sync_devtools_chrome(&layout);
+        self.sync_split_chrome(&layout);
     }
 
     /// While a page is fullscreen the sidebar WebView stays in place but turns solid black with
@@ -4621,7 +4954,12 @@ impl Browser {
         } else {
             HashMap::new()
         };
+        let live_collapsed = self.p.sidebar_collapsed;
+        if let Some(sp) = &self.split {
+            self.p.sidebar_collapsed = sp.prev_collapsed;
+        }
         let ok = self.p.save(&self.root.join("state.json"));
+        self.p.sidebar_collapsed = live_collapsed;
         self.last_save = Instant::now();
         if ok {
             self.save_dirty = false;
@@ -4734,6 +5072,12 @@ impl Browser {
             "devtools_open": self.devtools_open,
             "devtools_position": self.p.devtools_position,
             "devtools_size": self.p.devtools_size,
+            "sidebar_peek": self.peek,
+        "split": self.split.as_ref().map(|s| json!({"a": s.a, "b": s.b, "stacked": s.stacked})),
+                    "splits": self.saved_splits.iter()
+                .filter(|s| self.tabs.iter().any(|t| t.id == s.a) && self.tabs.iter().any(|t| t.id == s.b))
+                .map(|s| json!({"a": s.a, "b": s.b}))
+                .collect::<Vec<_>>(),
             "profile_cleanup": self.p.profiles.iter()
                 .find(|p| p.id == sp.profile_id)
                 .map(|p| json!({
@@ -4860,5 +5204,265 @@ impl Browser {
         if ok_color(c) {
             self.eval_visible(&format!("window.__poofSb&&window.__poofSb('{c}')"));
         }
+    }
+
+    fn split_has(&self, id: &str) -> bool {
+        self.split
+            .as_ref()
+            .map(|s| s.a == id || s.b == id)
+            .unwrap_or(false)
+    }
+
+    fn split_other_id(&self) -> Option<String> {
+        let sp = self.split.as_ref()?;
+        match self.visible.as_deref() {
+            Some(v) if v == sp.b => Some(sp.a.clone()),
+            Some(v) if v == sp.a => Some(sp.b.clone()),
+            _ => None,
+        }
+    }
+
+    /// [first, second, divider] in window coordinates.
+    fn split_rects(&self) -> Option<([f64; 4], [f64; 4], [f64; 4])> {
+        let sp = self.split.as_ref()?;
+        let [x, y, w, h] = self.content_box();
+        let gap = INSET;
+        Some(if sp.stacked {
+            let h1 = ((h - gap) * sp.ratio).round().max(1.0);
+            let h2 = (h - gap - h1).max(1.0);
+            ([x, y, w, h1], [x, y + h1 + gap, w, h2], [x, y + h1, w, gap])
+        } else {
+            let w1 = ((w - gap) * sp.ratio).round().max(1.0);
+            let w2 = (w - gap - w1).max(1.0);
+            ([x, y, w1, h], [x + w1 + gap, y, w2, h], [x + w1, y, gap, h])
+        })
+    }
+
+    /// The sidebar card while peeking, relative to a WebView whose origin is (px, py).
+    fn peek_hole(&self, px: f64, py: f64) -> Option<[f64; 4]> {
+        if !(self.peek && self.p.sidebar_collapsed && !self.fullscreen) {
+            return None;
+        }
+        let (_, h) = logical(&self.window);
+        Some([
+            PEEK_X - px,
+            TOPBAR_H - py,
+            self.p.sidebar_width,
+            h - TOPBAR_H - INSET,
+        ])
+    }
+
+    fn open_split(
+        &mut self,
+        other: &str,
+        base: Option<&str>,
+        stacked: bool,
+        first: bool,
+    ) -> Result<()> {
+        // Dropped onto a tab that isn't the visible one: show that tab first.
+        if let Some(b) = base {
+            if b != other && self.visible.as_deref() != Some(b) {
+                self.activate(b)?;
+            }
+        }
+        let Some(cur) = self.visible.clone() else {
+            self.toast("Open a page first.");
+            return Ok(());
+        };
+        if cur == other || !self.space_tab_ids().iter().any(|x| x == other) {
+            return Ok(());
+        }
+        self.end_split(); // replaces an existing split; restores the sidebar state first
+        if self.devtools_open {
+            self.close_devtools();
+        }
+        let Some(idx) = self.tabs.iter().position(|t| t.id == other) else {
+            return Ok(());
+        };
+        self.ensure_webview(idx)?;
+        if let Some(wv) = &self.tabs[idx].webview {
+            set_memory_level(wv, false);
+        }
+        self.tabs[idx].last_active = SystemTime::now();
+        let (a, b) = if first {
+            (other.to_string(), cur)
+        } else {
+            (cur, other.to_string())
+        };
+        self.split = Some(Split {
+            a,
+            b,
+            stacked,
+            ratio: 0.5,
+            prev_collapsed: self.p.sidebar_collapsed,
+        });
+        self.tab_drag = false;
+        if let Some(sp) = self.split.clone() {
+            self.remember_split(&sp);
+        }
+        self.p.sidebar_collapsed = true;
+        self.peek = false;
+        self.overlay = false;
+        self.visible = Some(other.to_string());
+        self.mru.retain(|x| x != other);
+        self.mru.insert(0, other.to_string());
+        self.active
+            .insert(self.p.current_space.clone(), other.to_string());
+        self.relayout();
+        if let Some(wv) = self.visible_webview() {
+            let _ = wv.focus();
+        }
+        self.sync_scrollbar();
+        Ok(())
+    }
+
+    /// Leaves split view without relayout: hides the unfocused pane, restores the sidebar.
+    fn end_split(&mut self) {
+        let Some(sp) = self.split.take() else { return };
+        self.remember_split(&sp); // keeps ratio + orientation for when you come back
+        let vis = self.visible.clone();
+        for id in [&sp.a, &sp.b] {
+            if vis.as_deref() == Some(id.as_str()) {
+                continue;
+            }
+            if let Some(t) = self.tabs.iter_mut().find(|t| &t.id == id) {
+                t.last_active = SystemTime::now();
+                if let Some(wv) = t.webview.as_ref() {
+                    let _ = wv.set_visible(false);
+                    if !is_playing_audio(wv) {
+                        set_memory_level(wv, true);
+                    }
+                }
+            }
+        }
+        self.p.sidebar_collapsed = sp.prev_collapsed;
+        self.peek = false;
+    }
+
+    fn remember_split(&mut self, sp: &Split) {
+        self.saved_splits
+            .retain(|s| s.a != sp.a && s.b != sp.a && s.a != sp.b && s.b != sp.b);
+        self.saved_splits.push(sp.clone());
+    }
+
+    /// Re-enters a remembered split, focusing `focus`.
+    fn restore_split(&mut self, pair: Split, focus: &str) -> Result<()> {
+        if self.devtools_open {
+            self.close_devtools();
+        }
+        self.hide_visible();
+        for id in [pair.a.clone(), pair.b.clone()] {
+            if let Some(idx) = self.tabs.iter().position(|t| t.id == id) {
+                self.ensure_webview(idx)?;
+                self.tabs[idx].last_active = SystemTime::now();
+                if let Some(wv) = &self.tabs[idx].webview {
+                    set_memory_level(wv, false);
+                }
+                self.bg_tabs.remove(&id);
+            }
+        }
+        self.split = Some(Split {
+            prev_collapsed: self.p.sidebar_collapsed,
+            ..pair
+        });
+        self.p.sidebar_collapsed = true;
+        self.peek = false;
+        self.overlay = false;
+        self.tab_drag = false;
+        self.visible = Some(focus.to_string());
+        self.mru.retain(|x| x != focus);
+        self.mru.insert(0, focus.to_string());
+        self.active
+            .insert(self.p.current_space.clone(), focus.to_string());
+        self.relayout();
+        if let Some(wv) = self.visible_webview() {
+            let _ = wv.focus();
+        }
+        self.sync_scrollbar();
+        Ok(())
+    }
+
+    fn close_split(&mut self) {
+        let ids = self.split.as_ref().map(|s| (s.a.clone(), s.b.clone()));
+        self.end_split();
+        if let Some((a, b)) = ids {
+            self.saved_splits
+                .retain(|s| s.a != a && s.b != a && s.a != b && s.b != b);
+        }
+        self.relayout();
+    }
+
+    fn focus_split_pane(&mut self, id: &str) -> Result<()> {
+        self.overlay = false;
+        self.visible = Some(id.to_string());
+        self.mru.retain(|x| x != id);
+        self.mru.insert(0, id.to_string());
+        self.active
+            .insert(self.p.current_space.clone(), id.to_string());
+        if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) {
+            t.last_active = SystemTime::now();
+        }
+        self.relayout();
+        if let Some(wv) = self.visible_webview() {
+            let _ = wv.focus();
+        }
+        self.sync_scrollbar();
+        Ok(())
+    }
+
+    fn toggle_split(&mut self) -> Result<()> {
+        if self.split.is_some() {
+            self.close_split();
+            return Ok(());
+        }
+        match self.switcher_ids().get(1).cloned() {
+            Some(id) => self.open_split(&id, None, false, false),
+            None => {
+                self.toast("Open another tab to use split view.");
+                Ok(())
+            }
+        }
+    }
+
+    fn toggle_split_orientation(&mut self) {
+        if let Some(sp) = self.split.as_mut() {
+            sp.stacked = !sp.stacked;
+            self.relayout();
+        }
+    }
+
+    fn toggle_scrollbar(&mut self) {
+        self.scrollbar_visible = !self.scrollbar_visible;
+        let js = format!(
+            "window.__poofSbVisible&&window.__poofSbVisible({})",
+            self.scrollbar_visible
+        );
+        for t in &self.tabs {
+            if let Some(wv) = t.webview.as_ref() {
+                let _ = wv.evaluate_script(&js);
+            }
+        }
+    }
+
+    fn sync_split_chrome(&self, layout: &Layout) {
+        let cfg = layout
+            .split_handle
+            .filter(|_| !self.overlay && !self.fullscreen)
+            .map(|h| {
+                json!({
+                    "handle": h,
+                    "stacked": self.split.as_ref().map(|s| s.stacked).unwrap_or(false),
+                    "gap": INSET,
+                    "box": self.content_box(),
+                })
+            });
+        if cfg.is_none() && !self.split_chrome_shown.get() {
+            return;
+        }
+        self.split_chrome_shown.set(cfg.is_some());
+        let arg = cfg.map(|c| c.to_string()).unwrap_or_else(|| "null".into());
+        let _ = self
+            .sidebar
+            .evaluate_script(&format!("({SPLIT_CHROME_JS})({arg})"));
     }
 }

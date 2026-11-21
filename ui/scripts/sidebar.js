@@ -217,6 +217,34 @@ function folderNode(s, folder, pinned) {
   group.append(contents);
   return group;
 }
+
+// Tabs that are split together are shown as one row with two halves.
+function groupSplits(nodes) {
+  const pairs = S.splits || [];
+  const byId = new Map(
+    nodes
+      .filter((n) => n.classList.contains("row"))
+      .map((n) => [n.dataset.id, n]),
+  );
+  const used = new Set();
+  const out = [];
+  for (const n of nodes) {
+    if (used.has(n)) continue;
+    const id = n.classList.contains("row") ? n.dataset.id : null;
+    const sp = id && pairs.find((p) => p.a === id || p.b === id);
+    const a = sp && byId.get(sp.a),
+      b = sp && byId.get(sp.b);
+    if (a && b && !used.has(a) && !used.has(b)) {
+      used.add(a);
+      used.add(b);
+      const g = el("div", "split-pair");
+      g.append(a, b);
+      out.push(g);
+    } else out.push(n);
+  }
+  return out;
+}
+
 function folderArea(s, pinned) {
   const folders = (s.folders || []).filter((f) => !!f.pinned === pinned);
   const allFolders = s.folders || [];
@@ -241,7 +269,7 @@ function folderArea(s, pinned) {
     );
     nodes.splice(at, 0, folderNode(s, folder, pinned));
   }
-  return nodes;
+  return groupSplits(nodes);
 }
 const settingsButton = ib("settings", "Settings", () => openView("settings"));
 const spaces = el("div");
@@ -284,6 +312,57 @@ createFolderItem.onclick = () => {
   send({ cmd: "create_folder", name: "New folder" });
 };
 folderContextMenu.append(createFolderItem);
+
+// Right-clicking a tab row: split view actions.
+const rowMenu = el("div", "folder-context-menu");
+function showRowMenu(e, t) {
+  e.preventDefault();
+  e.stopPropagation();
+  folderContextMenu.remove();
+  rowMenu.remove();
+  const item = (label, cmd) => {
+    const b = el("button", "folder-context-item", label);
+    b.type = "button";
+    b.onclick = () => {
+      rowMenu.remove();
+      send(cmd);
+    };
+    return b;
+  };
+  const pair = (S.splits || []).find((p) => p.a === t.id || p.b === t.id);
+  const live = S.split && (S.split.a === t.id || S.split.b === t.id);
+  const items = [];
+  if (pair) {
+    items.push(item("Close split view", { cmd: "split_close", id: t.id }));
+    if (live)
+      items.push(
+        item(S.split.stacked ? "Side by side" : "Top and bottom", {
+          cmd: "split_orientation",
+        }),
+      );
+  } else if (S.active && S.active !== t.id) {
+    items.push(
+      item("Open in split view (side by side)", {
+        cmd: "split_tab",
+        id: t.id,
+        stacked: false,
+      }),
+      item("Open in split view (top and bottom)", {
+        cmd: "split_tab",
+        id: t.id,
+        stacked: true,
+      }),
+    );
+  }
+  if (!items.length) return;
+  rowMenu.replaceChildren(...items);
+  $("side").append(rowMenu);
+  const bounds = $("side").getBoundingClientRect();
+  rowMenu.style.left =
+    Math.max(8, Math.min(e.clientX - bounds.left, bounds.width - 220)) + "px";
+  rowMenu.style.top = Math.max(8, e.clientY - bounds.top) + "px";
+}
+
 $("side").addEventListener("contextmenu", (e) => {
   if (
     e.target.closest(
@@ -292,6 +371,7 @@ $("side").addEventListener("contextmenu", (e) => {
   )
     return;
   e.preventDefault();
+  rowMenu.remove();
   folderContextMenu.remove();
   $("side").append(folderContextMenu);
   const bounds = $("side").getBoundingClientRect();
@@ -301,9 +381,13 @@ $("side").addEventListener("contextmenu", (e) => {
 });
 document.addEventListener("pointerdown", (e) => {
   if (!folderContextMenu.contains(e.target)) folderContextMenu.remove();
+  if (!rowMenu.contains(e.target)) rowMenu.remove();
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") folderContextMenu.remove();
+  if (e.key === "Escape") {
+    folderContextMenu.remove();
+    rowMenu.remove();
+  }
 });
 
 function minusIcon() {
@@ -338,7 +422,10 @@ function unloadBtn(fn) {
 function row(t, kind) {
   const r = el(
     "div",
-    "row" + (S.active === t.id ? " on" : "") + (t.loaded ? "" : " idle"),
+    "row" +
+      (S.active === t.id ? " on" : "") +
+      (t.loaded ? "" : " idle") +
+      (S.split && (S.split.a === t.id || S.split.b === t.id) ? " split" : ""),
   );
   r.dataset.id = t.id;
   r.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab"));
@@ -358,6 +445,7 @@ function row(t, kind) {
   r.onauxclick = (e) => {
     if (e.button === 1) send({ cmd: "close_tab", id: t.id });
   };
+  r.oncontextmenu = (e) => showRowMenu(e, t);
   r.onpointerdown = (e) => watchDrag(e, r, t, kind);
   return r;
 }
@@ -381,6 +469,10 @@ window.__setState = (s) => {
   }
   document.body.classList.toggle("has-page", !!s.active);
   document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
+  document.body.classList.toggle(
+    "peek",
+    !!s.sidebar_peek && !!s.sidebar_collapsed,
+  );
   document.body.classList.toggle(
     "compact",
     !!s.sidebar_compact && !s.sidebar_collapsed,
@@ -617,6 +709,82 @@ function overRect(r, x, y, pad = 0) {
     y <= r.bottom + pad
   );
 }
+
+/* ---------- drag a tab onto the page to split ---------- */
+const splitDrop = el("div", "split-drop");
+const splitZone = el("div", "split-drop-zone");
+splitDrop.hidden = true;
+splitDrop.append(splitZone);
+document.body.append(splitDrop);
+{
+  const st = document.createElement("style");
+  st.textContent = `
+  .row.split-target{
+  outline:2px solid var(--space);outline-offset:-2px;
+  background:color-mix(in srgb,var(--space) 22%,transparent)}
+  .split-drop{position:fixed;z-index:45;pointer-events:none;border-radius:8px;
+    background:color-mix(in srgb,var(--ink) 5%,transparent)}
+  .split-drop[hidden]{display:none}
+  .split-drop-zone{position:absolute;border-radius:8px;box-sizing:border-box;
+    background:color-mix(in srgb,var(--space) 26%,transparent);
+    border:2px solid var(--space);transition:left .1s,top .1s,width .1s,height .1s}`;
+  document.head.append(st);
+}
+let splitSide = null;
+let pagesHidden = false;
+function contentBounds() {
+  const left =
+    S && S.sidebar_collapsed ? 0 : $("side").getBoundingClientRect().right;
+  return {
+    x: left + 8,
+    y: 40,
+    w: innerWidth - left - 16,
+    h: innerHeight - 40 - 8,
+  };
+}
+function splitTarget(x, y, d) {
+  if (d.kind === "folder" || !S || !S.active || d.id === S.active) return null;
+  if (x <= $("side").getBoundingClientRect().right) return null;
+  const b = contentBounds();
+  if (x < b.x || x > b.x + b.w || y < b.y || y > b.y + b.h) return null;
+  const dx = (x - b.x) / b.w - 0.5,
+    dy = (y - b.y) / b.h - 0.5;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx < 0 ? "left" : "right";
+  return dy < 0 ? "top" : "bottom";
+}
+function setSplitPreview(side) {
+  if (side === splitSide) return;
+  splitSide = side;
+  if (side && !pagesHidden) {
+    pagesHidden = true;
+    send({ cmd: "tab_drag", active: true }); // hide the native page so the preview is visible
+  } else if (!side && pagesHidden) {
+    pagesHidden = false;
+    send({ cmd: "tab_drag", active: false });
+  }
+  if (!side) {
+    splitDrop.hidden = true;
+    return;
+  }
+  const b = contentBounds(),
+    g = 8;
+  Object.assign(splitDrop.style, {
+    left: b.x + "px",
+    top: b.y + "px",
+    width: b.w + "px",
+    height: b.h + "px",
+  });
+  const half = (n) => (n - g) / 2;
+  const z = {
+    left: { left: 0, top: 0, width: half(b.w), height: b.h },
+    right: { left: half(b.w) + g, top: 0, width: half(b.w), height: b.h },
+    top: { left: 0, top: 0, width: b.w, height: half(b.h) },
+    bottom: { left: 0, top: half(b.h) + g, width: b.w, height: half(b.h) },
+  }[side];
+  for (const k in z) splitZone.style[k] = z[k] + "px";
+  splitDrop.hidden = false;
+}
+
 function updateDrag(ev) {
   const d = drag,
     x = ev.clientX,
@@ -627,6 +795,39 @@ function updateDrag(ev) {
     pr = pane.getBoundingClientRect();
   if (y < pr.top + 28) pane.scrollTop -= 8;
   else if (y > pr.bottom - 28) pane.scrollTop += 8;
+  const over = splitTarget(x, y, d);
+  setSplitPreview(over);
+  if (over) {
+    d.zone = "split:" + over;
+    d.idx = 0;
+    $("ind").hidden = true;
+    $("line").classList.remove("hot");
+    return;
+  }
+
+  // Hovering the middle of another tab row: split with that tab.
+  document
+    .querySelectorAll(".row.split-target")
+    .forEach((r) => r.classList.remove("split-target"));
+  if (d.kind !== "folder") {
+    const hit = document.elementFromPoint(x, y)?.closest(".row");
+    if (hit && hit.dataset.id && hit.dataset.id !== d.id) {
+      const rr = hit.getBoundingClientRect();
+      const rel = (y - rr.top) / rr.height;
+      if (rel > 0.28 && rel < 0.72) {
+        hit.classList.add("split-target");
+        d.zone = "splittab:" + hit.dataset.id;
+        d.idx = 0;
+        $("ind").hidden = true;
+        $("line").classList.remove("hot");
+        $("pinned").classList.remove("hot-zone");
+        $("favs").classList.remove("hot-zone");
+        $("lineLbl").textContent = "Release to split";
+        return;
+      }
+    }
+  }
+
   const fr = $("favs").getBoundingClientRect(),
     lr = $("line").getBoundingClientRect();
   let zone = null;
@@ -675,7 +876,10 @@ function updateDrag(ev) {
     );
     items.forEach((c) => {
       const r = c.getBoundingClientRect();
-      if (r.top + r.height / 2 < y) idx++;
+      if (r.top + r.height / 2 < y)
+        idx += c.classList.contains("split-pair")
+          ? c.querySelectorAll(":scope > .row:not(.lift)").length
+          : 1;
     });
     const lb = list.getBoundingClientRect();
     box = { left: lb.left + 6, top: y, width: lb.width - 12, height: 2 };
@@ -685,7 +889,10 @@ function updateDrag(ev) {
     );
     items.forEach((c) => {
       const r = c.getBoundingClientRect();
-      if (r.top + r.height / 2 < y) idx++;
+      if (r.top + r.height / 2 < y)
+        idx += c.classList.contains("split-pair")
+          ? c.querySelectorAll(":scope > .row:not(.lift)").length
+          : 1;
     });
     const lb = $("tabs").getBoundingClientRect();
     box = { left: lb.left + 6, top: y, width: lb.width - 12, height: 2 };
@@ -771,9 +978,20 @@ function endDrag(drop) {
   $("pinned").classList.remove("hot-zone");
   $("favs").classList.remove("hot-zone");
   document
+    .querySelectorAll(".row.split-target")
+    .forEach((r) => r.classList.remove("split-target"));
+  document
     .querySelectorAll(".folder-head")
     .forEach((h) => h.classList.remove("drop-target"));
-  if (drop && d.zone) {
+  if (drop && d.zone && d.zone.startsWith("splittab:")) {
+    send({
+      cmd: "split_tab",
+      id: d.id,
+      target: d.zone.slice(9),
+      stacked: false,
+      first: false,
+    });
+  } else if (drop && d.zone && d.zone.startsWith("split:")) {
     if (d.kind === "folder") {
       if (d.zone === "pinned" || d.zone === "tab")
         send({ cmd: "move_folder", id: d.id, to: d.zone, index: d.idx });
@@ -790,6 +1008,9 @@ function endDrag(drop) {
       send({ cmd: "move_tab", id: d.id, to, index: d.idx });
     }
   }
+
+  setSplitPreview(null);
+
   if (pending) {
     const p = pending;
     pending = null;
@@ -936,6 +1157,47 @@ addEventListener(
     },
     true,
   );
+}
+
+/* ---------- hover the left edge to reveal a collapsed sidebar (peek) ---------- */
+{
+  const EDGE = 6; // px from the window's left edge that triggers the peek
+  const TOP = 40; // keep the title bar out of it
+  let closeT = 0;
+  let askedAt = 0;
+  const ask = (open) => send({ cmd: "sidebar_peek", open });
+  const cancelClose = () => {
+    clearTimeout(closeT);
+    closeT = 0;
+  };
+  const scheduleClose = () => {
+    if (closeT || !S || !S.sidebar_peek || drag) return;
+    closeT = setTimeout(() => {
+      closeT = 0;
+      if (!drag) ask(false);
+    }, 220);
+  };
+  addEventListener(
+    "mousemove",
+    (e) => {
+      if (!S || !S.sidebar_collapsed || resizingSidebar) return;
+      if (!S.sidebar_peek) {
+        if (
+          e.clientX <= EDGE &&
+          e.clientY >= TOP &&
+          Date.now() - askedAt > 300
+        ) {
+          askedAt = Date.now();
+          ask(true);
+        }
+        return;
+      }
+      if (e.clientX <= sidebarWidth + 14) cancelClose();
+      else scheduleClose();
+    },
+    { passive: true },
+  );
+  document.documentElement.addEventListener("mouseleave", scheduleClose);
 }
 
 // Ask the native side to restore the current space only after this UI is ready
