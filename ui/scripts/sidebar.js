@@ -237,6 +237,31 @@ const spaces = el("div");
 spaces.id = "dots";
 const newSpaceButton = ib("plus", "New space", () => openView("space:add"));
 $("foot").append(settingsButton, spaces, newSpaceButton);
+const clearTabsBtn = el("button", "clear-tabs", "Clear");
+clearTabsBtn.type = "button";
+clearTabsBtn.title = "Close all unpinned tabs";
+clearTabsBtn.onpointerdown = (e) => e.stopPropagation();
+clearTabsBtn.onclick = (e) => {
+  e.stopPropagation();
+  send({ cmd: "clear_tabs" });
+};
+{
+  const line = $("line");
+  if (getComputedStyle(line).position === "static")
+    line.style.position = "relative";
+  line.append(clearTabsBtn);
+  const st = document.createElement("style");
+  st.textContent = `
+  #line .clear-tabs{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+    padding:2px 8px;border:0;border-radius:var(--r-sm);background:var(--chrome);
+    color:var(--ink-2);font:600 11px var(--f-display);cursor:pointer;
+    opacity:0;pointer-events:none;transition:opacity .12s,background .12s,color .12s}
+  #line:hover .clear-tabs{opacity:1;pointer-events:auto}
+  #line .clear-tabs:hover{background:var(--hover);color:var(--ink)}
+  #line .clear-tabs:active{background:var(--pressed)}
+  #line .clear-tabs[hidden],body.dragging #line .clear-tabs{display:none}`;
+  document.head.append(st);
+}
 $("hdr").onclick = () => openView("space:edit");
 
 // Right-clicking open sidebar space offers folder creation without doing it immediately.
@@ -270,6 +295,35 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") folderContextMenu.remove();
 });
 
+function minusIcon() {
+  try {
+    const n = ic("minus");
+    if (
+      n &&
+      (n.childElementCount || (n.querySelector && n.querySelector("svg")))
+    )
+      return n;
+  } catch (_) {}
+  const NS = "http://www.w3.org/2000/svg";
+  const s = document.createElementNS(NS, "svg");
+  s.setAttribute("viewBox", "0 0 24 24");
+  s.setAttribute("width", "15");
+  s.setAttribute("height", "15");
+  const p = document.createElementNS(NS, "path");
+  p.setAttribute("d", "M5 12h14");
+  p.setAttribute("stroke", "currentColor");
+  p.setAttribute("stroke-width", "2");
+  p.setAttribute("stroke-linecap", "round");
+  p.setAttribute("fill", "none");
+  s.append(p);
+  return s;
+}
+function unloadBtn(fn) {
+  const b = ib("x", "Unload tab", fn);
+  b.replaceChildren(minusIcon());
+  return b;
+}
+
 function row(t, kind) {
   const r = el(
     "div",
@@ -280,7 +334,8 @@ function row(t, kind) {
   const a = el("span", "acts");
   a.append(
     ib("star", "Add to favorites", () => send({ cmd: "fav_tab", id: t.id })),
-    ib("x", kind === "tab" ? "Close" : "Unload", () =>
+    unloadBtn(() => send({ cmd: "unload_tab", id: t.id })),
+    ib("x", kind === "tab" ? "Close" : "Reset to pinned page", () =>
       send({ cmd: "close_tab", id: t.id }),
     ),
   );
@@ -345,7 +400,11 @@ window.__setState = (s) => {
       d.dataset.id = t.id;
       d.title = (t.title || t.url) + "\nRight-click to remove";
       d.append(icon(t));
-      d.onclick = () => go({ cmd: "select_tab", id: t.id });
+      d.onclick = () => {
+        if (noClick) return;
+        go({ cmd: "select_tab", id: t.id });
+      };
+      d.onpointerdown = (e) => watchDrag(e, d, t, "fav");
       d.oncontextmenu = (e) => {
         e.preventDefault();
         send({ cmd: "unfav_tab", id: t.id });
@@ -356,6 +415,7 @@ window.__setState = (s) => {
   $("favs").classList.toggle("empty", !s.favorites.length);
   $("pinned").replaceChildren(...folderArea(s, true));
   $("tabs").replaceChildren(...folderArea(s, false));
+  clearTabsBtn.hidden = !s.tabs.some((t) => !t.folder_id);
   const dots = [];
   let lastP = null;
   s.spaces.forEach((x) => {
@@ -676,7 +736,7 @@ function updateDrag(ev) {
     );
   const changing =
     (zone === "pinned" && d.kind !== "pin") ||
-    (zone === "tab" && d.kind === "pin");
+    (zone === "tab" && d.kind !== "tab");
   $("line").classList.toggle("hot", changing);
   $("lineLbl").textContent =
     zone && zone.startsWith("folder:")
@@ -685,7 +745,9 @@ function updateDrag(ev) {
         ? "Move folder"
         : zone === "pinned"
           ? "Release to pin"
-          : "Release to unpin";
+          : d.kind === "fav"
+            ? "Release to unfavorite"
+            : "Release to unpin";
 }
 function endDrag(drop) {
   const d = drag;
