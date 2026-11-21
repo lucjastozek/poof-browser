@@ -1483,6 +1483,12 @@ enum Cmd {
     Back,
     Forward,
     Reload,
+    SwitcherPoll,
+    SwitcherCommit,
+    SwitcherCancel,
+    SwitcherPick {
+        id: String,
+    },
     #[serde(rename = "devtools_toggle", alias = "dev_tools_toggle")]
     DevToolsToggle,
     #[serde(rename = "devtools_position", alias = "dev_tools_position")]
@@ -1546,6 +1552,24 @@ struct Layout {
     handle: Option<[f64; 4]>,
 }
 
+struct Switcher {
+    ids: Vec<String>,
+    index: usize,
+    /// A sidebar view (new tab bar etc.) was already open when the switcher started.
+    prev_overlay: bool,
+}
+
+#[cfg(windows)]
+fn ctrl_held() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    unsafe { GetAsyncKeyState(0x11) < 0 } // VK_CONTROL
+}
+
+#[cfg(not(windows))]
+fn ctrl_held() -> bool {
+    true // there, only the sidebar's keyup (Ctrl released) closes the switcher
+}
+
 pub struct Browser {
     window: Window,
     proxy: EventLoopProxy<UserEvent>,
@@ -1605,6 +1629,9 @@ pub struct Browser {
     fs_css: Cell<bool>,
     /// The window was maximized when fullscreen started, so it can be maximized again afterwards.
     was_maximized: bool,
+    /// Tab ids, most recently used first.
+    mru: Vec<String>,
+    switcher: Option<Switcher>,
 }
 
 fn logical(w: &Window) -> (f64, f64) {
@@ -2055,6 +2082,8 @@ impl Browser {
             bg_tabs: HashSet::new(),
             fs_css: Cell::new(false),
             was_maximized: false,
+            mru: Vec::new(),
+            switcher: None,
         };
         b.apply_theme();
         b.preinstall();
@@ -2218,6 +2247,10 @@ impl Browser {
                 }
             }
             Err(e) => log::warn!("bad ui message: {e}"),
+        }
+        // Polls arrive many times a second; they never change the pushed state while open.
+        if raw.contains("switcher_poll") && self.switcher.is_some() {
+            return;
         }
         self.push_state();
     }
@@ -2410,8 +2443,8 @@ impl Browser {
                     }
                     "space_next" => self.cycle_space(1),
                     "space_prev" => self.cycle_space(-1),
-                    "tab_next" => self.cycle_tab(1),
-                    "tab_prev" => self.cycle_tab(-1),
+                    "tab_next" => self.switcher_step(1),
+                    "tab_prev" => self.switcher_step(-1),
                     "tab_1" | "tab_2" | "tab_3" | "tab_4" | "tab_5" | "tab_6" | "tab_7"
                     | "tab_8" | "tab_last" => {
                         let index = if k == "tab_last" {
@@ -2828,6 +2861,22 @@ impl Browser {
                     self.devtools_icons_version += 1;
                     self.devtools_icons_applied = false;
                 }
+            }
+            Cmd::SwitcherPoll => {
+                // Ctrl may be released before the sidebar has keyboard focus, so poll for it.
+                if self.switcher.is_some() && !ctrl_held() {
+                    self.switcher_close(true)?;
+                }
+            }
+            Cmd::SwitcherCommit => self.switcher_close(true)?,
+            Cmd::SwitcherCancel => self.switcher_close(false)?,
+            Cmd::SwitcherPick { id } => {
+                if let Some(sw) = self.switcher.as_mut() {
+                    if let Some(i) = sw.ids.iter().position(|x| *x == id) {
+                        sw.index = i;
+                    }
+                }
+                self.switcher_close(true)?;
             }
         }
         Ok(())
@@ -3570,6 +3619,8 @@ impl Browser {
             return Ok(());
         };
         self.tabs[idx].last_active = SystemTime::now();
+        self.mru.retain(|x| x != id);
+        self.mru.insert(0, id.to_string());
         self.bg_tabs.remove(id);
         if self.visible.as_deref() == Some(id) && !self.overlay {
             return Ok(());
@@ -3617,6 +3668,7 @@ impl Browser {
             }
         }
         self.bg_tabs.remove(id);
+        self.mru.retain(|x| x != id);
         if self.tabs[idx].kind == Kind::Normal {
             self.logged_urls.remove(id);
             self.closed_tabs.insert(0, self.tabs[idx].url.clone());
@@ -3861,20 +3913,6 @@ impl Browser {
             })
             .map(|t| t.id.clone())
             .collect()
-    }
-
-    fn cycle_tab(&mut self, direction: i32) -> Result<()> {
-        let ids = self.space_tab_ids();
-        if ids.len() < 2 {
-            return Ok(());
-        }
-        let current = self
-            .visible
-            .as_ref()
-            .and_then(|id| ids.iter().position(|x| x == id))
-            .unwrap_or(0) as i32;
-        let next = (current + direction).rem_euclid(ids.len() as i32) as usize;
-        self.activate(&ids[next])
     }
 
     fn activate_tab_index(&mut self, index: usize) -> Result<()> {
@@ -4538,5 +4576,96 @@ impl Browser {
         {
             self.last_state_hash.set(digest);
         }
+    }
+
+    fn switcher_ids(&self) -> Vec<String> {
+        let reach = self.space_tab_ids();
+        let mut ids: Vec<String> = self
+            .mru
+            .iter()
+            .filter(|id| reach.contains(id))
+            .cloned()
+            .collect();
+        for id in reach {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        // The tab you are on is always first, so index 1 is "the previous tab".
+        if let Some(v) = self.visible.clone() {
+            if let Some(p) = ids.iter().position(|x| *x == v) {
+                let id = ids.remove(p);
+                ids.insert(0, id);
+            }
+        }
+        ids
+    }
+
+    fn switcher_step(&mut self, dir: i32) -> Result<()> {
+        if let Some(sw) = self.switcher.as_mut() {
+            let n = sw.ids.len() as i32;
+            sw.index = (sw.index as i32 + dir).rem_euclid(n) as usize;
+            let i = sw.index;
+            let _ = self.sidebar.evaluate_script(&format!(
+                "window.__switcherSelect&&window.__switcherSelect({i})"
+            ));
+            return Ok(());
+        }
+        let ids = self.switcher_ids();
+        if ids.len() < 2 {
+            return Ok(());
+        }
+        let index = if dir > 0 { 1 } else { ids.len() - 1 };
+        let cards: Vec<Value> = ids
+            .iter()
+            .filter_map(|id| self.tabs.iter().find(|t| &t.id == id))
+            .map(|t| {
+                json!({
+                    "id": t.id, "title": t.title, "url": t.url, "favicon": t.favicon,
+                    "loaded": t.webview.is_some(), "pinned": t.kind != Kind::Normal
+                })
+            })
+            .collect();
+        let payload = json!({ "cards": cards, "index": index }).to_string();
+        self.switcher = Some(Switcher {
+            ids,
+            index,
+            prev_overlay: self.overlay,
+        });
+        // Hides the native page WebView so the sidebar's overlay is visible above it.
+        self.overlay = true;
+        self.relayout();
+        let _ = self.sidebar.focus();
+        let _ = self
+            .sidebar
+            .evaluate_script(&format!("window.__switcher&&window.__switcher({payload})"));
+        Ok(())
+    }
+
+    fn switcher_close(&mut self, commit: bool) -> Result<()> {
+        let Some(sw) = self.switcher.take() else {
+            return Ok(());
+        };
+        let _ = self
+            .sidebar
+            .evaluate_script("window.__switcherClose&&window.__switcherClose()");
+        self.overlay = sw.prev_overlay;
+        let target = if commit {
+            sw.ids.get(sw.index).cloned()
+        } else {
+            None
+        };
+        match target {
+            Some(id) if self.visible.as_deref() != Some(id.as_str()) => self.activate(&id)?,
+            _ => {
+                self.relayout();
+                if !self.overlay {
+                    if let Some(wv) = self.visible_webview() {
+                        let _ = wv.focus();
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
