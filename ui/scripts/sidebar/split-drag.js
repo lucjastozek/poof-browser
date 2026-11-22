@@ -280,6 +280,15 @@ function endDrag(drop) {
       first: false,
     });
   } else if (drop && d.zone && d.zone.startsWith("split:")) {
+    // Dropped on a page edge: split with the visible tab.
+    const side = d.zone.slice(6);
+    send({
+      cmd: "split_tab",
+      id: d.id,
+      stacked: side === "top" || side === "bottom",
+      first: side === "left" || side === "top",
+    });
+  } else if (drop && d.zone) {
     if (d.kind === "folder") {
       if (d.zone === "pinned" || d.zone === "tab")
         send({ cmd: "move_folder", id: d.id, to: d.zone, index: d.idx });
