@@ -42,5 +42,7 @@ pub enum UserEvent {
         tab: String,
         browser: bool,
     },
+    /// A newer installer was downloaded and verified; it runs when the browser closes.
+    UpdateReady(std::path::PathBuf),
     CloseWindow,
 }

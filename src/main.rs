@@ -7,6 +7,7 @@ mod extensions;
 mod gesture;
 mod pip;
 mod state;
+mod updater;
 
 pub use events::UserEvent;
 

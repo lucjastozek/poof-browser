@@ -1,0 +1,81 @@
+# Builds the Windows installer and publishes it as a GitHub release.
+#
+#   Release:  bump `version` in Cargo.toml, commit, then
+#             git tag v1.2.3 && git push origin v1.2.3
+#   Dry run:  Actions > Release > Run workflow (builds the installer, publishes nothing)
+#
+# The app checks this repository's latest release and installs newer versions when it closes.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Read package name and version
+        id: meta
+        shell: bash
+        run: |
+          meta=$(cargo metadata --no-deps --format-version 1)
+          echo "name=$(echo "$meta" | jq -r '.packages[0].name')" >> "$GITHUB_OUTPUT"
+          echo "version=$(echo "$meta" | jq -r '.packages[0].version')" >> "$GITHUB_OUTPUT"
+
+      - name: Tag must match the Cargo.toml version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_NAME" != "v${{ steps.meta.outputs.version }}" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version ${{ steps.meta.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        env:
+          # Baked into the binary: where the auto-updater looks for new releases.
+          POOF_UPDATE_REPO: ${{ github.repository }}
+        run: cargo build --release
+
+      - name: Install Inno Setup if the runner lacks it
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DAppVersion=${{ steps.meta.outputs.version }}" `
+            "/DExeName=${{ steps.meta.outputs.name }}" `
+            installer\poof.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: dist/*-setup.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*-setup.exe \
+            --title "Poof ${{ steps.meta.outputs.version }}" \
+            --generate-notes

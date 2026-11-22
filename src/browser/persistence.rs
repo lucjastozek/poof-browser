@@ -37,6 +37,10 @@ impl Browser {
         if let Some(devtools) = self.devtools.take() {
             drop(devtools);
         }
+        // Last: the installer replaces our files, so everything must be saved before it starts.
+        if let Some(installer) = self.pending_update.take() {
+            updater::install_on_exit(&installer);
+        }
     }
 
     pub fn flush_save(&mut self) {

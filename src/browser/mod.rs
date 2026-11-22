@@ -15,7 +15,7 @@ use crate::{
         load_history, new_id, save_history, valid_icon, HistoryEntry, Kind, Persisted, Profile,
         Saved, Space, TabFolder,
     },
-    UserEvent,
+    updater, UserEvent,
 };
 use anyhow::Result;
 use serde::Deserialize;
@@ -166,11 +166,14 @@ pub struct Browser {
     /// When the sidebar last received a state snapshot, and whether a newer one is waiting.
     last_push: Cell<Instant>,
     state_dirty: Cell<bool>,
+    /// A downloaded, verified installer to run when the browser closes.
+    pending_update: Option<PathBuf>,
 }
 
 impl Browser {
     pub fn new(window: Window, proxy: EventLoopProxy<UserEvent>) -> Result<Self> {
         let root = prepare_data_dir()?;
+        updater::spawn_check(proxy.clone(), root.clone());
         let p = load_state(&root);
 
         let mut ui_ctx = WebContext::new(Some(root.join("ui")));
@@ -243,6 +246,7 @@ impl Browser {
             low_mem: HashSet::new(),
             last_push: Cell::new(Instant::now() - STATE_MIN_INTERVAL),
             state_dirty: Cell::new(false),
+            pending_update: None,
         };
         b.apply_theme();
         b.preinstall();
