@@ -1,0 +1,43 @@
+/* two tabs split together: one line, two halves */
+.split-pair {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  width: 100%;
+  padding: 0;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--space) 14%, transparent);
+}
+.split-pair .row {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  padding: 0 4px 0 6px;
+  gap: 7px;
+}
+.split-pair .row.split:not(.on) {
+  background: transparent;
+}
+.split-pair .row:not(.on):hover {
+  background: var(--hover);
+}
+/* only the close button fits in a half-width row */
+.split-pair .acts .ib:not(:last-child) {
+  display: none;
+}
+
+@keyframes peek-in {
+  from {
+    transform: translateX(-16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* tabs shown in split view */
+.row.split:not(.on) {
+  background: color-mix(in srgb, var(--space) 14%, transparent);
+}

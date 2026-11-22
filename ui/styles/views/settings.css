@@ -1,0 +1,90 @@
+/* Automatic cleanup settings: a normal dialog section, not a nested card. */
+.cleanup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.cleanup-section > .note {
+  margin: -4px 0 8px;
+}
+.retention-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 58px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.retention-row:last-child {
+  border-bottom: 0;
+}
+.retention-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.retention-name {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 550;
+}
+.retention-copy small {
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.retention-control {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.retention-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.retention-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 27px;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    box-shadow 0.12s;
+}
+.retention-pill:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+.retention-pill.selected {
+  color: var(--accent-ink);
+  background: var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.retention-pill:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--space) 65%, var(--ink));
+  outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .retention-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .retention-options {
+    max-width: 100%;
+  }
+}

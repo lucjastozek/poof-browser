@@ -1,10 +1,14 @@
 #![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
 
+mod app_icon;
 mod browser;
+mod events;
 mod extensions;
+mod gesture;
 mod pip;
 mod state;
-mod store;
+
+pub use events::UserEvent;
 
 use std::time::{Duration, Instant};
 use tao::{
@@ -13,67 +17,6 @@ use tao::{
     event_loop::{ControlFlow, EventLoopBuilder},
     window::WindowBuilder,
 };
-
-/// Everything that can wake the event loop from a webview callback thread.
-pub enum UserEvent {
-    /// Raw JSON command from the (trusted) sidebar UI.
-    Ui(String),
-    /// Raw JSON from a content page. UNTRUSTED: validated in browser.rs.
-    Page {
-        tab: String,
-        body: String,
-    },
-    /// Native WebView2 notification that a page element entered or left fullscreen.
-    Fullscreen {
-        tab: String,
-        active: bool,
-    },
-    Title {
-        tab: String,
-        title: String,
-    },
-    /// A page-specific DevTools frontend URL resolved from the profile's CDP endpoint.
-    DevToolsReady {
-        tab: String,
-        url: String,
-    },
-    DevToolsFailed {
-        tab: String,
-        message: String,
-    },
-    OpenTab {
-        url: String,
-    },
-    /// Result of a background extension install (Web Store download).
-    ExtResult {
-        ok: bool,
-        msg: String,
-        dir: Option<std::path::PathBuf>,
-        id: Option<String>,
-    },
-    /// A WebView2 render process (or the whole browser process of a profile) died.
-    TabCrashed {
-        tab: String,
-        browser: bool,
-    },
-    CloseWindow,
-}
-
-fn poof_icon() -> Option<tao::window::Icon> {
-    let tree = resvg::usvg::Tree::from_data(
-        include_bytes!("../poof-icon.svg"),
-        &resvg::usvg::Options::default(),
-    )
-    .ok()?;
-    let size = tree.size().to_int_size();
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(size.width(), size.height())?;
-    resvg::render(
-        &tree,
-        resvg::tiny_skia::Transform::default(),
-        &mut pixmap.as_mut(),
-    );
-    tao::window::Icon::from_rgba(pixmap.data().to_vec(), size.width(), size.height()).ok()
-}
 
 const MAINTENANCE_EVERY: Duration = Duration::from_secs(60);
 
@@ -84,7 +27,7 @@ fn main() -> anyhow::Result<()> {
     let window = WindowBuilder::new()
         .with_title("poof")
         .with_decorations(false)
-        .with_window_icon(poof_icon())
+        .with_window_icon(app_icon::window_icon())
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .build(&event_loop)?;
 
