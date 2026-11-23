@@ -32,6 +32,7 @@ impl Browser {
             .with_initialization_script_for_main_only(scrollbar_script(&accent, sb_on), false)
             .with_initialization_script_for_main_only(pip::TRACK_JS, false)
             .with_initialization_script_for_main_only(FULLSCREEN_JS, false)
+            .with_initialization_script_for_main_only(PASSWORDS_JS, true)
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page {
                     tab: id1.clone(),

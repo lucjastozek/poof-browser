@@ -254,6 +254,7 @@ function buildSettings(v) {
     field("Developer tools · dock", devtoolsDock),
     field("Developer tools · size", devtoolsSize),
     field("Browsing", sw, restore),
+    passwordSettingsField(),
     field("Sidebar", compact),
     field("Automatic cleanup", cleanup),
     field(

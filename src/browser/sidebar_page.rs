@@ -17,10 +17,12 @@ const STYLES: &[&str] = &[
     include_str!("../../ui/styles/layout/sidebar-folders.css"),
     include_str!("../../ui/styles/layout/sidebar-context-menu.css"),
     include_str!("../../ui/styles/layout/sidebar-split.css"),
+    include_str!("../../ui/styles/layout/sidebar-password-offer.css"),
     include_str!("../../ui/styles/layout/stage.css"),
     include_str!("../../ui/styles/views/start-page.css"),
     include_str!("../../ui/styles/views/dialogs.css"),
     include_str!("../../ui/styles/views/settings.css"),
+    include_str!("../../ui/styles/views/passwords.css"),
 ];
 
 const SCRIPTS: &[&str] = &[
@@ -46,6 +48,7 @@ const SCRIPTS: &[&str] = &[
     include_str!("../../ui/scripts/sidebar/tab-switcher.js"),
     include_str!("../../ui/scripts/sidebar/edge-peek.js"),
     include_str!("../../ui/scripts/sidebar/shortcuts.js"),
+    include_str!("../../ui/scripts/sidebar/password-offer.js"),
     include_str!("../../ui/scripts/sidebar/ready.js"),
     include_str!("../../ui/scripts/views/start-page.js"),
     include_str!("../../ui/scripts/views/dialog.js"),
@@ -55,6 +58,7 @@ const SCRIPTS: &[&str] = &[
     include_str!("../../ui/scripts/views/settings.js"),
     include_str!("../../ui/scripts/views/router.js"),
     include_str!("../../ui/scripts/views/history.js"),
+    include_str!("../../ui/scripts/views/passwords.js"),
 ];
 
 /// The complete sidebar document, with all styles and scripts inlined.

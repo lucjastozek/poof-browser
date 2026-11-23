@@ -73,6 +73,15 @@ impl Browser {
             Cmd::ToggleScrollbar => self.toggle_scrollbar(),
             Cmd::FullscreenToggle => self.toggle_page_fullscreen(),
             Cmd::FullscreenLeave => self.leave_fullscreen(),
+            Cmd::PasswordOfferAccept => self.accept_password_offer(),
+            Cmd::PasswordOfferDismiss { never } => self.dismiss_password_offer(never),
+            Cmd::ListPasswords => self.list_passwords(),
+            Cmd::RevealPassword { id } => self.reveal_password(&id),
+            Cmd::DeletePassword { id } => self.delete_password(&id),
+            Cmd::SetSavePasswords { on } => {
+                self.p.save_passwords = on;
+                self.save();
+            }
             Cmd::WindowMinimize => self.window.set_minimized(true),
             Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
             Cmd::WindowDrag => {

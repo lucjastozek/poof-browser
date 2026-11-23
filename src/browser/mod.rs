@@ -10,6 +10,7 @@
 
 use crate::{
     extensions::{self, store},
+    passwords::PasswordStore,
     pip,
     state::{
         load_history, new_id, save_history, valid_icon, HistoryEntry, Kind, Persisted, Profile,
@@ -58,6 +59,7 @@ mod layout;
 mod maintenance;
 mod messages;
 mod page_messages;
+mod passwords;
 mod persistence;
 mod platform;
 mod profile_cleanup;
@@ -168,12 +170,17 @@ pub struct Browser {
     state_dirty: Cell<bool>,
     /// A downloaded, verified installer to run when the browser closes.
     pending_update: Option<PathBuf>,
+    /// Saved logins (encrypted on disk, see `crate::passwords`).
+    passwords: PasswordStore,
+    /// A login the user hasn't answered the save prompt for yet.
+    password_offer: Option<passwords::PasswordOffer>,
 }
 
 impl Browser {
     pub fn new(window: Window, proxy: EventLoopProxy<UserEvent>) -> Result<Self> {
         let root = prepare_data_dir()?;
         updater::spawn_check(proxy.clone(), root.clone());
+        let data_dir = root.clone();
         let p = load_state(&root);
 
         let mut ui_ctx = WebContext::new(Some(root.join("ui")));
@@ -247,6 +254,8 @@ impl Browser {
             last_push: Cell::new(Instant::now() - STATE_MIN_INTERVAL),
             state_dirty: Cell::new(false),
             pending_update: None,
+            passwords: PasswordStore::open(&data_dir),
+            password_offer: None,
         };
         b.apply_theme();
         b.preinstall();

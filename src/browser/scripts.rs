@@ -8,6 +8,9 @@ pub(super) const INIT_JS: &str = include_str!("js/init.js");
 /// Fullscreen through the site's own player; also exposes `__poofToggleFullscreen`.
 pub(super) const FULLSCREEN_JS: &str = include_str!("js/fullscreen.js");
 
+/// Reports login forms and submitted logins to the password manager (top frame only).
+pub(super) const PASSWORDS_JS: &str = include_str!("js/passwords.js");
+
 const SCROLLBAR_JS: &str = include_str!("js/scrollbar.js");
 
 pub(super) fn scrollbar_script(accent: &str, visible: bool) -> String {

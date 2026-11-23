@@ -86,6 +86,7 @@ impl Browser {
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
             "restore_tabs": self.p.restore_tabs,
+            "save_passwords": self.p.save_passwords,
             "sidebar_collapsed": self.p.sidebar_collapsed,
             "sidebar_width": self.p.sidebar_width,
             "sidebar_compact": self.p.sidebar_compact,

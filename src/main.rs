@@ -5,6 +5,7 @@ mod browser;
 mod events;
 mod extensions;
 mod gesture;
+mod passwords;
 mod pip;
 mod state;
 mod updater;

@@ -22,6 +22,8 @@ base64 = "0.22"
 # If the logo SVG ever uses <text> or embedded bitmaps, re-enable "text" / "raster-images".
 resvg = { version = "0.45", default-features = false }
 sha2 = "0.11.1"
+aes-gcm = "0.10"
+keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service", "crypto-rust"] }
 
 # Windows only: raw WebView2 access (extensions + gesture-enabled JS for auto-PiP).
 # IMPORTANT: these two versions must match the ones wry resolves to.

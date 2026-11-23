@@ -45,6 +45,14 @@ impl Browser {
             PageMsg::Meta { u } => self.on_page_meta(tab, u),
             PageMsg::Favicon { f } => self.on_page_favicon(tab, f),
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
+            PageMsg::PwForm => {
+                self.on_page_password_form(tab);
+                return;
+            }
+            PageMsg::PwSubmit { u, p } => {
+                self.on_page_password_submit(tab, u, p);
+                return;
+            }
             PageMsg::Key { k } if k == "history" => {
                 self.toggle_history_view(tab);
                 return;

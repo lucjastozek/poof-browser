@@ -204,6 +204,22 @@ pub(super) enum Cmd {
     FullscreenToggle,
     /// Escape pressed while the sidebar has focus during page fullscreen.
     FullscreenLeave,
+    /// The user answered the "save password?" offer.
+    PasswordOfferAccept,
+    PasswordOfferDismiss {
+        #[serde(default)]
+        never: bool,
+    },
+    ListPasswords,
+    RevealPassword {
+        id: String,
+    },
+    DeletePassword {
+        id: String,
+    },
+    SetSavePasswords {
+        on: bool,
+    },
     TabDrag {
         active: bool,
     },
@@ -240,6 +256,13 @@ pub(super) enum PageMsg {
     },
     Fullscreen {
         active: bool,
+    },
+    /// The page has a visible password field.
+    PwForm,
+    /// The user submitted a login. UNTRUSTED values; the site comes from the tab, not the page.
+    PwSubmit {
+        u: String,
+        p: String,
     },
     /// The page's WebView took keyboard focus (used to track the active split pane).
     Focus,

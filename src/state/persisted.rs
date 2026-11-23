@@ -39,6 +39,9 @@ pub struct Persisted {
     pub current_space: String,
     #[serde(default = "yes")]
     pub auto_pip: bool,
+    /// Offer to save logins and fill saved ones.
+    #[serde(default = "yes")]
+    pub save_passwords: bool,
     /// Reopen the tabs that were open when the browser was closed.
     #[serde(default)]
     pub restore_tabs: bool,
@@ -100,6 +103,7 @@ impl Default for Persisted {
             folder_layout_version: 1,
             current_space: sid,
             auto_pip: true,
+            save_passwords: true,
             restore_tabs: false,
             active_tabs: HashMap::new(),
             theme: system(),
