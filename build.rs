@@ -1,16 +1,16 @@
 use std::{env, fs::File, path::PathBuf};
 
 fn main() {
-    println!("cargo:rerun-if-changed=poof-logo.svg");
+    println!("cargo:rerun-if-changed=poof-icon.svg");
     if env::var("CARGO_CFG_TARGET_OS").unwrap_or_default() != "windows" {
         return;
     }
 
     let tree = resvg::usvg::Tree::from_data(
-        include_bytes!("poof-logo.svg"),
+        include_bytes!("poof-icon.svg"),
         &resvg::usvg::Options::default(),
     )
-    .expect("poof-logo.svg must be a valid SVG");
+    .expect("poof-icon.svg must be a valid SVG");
     let size = tree.size();
     let width = size.width();
     let height = size.height();

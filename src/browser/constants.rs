@@ -54,6 +54,13 @@ pub(super) const DEFAULT_SITES: &[(&str, &str)] = &[
 ];
 pub(super) const PEEK_X: f64 = INSET; // left edge of the peek card; lines up with the page edge
                                       // Extra disabled features (hints/model downloads, media router, translate) trim background
-                                      // work and memory. There must be exactly one --disable-features switch (the last one wins).
+                                      // work and memory. AudioServiceOutOfProcess keeps audio in the browser process instead of a
+                                      // separate utility process, so it belongs to poof's own process tree: apps that capture
+                                      // "this app's audio" (Discord, OBS) then find it. --in-process-gpu drops one GPU process per
+                                      // profile. There must be exactly one --disable-features switch (the last one wins), and these
+                                      // arguments replace wry's defaults, so the sidebar uses the same list.
 #[cfg(windows)]
-pub(super) const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,OptimizationHints,OptimizationGuideModelDownloading,MediaRouter,Translate --disable-blink-features=AutomationControlled --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=devtools://devtools";
+pub(super) const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,OptimizationHints,OptimizationGuideModelDownloading,MediaRouter,Translate,AudioServiceOutOfProcess --in-process-gpu --disable-blink-features=AutomationControlled --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --remote-allow-origins=devtools://devtools";
+/// The sidebar's own WebView2 environment: same process-saving switches, no debugging port.
+#[cfg(windows)]
+pub(super) const WEBVIEW2_UI_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,OptimizationHints,OptimizationGuideModelDownloading,MediaRouter,Translate,AudioServiceOutOfProcess --in-process-gpu";

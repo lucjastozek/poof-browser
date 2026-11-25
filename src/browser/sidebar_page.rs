@@ -83,14 +83,19 @@ pub(super) fn create_sidebar(
     ctx: &mut WebContext,
 ) -> Result<WebView> {
     let ipc_proxy = proxy.clone();
-    let sidebar = WebViewBuilder::new_with_web_context(ctx)
+    let builder = WebViewBuilder::new_with_web_context(ctx)
         .with_bounds(full_rect(window))
         .with_devtools(false)
         .with_html(sidebar_html())
         .with_ipc_handler(move |req| {
             let _ = ipc_proxy.send_event(UserEvent::Ui(req.into_body()));
-        })
-        .build_as_child(window)?;
+        });
+    #[cfg(windows)]
+    let builder = {
+        use wry::WebViewBuilderExtWindows;
+        builder.with_additional_browser_args(WEBVIEW2_UI_ARGS)
+    };
+    let sidebar = builder.build_as_child(window)?;
 
     // The sidebar is a separate WebView, so it needs its own native
     // accelerator handler when it owns keyboard focus.

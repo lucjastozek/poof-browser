@@ -1,29 +1,11 @@
-function minusIcon() {
-  try {
-    const n = ic("minus");
-    if (
-      n &&
-      (n.childElementCount || (n.querySelector && n.querySelector("svg")))
-    )
-      return n;
-  } catch (_) {}
-  const NS = "http://www.w3.org/2000/svg";
-  const s = document.createElementNS(NS, "svg");
-  s.setAttribute("viewBox", "0 0 24 24");
-  s.setAttribute("width", "15");
-  s.setAttribute("height", "15");
-  const p = document.createElementNS(NS, "path");
-  p.setAttribute("d", "M5 12h14");
-  p.setAttribute("stroke", "currentColor");
-  p.setAttribute("stroke-width", "2");
-  p.setAttribute("stroke-linecap", "round");
-  p.setAttribute("fill", "none");
-  s.append(p);
-  return s;
-}
+const SLEEP_ICON = {
+  sleep:
+    '<path fill="currentColor" d="M13.586 17H12c-.198-.013-.325-.033-.5-.134-.755-.436-.601-1.606.241-1.832L12 15h4c.271.018.511.096.707.293.404.404.359 1.005 0 1.414L14.414 19H16c.198.013.325.033.5.134.755.436.601 1.606-.241 1.832L16 21h-4c-.271-.018-.511-.096-.707-.293-.404-.404-.359-1.005 0-1.414Zm-7-7H4c-1.204-.079-1.357-1.672-.259-1.966L4 8h5c.271.018.511.096.707.293.404.404.359 1.005 0 1.414L6.414 13H9c1.204.079 1.357 1.672.259 1.966L9 15H4c-.271-.018-.511-.096-.707-.293-.404-.404-.359-1.005 0-1.414Zm11-5H13c-.639-.042-1.142-.603-.966-1.259.122-.453.515-.711.966-.741h7c.36.024.68.178.866.5.235.407.139.868-.159 1.207L15.414 10H20c.639.042 1.142.603.966 1.259-.122.453-.515.711-.966.741h-7c-.36-.024-.68-.178-.866-.5-.235-.407-.139-.868.159-1.207Z"/>',
+};
+
 function unloadBtn(fn) {
-  const b = ib("x", "Unload tab", fn);
-  b.replaceChildren(minusIcon());
+  const b = ib("x", "Put tab to sleep", fn);
+  b.replaceChildren(svg(SLEEP_ICON, "sleep", 16));
   return b;
 }
 
