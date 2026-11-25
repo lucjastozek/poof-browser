@@ -1,0 +1,18 @@
+/* Title bar of popup windows (sign-in, window.open). Reuses #titlebar and the window controls
+   from topbar.css, so it looks exactly like the main window's top bar. */
+.popup-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-left: 8px;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#popupTitle:empty {
+  display: none;
+}
+#titlebar > #window-drag {
+  flex: 1;
+}

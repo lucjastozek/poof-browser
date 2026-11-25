@@ -68,6 +68,8 @@ mod page_messages;
 mod passwords;
 mod persistence;
 mod platform;
+mod popup;
+mod popup_watch;
 mod profile_cleanup;
 mod sanitize;
 mod scripts;
@@ -173,6 +175,8 @@ pub struct Browser {
     saved_splits: Vec<Split>,
     /// Tabs where the user started a video (only those are worth waking for auto-PIP).
     vid_tabs: HashSet<String>,
+    /// Open popup windows (sign-in, `window.open`), by window id.
+    popups: HashMap<tao::window::WindowId, popup::Popup>,
     /// Tabs currently showing a Picture-in-Picture window: never slept or memory-trimmed.
     pip_tabs: HashSet<String>,
     /// Tabs whose page reported live capture or a call: never slept, never memory-trimmed.
@@ -277,6 +281,7 @@ impl Browser {
             tab_drag: false,
             saved_splits: Vec::new(),
             vid_tabs: HashSet::new(),
+            popups: HashMap::new(),
             pip_tabs: HashSet::new(),
             live_tabs: HashSet::new(),
             low_mem: HashSet::new(),

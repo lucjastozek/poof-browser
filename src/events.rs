@@ -60,6 +60,45 @@ pub enum UserEvent {
         url: Option<String>,
     },
     CloseWindow,
+    /// A page asked for a popup window (sign-in, `window.open`); the main thread builds it.
+    Popup(PopupRequest),
+    /// The title of a popup window's page changed.
+    /// A button or drag on a popup window's title bar (UNTRUSTED text: matched exactly).
+    PopupCmd {
+        window: tao::window::WindowId,
+        cmd: String,
+    },
+    /// The popup's page called `window.close()` (for example after sign-in finished).
+    PopupClose {
+        window: tao::window::WindowId,
+    },
+    PopupTitle {
+        window: tao::window::WindowId,
+        title: String,
+    },
+}
+
+/// Wraps a WebView2 COM object so it can cross to the main thread. WebView2 objects are agile
+/// and are only used by the thread that receives them.
+#[cfg(windows)]
+pub struct ComSend<T>(pub T);
+#[cfg(windows)]
+unsafe impl<T> Send for ComSend<T> {}
+
+/// Asks the main thread for a popup window. The page's `NewWindowRequested` event stays
+/// deferred until the window exists and is attached (all on the UI thread).
+pub struct PopupRequest {
+    /// Content size the page asked for, in logical pixels.
+    pub size: Option<(f64, f64)>,
+    #[cfg(windows)]
+    pub environment:
+        ComSend<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment>,
+    #[cfg(windows)]
+    pub args: ComSend<
+        webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2NewWindowRequestedEventArgs,
+    >,
+    #[cfg(windows)]
+    pub deferral: ComSend<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Deferral>,
 }
 
 /// What WebView2 reports about one download. `id` is chosen by the native hook.

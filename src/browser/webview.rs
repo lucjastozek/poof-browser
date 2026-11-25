@@ -49,10 +49,15 @@ impl Browser {
                     title,
                 });
             })
-            // target=_blank / window.open opens a new tab (OAuth popups need more work).
+            // target=_blank opens a new tab; popups and sign-in windows open as a poof popup window.
             .with_new_window_req_handler(move |url, features| {
                 let is_popup = features.size.is_some() || features.position.is_some();
-                new_window_decision(url, is_popup, &p3)
+                match new_window_decision(url, is_popup, &p3) {
+                    // Popups and sign-in windows open as a poof window, created by
+                    // `popup::watch_popups`; the default popup stays only where that can't run.
+                    NewWindowResponse::Allow if cfg!(windows) => NewWindowResponse::Deny,
+                    other => other,
+                }
             });
 
         #[cfg(windows)]
@@ -78,6 +83,7 @@ impl Browser {
 }
 
 /// Decides what to do with a `target=_blank` / `window.open` request from a page.
+/// `Allow` means "open as a popup window".
 fn new_window_decision(
     url: String,
     is_popup: bool,
@@ -102,7 +108,7 @@ fn new_window_decision(
 }
 
 /// Sign-in pages must stay in a popup, or the login flow cannot hand its result back.
-fn is_auth_url(url: &str) -> bool {
+pub(super) fn is_auth_url(url: &str) -> bool {
     url.starts_with("https://accounts.google.com/")
         || url.starts_with("https://appleid.apple.com/")
         || url.starts_with("https://login.microsoftonline.com/")

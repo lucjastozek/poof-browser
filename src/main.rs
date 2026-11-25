@@ -59,7 +59,7 @@ fn main() -> anyhow::Result<()> {
     default_browser::spawn_refresh();
 
     let mut next_maintenance = Instant::now() + MAINTENANCE_EVERY;
-    event_loop.run(move |event, _, flow| {
+    event_loop.run(move |event, target, flow| {
         match event {
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
                 browser.flush_save();
@@ -67,6 +67,11 @@ fn main() -> anyhow::Result<()> {
                     browser.cleanup_expired_tabs();
                     next_maintenance = Instant::now() + MAINTENANCE_EVERY;
                 }
+            }
+            Event::WindowEvent {
+                window_id, event, ..
+            } if !browser.is_main_window(window_id) => {
+                browser.on_popup_window_event(window_id, &event)
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(_),
@@ -84,6 +89,9 @@ fn main() -> anyhow::Result<()> {
                 browser.shutdown();
                 *flow = ControlFlow::Exit;
                 return;
+            }
+            Event::UserEvent(UserEvent::Popup(request)) => {
+                browser.open_popup_window(request, target)
             }
             Event::UserEvent(ev) => browser.on_user_event(ev),
             _ => {}

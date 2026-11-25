@@ -6,6 +6,13 @@ impl Browser {
     pub fn on_user_event(&mut self, ev: UserEvent) {
         match ev {
             UserEvent::CloseWindow => {}
+            // `Popup` needs the event-loop target and is handled in main.rs.
+            UserEvent::Popup(_) => {}
+            UserEvent::PopupCmd { window, cmd } => self.on_popup_cmd(window, &cmd),
+            UserEvent::PopupClose { window } => {
+                self.popups.remove(&window);
+            }
+            UserEvent::PopupTitle { window, title } => self.set_popup_title(window, &title),
             UserEvent::DevToolsReady { tab, url } => self.show_devtools(&tab, &url),
             UserEvent::DevToolsFailed { tab, message } => {
                 if self.devtools_open && self.visible.as_deref() == Some(tab.as_str()) {

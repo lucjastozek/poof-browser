@@ -14,6 +14,7 @@ pub(super) fn attach_native_handlers(wv: &WebView, proxy: &EventLoopProxy<UserEv
     watch_focus(wv, proxy, tab);
     watch_crashes(wv, proxy, tab);
     watch_downloads(wv, proxy, tab);
+    popup_watch::watch_popups(wv, proxy, true);
 }
 
 #[cfg(not(windows))]
