@@ -204,7 +204,7 @@ impl Browser {
         let proxy = self.proxy.clone();
         // No init script and no IPC: everything is driven from the native side
         // (see `DEVTOOLS_SYNC_JS`).
-        let devtools = WebViewBuilder::new_with_web_context(&mut self.ui_ctx)
+        let builder = WebViewBuilder::new_with_web_context(&mut self.ui_ctx)
             .with_bounds(layout.tools.unwrap_or(layout.page))
             .with_visible(false)
             .with_devtools(false)
@@ -217,8 +217,16 @@ impl Browser {
             .with_new_window_req_handler(move |url, _features| {
                 let _ = proxy.send_event(UserEvent::OpenTab { url });
                 NewWindowResponse::Deny
-            })
-            .build_as_child(&self.window)?;
+            });
+        // This WebView shares the sidebar's user-data folder (`ui_ctx`). WebView2 refuses to
+        // create a second environment for one folder with different browser arguments, so it
+        // must use exactly the sidebar's list or the frontend never loads (empty panel).
+        #[cfg(windows)]
+        let builder = {
+            use wry::WebViewBuilderExtWindows;
+            builder.with_additional_browser_args(WEBVIEW2_UI_ARGS)
+        };
+        let devtools = builder.build_as_child(&self.window)?;
         #[cfg(windows)]
         register_browser_shortcuts(&devtools, self.proxy.clone(), tab.to_string());
         #[cfg(not(windows))]
