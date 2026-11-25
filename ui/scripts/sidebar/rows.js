@@ -22,7 +22,11 @@ function row(t, kind) {
   const a = el("span", "acts");
   a.append(
     ib("star", "Add to favorites", () => send({ cmd: "fav_tab", id: t.id })),
-    unloadBtn(() => send({ cmd: "unload_tab", id: t.id })),
+  );
+  // A tab that is already asleep has nothing to put to sleep.
+  if (t.loaded)
+    a.append(unloadBtn(() => send({ cmd: "unload_tab", id: t.id })));
+  a.append(
     ib("x", kind === "tab" ? "Close" : "Reset to pinned page", () =>
       send({ cmd: "close_tab", id: t.id }),
     ),
