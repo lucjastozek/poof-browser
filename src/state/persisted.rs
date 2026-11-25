@@ -8,6 +8,10 @@ fn yes() -> bool {
     true
 }
 
+fn default_search_engine() -> String {
+    "duckduckgo".into()
+}
+
 fn system() -> String {
     "system".into()
 }
@@ -39,6 +43,9 @@ pub struct Persisted {
     pub current_space: String,
     #[serde(default = "yes")]
     pub auto_pip: bool,
+    /// Id of the search engine for text typed in the address bar (`browser/search.rs`).
+    #[serde(default = "default_search_engine")]
+    pub search_engine: String,
     /// Keyboard shortcut overrides: action id to chord, `""` when the user removed it.
     #[serde(default)]
     pub shortcuts: HashMap<String, String>,
@@ -106,6 +113,7 @@ impl Default for Persisted {
             folder_layout_version: 1,
             current_space: sid,
             auto_pip: true,
+            search_engine: default_search_engine(),
             shortcuts: HashMap::new(),
             save_passwords: true,
             restore_tabs: false,

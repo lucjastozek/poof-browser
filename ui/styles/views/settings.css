@@ -89,6 +89,22 @@
   }
 }
 
+.engine-select {
+  min-width: 150px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+.engine-select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--space) 65%, var(--ink));
+  outline-offset: 2px;
+}
+
 /* Default browser: a label with its state on the left, the action on the right. */
 .default-browser {
   display: flex;

@@ -179,6 +179,9 @@ pub(super) enum Cmd {
     SetAutoPip {
         on: bool,
     },
+    SetSearchEngine {
+        id: String,
+    },
     UpdateProfileCleanup(CleanupHours),
     DeleteSpace {
         id: String,

@@ -130,9 +130,9 @@ impl Browser {
                 self.shortcuts_changed();
             }
             Cmd::ShortcutCapture { active } => shortcuts::set_capturing(active),
-            Cmd::NewTab { input } => self.new_tab(&normalize(&input))?,
+            Cmd::NewTab { input } => self.new_tab(&normalize(&input, &self.p.search_engine))?,
             Cmd::Navigate { input } => {
-                let url = normalize(&input);
+                let url = normalize(&input, &self.p.search_engine);
                 if let Some(wv) = self.visible_webview() {
                     wv.load_url(&url)?;
                 } else {
@@ -182,6 +182,12 @@ impl Browser {
             Cmd::SetRestoreTabs { on } => {
                 self.p.restore_tabs = on;
                 self.save();
+            }
+            Cmd::SetSearchEngine { id } => {
+                if search::is_engine(&id) {
+                    self.p.search_engine = id;
+                    self.save();
+                }
             }
             Cmd::SetAutoPip { on } => {
                 self.p.auto_pip = on;

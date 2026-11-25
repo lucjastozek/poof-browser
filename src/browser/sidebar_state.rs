@@ -85,6 +85,8 @@ impl Browser {
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
             "auto_pip": self.p.auto_pip,
+            "search_engine": self.p.search_engine,
+            "search_engines": search::ENGINES.iter().map(|(id, name, _)| json!({"id": id, "name": name})).collect::<Vec<_>>(),
             "shortcuts": shortcuts::describe(&self.p.shortcuts),
             "restore_tabs": self.p.restore_tabs,
             "save_passwords": self.p.save_passwords,

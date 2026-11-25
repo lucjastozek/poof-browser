@@ -2,7 +2,8 @@
 
 use super::*;
 
-pub fn normalize(input: &str) -> String {
+/// Turns what the user typed into an address; plain text becomes a search with `engine`.
+pub fn normalize(input: &str, engine: &str) -> String {
     let s = input.trim();
     if s.is_empty() {
         return "about:blank".into();
@@ -20,8 +21,7 @@ pub fn normalize(input: &str) -> String {
             return format!("https://{s}");
         }
     }
-    let q: String = url::form_urlencoded::byte_serialize(s.as_bytes()).collect();
-    format!("https://duckduckgo.com/?q={q}")
+    search::search_url(engine, s)
 }
 
 pub(super) fn ok_url(s: &str, max: usize, allow_data: bool) -> bool {

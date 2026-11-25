@@ -73,6 +73,7 @@ mod popup_watch;
 mod profile_cleanup;
 mod sanitize;
 mod scripts;
+pub mod search;
 mod settings;
 mod shortcuts;
 mod sidebar_page;

@@ -95,8 +95,34 @@ function retentionRow(label, description, current, allowOff, change) {
   return row;
 }
 
+/* The search engine for text typed in the address bar. */
+function searchEngineRow() {
+  const select = el("select", "engine-select");
+  select.setAttribute("aria-label", "Search engine");
+  (S.search_engines || []).forEach(({ id, name }) => {
+    const o = el("option", null, name);
+    o.value = id;
+    o.selected = id === S.search_engine;
+    select.append(o);
+  });
+  select.onchange = () => {
+    S.search_engine = select.value;
+    send({ cmd: "set_search_engine", id: select.value });
+  };
+  const copy = el("div", "retention-copy");
+  copy.append(
+    el("span", "retention-name", "Search engine"),
+    el("small", null, "Used when you type something that is not an address"),
+  );
+  const row = el("div", "retention-row");
+  row.append(copy, el("div", "retention-control"));
+  row.lastChild.append(select);
+  return row;
+}
+
 function generalPanel() {
   return [
+    field("Search", searchEngineRow()),
     field(
       "Browsing",
       switchRow(
