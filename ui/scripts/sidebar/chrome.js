@@ -130,3 +130,8 @@ $("titlebar").addEventListener("pointerdown", (e) => {
   $("newtab").append(w, el("span", "ttl", "New tab"));
 }
 $("newtab").onclick = () => openView("newtab");
+/* Ctrl+T: the same start page with the search bar as the New tab button. */
+window.__openNewTab = () => {
+  if (ov !== "newtab") openView("newtab");
+  else if (window.__focusNewTab) window.__focusNewTab();
+};

@@ -120,4 +120,5 @@ function buildNewTab(v) {
   });
   showHome();
   setTimeout(() => q.focus(), 30);
+  window.__focusNewTab = () => q.focus();
 }

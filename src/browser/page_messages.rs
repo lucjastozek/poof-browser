@@ -170,6 +170,14 @@ impl Browser {
 
     /// Runs a keyboard shortcut (`k` is the shortcut's name) for the tab it came from.
     pub(super) fn run_shortcut(&mut self, tab: &str, k: &str) {
+        if k == "new_tab" {
+            // Same as the sidebar's New tab button: the start page with its search bar.
+            let _ = self.sidebar.focus();
+            let _ = self
+                .sidebar
+                .evaluate_script("window.__openNewTab && window.__openNewTab()");
+            return;
+        }
         // An empty tab ID means the shortcut originated in the sidebar.
         let active_tab = self.visible.clone().unwrap_or_default();
         let tab = if tab.is_empty() {
@@ -185,7 +193,6 @@ impl Browser {
             return;
         }
         let r = match k {
-            "new_tab" => self.new_tab("about:blank"),
             "focus_url" => {
                 let _ = self.sidebar.focus();
                 let _ = self
