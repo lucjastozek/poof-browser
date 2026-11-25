@@ -1,0 +1,265 @@
+/* ---------- downloads: toolbar button with progress ring, and the full-area view ---------- */
+#dlBtn {
+  position: relative;
+  flex: none;
+}
+#dlBtn[hidden] {
+  display: none;
+}
+#dlBtn .ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transform: rotate(-90deg);
+  transition: opacity 0.15s;
+}
+#dlBtn.busy .ring {
+  opacity: 1;
+}
+#dlBtn .ring circle {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+#dlBtn .ring .track {
+  stroke: var(--line-2);
+}
+#dlBtn .ring .bar {
+  stroke: var(--space);
+  transition: stroke-dashoffset 0.3s linear;
+}
+/* Size not known yet: a short arc that turns, only while such a download runs. */
+#dlBtn.indeterminate .ring {
+  animation: dl-spin 1s linear infinite;
+}
+#dlBtn.indeterminate .ring .bar {
+  stroke-dashoffset: 56px !important;
+}
+#dlBtn .dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--space);
+  box-shadow: 0 0 0 2px var(--chrome);
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.15s,
+    transform 0.15s var(--ease);
+}
+#dlBtn.unseen .dot {
+  opacity: 1;
+  transform: none;
+}
+@keyframes dl-spin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
+}
+@keyframes dl-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+/* The view sits exactly where the history view does. */
+#downloads-panel {
+  position: fixed;
+  z-index: 50;
+  left: calc(var(--sidebar-width, 280px) + 8px);
+  top: 40px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--stage);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-family: var(--f-text);
+  animation: fade 0.18s ease;
+}
+body.compact #downloads-panel {
+  left: 64px;
+}
+body.collapsed #downloads-panel {
+  left: 8px;
+}
+#downloads-panel[hidden] {
+  display: none;
+}
+#downloads-panel .d-top {
+  flex: none;
+  padding: 28px 32px 14px;
+}
+#downloads-panel .d-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+}
+#downloads-panel .d-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#downloads-panel h1 {
+  flex: 1;
+  margin: 0;
+  font: 600 24px/1.2 var(--f-display);
+  letter-spacing: -0.01em;
+}
+#downloads-panel .d-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#downloads-panel .btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+#downloads-panel .d-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 0 32px 28px;
+}
+#downloads-panel .d-day {
+  padding: 20px 12px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: 0.01em;
+}
+#downloads-panel .d-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 4px;
+}
+#downloads-panel .d-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 8px 8px 10px;
+  border-radius: var(--r-md);
+  transition: background 0.12s;
+}
+#downloads-panel .d-row.done {
+  cursor: pointer;
+}
+#downloads-panel .d-row:hover,
+#downloads-panel .d-row:focus-visible {
+  background: var(--hover);
+  outline: 0;
+}
+#downloads-panel .d-row:focus-visible {
+  box-shadow: inset 0 0 0 2px
+    color-mix(in srgb, var(--space) 65%, var(--ink));
+}
+#downloads-panel .d-row.done:active {
+  background: var(--pressed);
+}
+#downloads-panel .d-ico {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--hover);
+  color: var(--ink-2);
+  font: 600 10px var(--f-display);
+  letter-spacing: 0.02em;
+}
+#downloads-panel .d-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+#downloads-panel .d-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+#downloads-panel .d-row.gone .d-name {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+#downloads-panel .d-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+#downloads-panel .d-meta.err {
+  color: var(--danger);
+}
+#downloads-panel .d-bar {
+  height: 4px;
+  margin-top: 3px;
+  border-radius: 2px;
+  background: var(--pressed);
+  overflow: hidden;
+}
+#downloads-panel .d-bar[hidden] {
+  display: none;
+}
+#downloads-panel .d-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 2px;
+  background: var(--space);
+  transition: width 0.25s linear;
+}
+#downloads-panel .d-bar.paused i {
+  background: var(--ink-3);
+}
+#downloads-panel .d-bar.unknown i {
+  width: 30%;
+  transition: none;
+  animation: dl-slide 1.2s ease-in-out infinite;
+}
+#downloads-panel .d-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+/* Finished rows keep their buttons out of the way until the row is hovered or focused. */
+#downloads-panel .d-row:not(.live) .ib {
+  opacity: 0;
+}
+#downloads-panel .d-row:hover .ib,
+#downloads-panel .d-row:focus-within .ib {
+  opacity: 1;
+}
+#downloads-panel .d-empty {
+  padding: 72px 0;
+  text-align: center;
+  color: var(--ink-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  #dlBtn.indeterminate .ring,
+  #downloads-panel .d-bar.unknown i {
+    animation: none;
+  }
+}

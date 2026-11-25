@@ -2,9 +2,11 @@
 
 mod app_icon;
 mod browser;
+mod default_browser;
 mod events;
 mod extensions;
 mod gesture;
+mod instance;
 mod passwords;
 mod pip;
 mod state;
@@ -25,6 +27,15 @@ const MAINTENANCE_EVERY: Duration = Duration::from_secs(60);
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    // A link or file this launch was asked to open goes to the browser that is already
+    // running, if there is one; this process then exits before it creates a window.
+    let root = browser::prepare_data_dir()?;
+    let target = instance::startup_target();
+    let listener = match instance::claim(&root, target.as_deref()) {
+        instance::Claim::Forwarded => return Ok(()),
+        instance::Claim::Primary(listener) => listener,
+    };
+
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let window = WindowBuilder::new()
         .with_title("poof")
@@ -33,7 +44,14 @@ fn main() -> anyhow::Result<()> {
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .build(&event_loop)?;
 
-    let mut browser = browser::Browser::new(window, event_loop.create_proxy())?;
+    let mut browser = browser::Browser::new(window, event_loop.create_proxy(), root)?;
+    if let Some(listener) = listener {
+        listener.spawn(event_loop.create_proxy());
+    }
+    if let Some(url) = target {
+        browser.open_external(&url);
+    }
+    default_browser::spawn_refresh();
 
     let mut next_maintenance = Instant::now() + MAINTENANCE_EVERY;
     event_loop.run(move |event, _, flow| {

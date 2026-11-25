@@ -57,6 +57,10 @@ impl Browser {
                 self.toggle_history_view(tab);
                 return;
             }
+            PageMsg::Key { k } if k == "downloads" => {
+                self.toggle_downloads_view(tab);
+                return;
+            }
             PageMsg::Key { k } => self.run_shortcut(tab, &k),
             PageMsg::Vid => {
                 self.on_page_video(tab);

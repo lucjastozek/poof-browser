@@ -294,12 +294,15 @@ impl Browser {
             self.logged_urls.remove(id);
             self.closed_tabs.insert(0, self.tabs[idx].url.clone());
             self.closed_tabs.truncate(25);
-            self.tabs.remove(idx);
+            let removed = self.tabs.remove(idx);
+            self.retire_webview(&removed.id, &removed.profile_id, removed.webview);
         } else {
             // Pinned / favorite: unload and reset to its home URL, keep the entry.
             let t = &mut self.tabs[idx];
-            t.webview = None;
+            let webview = t.webview.take();
             t.url = t.home.clone();
+            let profile_id = t.profile_id.clone();
+            self.retire_webview(id, &profile_id, webview);
         }
         self.active.retain(|_, v| v != id);
         if was_visible {
@@ -341,8 +344,10 @@ impl Browser {
         }
         self.active.retain(|_, v| v != id);
         if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) {
-            t.webview = None;
+            let webview = t.webview.take();
             t.last_active = SystemTime::now();
+            let profile_id = t.profile_id.clone();
+            self.retire_webview(id, &profile_id, webview);
         }
         self.prune_ext_done();
         self.save();

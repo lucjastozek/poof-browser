@@ -88,3 +88,21 @@
     max-width: 100%;
   }
 }
+
+/* Default browser: a label with its state on the left, the action on the right. */
+.default-browser {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 40px;
+}
+.default-browser .t {
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.default-browser .btn[hidden] {
+  display: none;
+}

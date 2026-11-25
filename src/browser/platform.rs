@@ -209,3 +209,47 @@ pub(super) fn ctrl_held() -> bool {
 pub(super) fn ctrl_held() -> bool {
     true // there, only the sidebar's keyup (Ctrl released) closes the switcher
 }
+
+/// Runs a helper program without flashing a console window. Failures are only logged.
+fn spawn_quietly(program: &str, args: &[&std::ffi::OsStr]) {
+    let mut command = std::process::Command::new(program);
+    command.args(args);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    match command.spawn() {
+        // Reaped on a short-lived thread so no zombie process is left behind.
+        Ok(mut child) => {
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        }
+        Err(error) => log::warn!("could not start {program}: {error}"),
+    }
+}
+
+/// Opens a file with the program the system associates with it.
+pub(super) fn open_with_default_app(path: &Path) {
+    #[cfg(windows)]
+    spawn_quietly(
+        "rundll32.exe",
+        &["url.dll,FileProtocolHandler".as_ref(), path.as_os_str()],
+    );
+    #[cfg(target_os = "macos")]
+    spawn_quietly("open", &[path.as_os_str()]);
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    spawn_quietly("xdg-open", &[path.as_os_str()]);
+}
+
+/// Shows a file selected in the system file manager (its folder, where it cannot select).
+pub(super) fn reveal_in_file_manager(path: &Path) {
+    #[cfg(windows)]
+    spawn_quietly("explorer.exe", &["/select,".as_ref(), path.as_os_str()]);
+    #[cfg(target_os = "macos")]
+    spawn_quietly("open", &["-R".as_ref(), path.as_os_str()]);
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    spawn_quietly("xdg-open", &[path.parent().unwrap_or(path).as_os_str()]);
+}

@@ -33,6 +33,8 @@ impl Browser {
     pub fn shutdown(&mut self) {
         self.save_dirty = true;
         self.flush_history(true);
+        self.flush_downloads();
+        crate::instance::release(&self.root);
         self.flush_save();
         if let Some(devtools) = self.devtools.take() {
             drop(devtools);
@@ -95,7 +97,7 @@ impl Browser {
 
 /// The browser's data folder (created on first run). It used to be called ArcRS: carry the
 /// user's tabs, logins and extensions over.
-pub(super) fn prepare_data_dir() -> Result<PathBuf> {
+pub fn prepare_data_dir() -> Result<PathBuf> {
     let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
     let root = base.join("Poof");
     let old = base.join("ArcRS");

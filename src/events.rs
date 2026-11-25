@@ -1,5 +1,8 @@
 //! Messages that wake the event loop from webview callback threads.
 
+use crate::state::DownloadStatus;
+use std::path::PathBuf;
+
 /// Everything that can wake the event loop from a webview callback thread.
 pub enum UserEvent {
     /// Raw JSON command from the (trusted) sidebar UI.
@@ -44,5 +47,38 @@ pub enum UserEvent {
     },
     /// A newer installer was downloaded and verified; it runs when the browser closes.
     UpdateReady(std::path::PathBuf),
+    /// A file download reported by WebView2.
+    Download(DownloadEvent),
+    /// Another launch handed over a link or file (the address is UNTRUSTED), or just asked
+    /// the running browser to come to the front.
+    External {
+        url: Option<String>,
+    },
     CloseWindow,
+}
+
+/// What WebView2 reports about one download. `id` is chosen by the native hook.
+pub enum DownloadEvent {
+    Started {
+        id: String,
+        tab: String,
+        url: String,
+        path: PathBuf,
+        total: u64,
+    },
+    /// Throttled byte counts of a running download.
+    Progress {
+        id: String,
+        received: u64,
+        total: u64,
+    },
+    /// The download paused, resumed, finished, failed or was cancelled.
+    State {
+        id: String,
+        status: DownloadStatus,
+        /// The final file, known once the download completed.
+        path: Option<PathBuf>,
+        received: u64,
+        total: u64,
+    },
 }

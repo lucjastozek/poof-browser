@@ -32,6 +32,12 @@ pub(super) const DEVTOOLS_ICONS_MAX: usize = 120;
 pub(super) const DEVTOOLS_ICON_BYTES: usize = 12_000;
 /// Rendered size (px) of every icon in the DevTools frontend; tune to match the sidebar icons.
 pub(super) const DEVTOOLS_ICON_PX: f64 = 14.0;
+/// Downloads kept in the list; the oldest finished ones are dropped first.
+pub(super) const DOWNLOADS_MAX: usize = 200;
+/// WebView2 reports received bytes many times a second; progress is passed on at most this often.
+pub(super) const DOWNLOAD_PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
+/// Longest link accepted from another launch of the browser (see `crate::instance`).
+pub(super) const EXTERNAL_URL_MAX: usize = 4096;
 /// Popular sites shown in the new-tab bar until the user's own history takes over.
 pub(super) const DEFAULT_SITES: &[(&str, &str)] = &[
     ("YouTube", "https://www.youtube.com/"),

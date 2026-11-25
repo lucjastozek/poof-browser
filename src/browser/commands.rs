@@ -1,5 +1,5 @@
 //! Commands from the sidebar UI. Short ones are handled inline; longer ones live next to the
-//! state they change (spaces, folders, history, profile cleanup, DevTools).
+//! state they change (spaces, folders, history, downloads, profile cleanup, DevTools).
 
 use super::*;
 
@@ -11,7 +11,10 @@ impl Browser {
                 // The sidebar just (re)loaded and has no state yet: force a full push.
                 self.last_state_hash.set(0);
                 self.tab_drag = false;
-                self.restore_space_tab()?
+                self.sidebar_ready = true;
+                self.restore_space_tab()?;
+                self.push_downloads();
+                self.open_startup_urls();
             }
             Cmd::SidebarCollapsed { collapsed } => {
                 self.p.sidebar_collapsed = collapsed;
@@ -75,6 +78,16 @@ impl Browser {
             Cmd::FullscreenLeave => self.leave_fullscreen(),
             Cmd::PasswordOfferAccept => self.accept_password_offer(),
             Cmd::PasswordOfferDismiss { never } => self.dismiss_password_offer(never),
+            Cmd::ListDownloads => self.list_downloads(),
+            Cmd::PauseDownload { id } => self.pause_download(&id),
+            Cmd::ResumeDownload { id } => self.resume_download(&id),
+            Cmd::CancelDownload { id } => self.cancel_download(&id),
+            Cmd::OpenDownload { id } => self.open_download(&id),
+            Cmd::ShowDownload { id } => self.show_download(&id),
+            Cmd::RemoveDownload { id } => self.remove_download(&id),
+            Cmd::ClearDownloads => self.clear_downloads(),
+            Cmd::DefaultBrowserStatus => self.push_default_browser_status(),
+            Cmd::SetDefaultBrowser => self.set_default_browser(),
             Cmd::ListPasswords => self.list_passwords(),
             Cmd::RevealPassword { id } => self.reveal_password(&id),
             Cmd::DeletePassword { id } => self.delete_password(&id),

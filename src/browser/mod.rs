@@ -9,12 +9,14 @@
 #![cfg_attr(not(windows), allow(dead_code, unused_imports, unused_variables))]
 
 use crate::{
+    default_browser,
     extensions::{self, store},
     passwords::PasswordStore,
     pip,
     state::{
-        load_history, new_id, save_history, valid_icon, HistoryEntry, Kind, Persisted, Profile,
-        Saved, Space, TabFolder,
+        file_name, load_downloads, load_history, new_id, save_downloads, save_history, unique_path,
+        valid_icon, DownloadEntry, DownloadStatus, HistoryEntry, Kind, Persisted, Profile, Saved,
+        Space, TabFolder,
     },
     updater, UserEvent,
 };
@@ -47,10 +49,14 @@ use wry::WebViewExtWindows;
 
 mod commands;
 mod constants;
+mod default_app;
 mod devtools;
 mod devtools_icons;
+mod download_hooks;
+mod downloads;
 mod events;
 mod extensions_ui;
+mod external;
 mod folders;
 mod fullscreen;
 mod geometry;
@@ -80,6 +86,8 @@ mod webview_events;
 use constants::*;
 use devtools::*;
 use devtools_icons::*;
+use download_hooks::*;
+use downloads::Lingering;
 use geometry::*;
 use messages::*;
 use persistence::*;
@@ -90,6 +98,8 @@ use shortcuts::*;
 use sidebar_page::*;
 use types::*;
 use webview_events::*;
+
+pub use persistence::prepare_data_dir;
 
 pub struct Browser {
     window: Window,
@@ -174,11 +184,18 @@ pub struct Browser {
     passwords: PasswordStore,
     /// A login the user hasn't answered the save prompt for yet.
     password_offer: Option<passwords::PasswordOffer>,
+    /// Newest first; running ones are backed by a WebView2 operation (`download_hooks`).
+    downloads: Vec<DownloadEntry>,
+    /// WebViews of closed tabs kept alive while their downloads run.
+    lingering: Vec<Lingering>,
+    /// The sidebar has loaded and asked for its first state.
+    sidebar_ready: bool,
+    /// Links handed over before the sidebar was ready; opened as soon as it is.
+    startup_urls: Vec<String>,
 }
 
 impl Browser {
-    pub fn new(window: Window, proxy: EventLoopProxy<UserEvent>) -> Result<Self> {
-        let root = prepare_data_dir()?;
+    pub fn new(window: Window, proxy: EventLoopProxy<UserEvent>, root: PathBuf) -> Result<Self> {
         updater::spawn_check(proxy.clone(), root.clone());
         let data_dir = root.clone();
         let p = load_state(&root);
@@ -193,6 +210,7 @@ impl Browser {
         let poll_thread = spawn_devtools_poll(proxy.clone(), Arc::clone(&devtools_polling));
 
         let history = load_history(&root.join("history.json"));
+        let downloads = load_downloads(&root.join("downloads.json"));
         let initial_active = if p.restore_tabs {
             p.active_tabs.clone()
         } else {
@@ -256,6 +274,10 @@ impl Browser {
             pending_update: None,
             passwords: PasswordStore::open(&data_dir),
             password_offer: None,
+            downloads,
+            lingering: Vec::new(),
+            sidebar_ready: false,
+            startup_urls: Vec::new(),
         };
         b.apply_theme();
         b.preinstall();

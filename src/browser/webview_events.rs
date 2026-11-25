@@ -1,5 +1,5 @@
 //! WebView2 event hooks that report page state to the main loop. Windows only; elsewhere the
-//! page-side script covers what it can.
+//! page-side script covers what it can. (Downloads are hooked in `download_hooks.rs`.)
 
 use super::*;
 
@@ -13,6 +13,7 @@ pub(super) fn attach_native_handlers(wv: &WebView, proxy: &EventLoopProxy<UserEv
     watch_fullscreen(wv, proxy, tab);
     watch_focus(wv, proxy, tab);
     watch_crashes(wv, proxy, tab);
+    watch_downloads(wv, proxy, tab);
 }
 
 #[cfg(not(windows))]

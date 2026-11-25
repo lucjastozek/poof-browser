@@ -1,5 +1,5 @@
 /* ---------- history view (Ctrl+H) ----------
-   Uses the helpers from scripts/core (el, ib, ic, $, send), the global
+   Uses the helpers from scripts/core (el, ib, ic, $, send, hostOf, dayLabel), the global
    `ov` (the currently open full-area view) and `S` (last pushed state). Styled with the tokens
    from styles/foundation/theme.css and the shared .ib/.btn/.inp/.field/.ico classes, and sits exactly where #stage does. */
 (() => {
@@ -62,14 +62,6 @@
   let searchTimer = 0;
   let clearTimer = 0;
 
-  function hostOf(u) {
-    try {
-      return new URL(u).host.replace(/^www\./, "");
-    } catch (_) {
-      return u;
-    }
-  }
-
   // Favicons the browser already knows about, keyed by host (taken from the new-tab suggestions).
   function faviconFor(host) {
     for (const s of (S && S.suggestions) || []) {
@@ -91,23 +83,6 @@
       box.textContent = host.charAt(0).toUpperCase();
     }
     return box;
-  }
-
-  function dayLabel(ts) {
-    const d = new Date(ts * 1000);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const day = new Date(d);
-    day.setHours(0, 0, 0, 0);
-    const diff = Math.round((today - day) / 86400000);
-    if (diff === 0) return "Today";
-    if (diff === 1) return "Yesterday";
-    return d.toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
-    });
   }
 
   function visit(h) {

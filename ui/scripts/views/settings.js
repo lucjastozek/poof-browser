@@ -78,6 +78,7 @@ function buildSettings(v) {
     ["Address bar", ["Ctrl", "L"]],
     ["Close tab", ["Ctrl", "W"]],
     ["Switch space", ["Ctrl", "Alt", "←", "→"]],
+    ["Downloads", ["Ctrl", "J"]],
     ["Developer tools", ["F12"]],
   ].forEach(([n, k]) => {
     const r = el("div");
@@ -254,6 +255,7 @@ function buildSettings(v) {
     field("Developer tools · dock", devtoolsDock),
     field("Developer tools · size", devtoolsSize),
     field("Browsing", sw, restore),
+    defaultBrowserSettingsField(),
     passwordSettingsField(),
     field("Sidebar", compact),
     field("Automatic cleanup", cleanup),

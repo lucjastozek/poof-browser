@@ -11,8 +11,10 @@ impl Browser {
             .iter()
             .filter(|t| t.webview.is_some())
             .map(|t| t.profile_id.clone())
+            .chain(self.lingering.iter().map(|l| l.profile_id.clone()))
             .collect();
         self.ext_done.retain(|p| live.contains(p));
+        self.fail_orphaned_downloads(&live);
         // Per-tab bookkeeping dies with the WebView it describes.
         let loaded: HashSet<&str> = self
             .tabs
@@ -57,7 +59,8 @@ impl Browser {
 
     /// Releases the WebView (and with it the renderer process) of background tabs that have been
     /// idle for `tab_sleep_minutes`. The tab stays in the sidebar at its current URL and reloads
-    /// when selected. The visible tab, the DevTools target and tabs playing audio are kept.
+    /// when selected. The visible tab, the DevTools target, tabs playing audio and tabs with a
+    /// running download are kept.
     pub(super) fn sleep_idle_tabs(&mut self) {
         let minutes = self.p.tab_sleep_minutes;
         if minutes == 0 {
@@ -74,6 +77,7 @@ impl Browser {
             .flat_map(|s| [s.a.clone(), s.b.clone()])
             .collect();
         let pip_tabs = &self.pip_tabs;
+        let downloading = self.tabs_with_live_downloads();
         for t in self.tabs.iter_mut() {
             let Some(wv) = t.webview.as_ref() else {
                 continue;
@@ -82,6 +86,7 @@ impl Browser {
                 || devtools_tab.as_deref() == Some(t.id.as_str())
                 || split_ids.contains(&t.id)
                 || pip_tabs.contains(&t.id)
+                || downloading.contains(&t.id)
             {
                 continue;
             }

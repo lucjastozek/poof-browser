@@ -52,6 +52,7 @@ pub(super) fn browser_shortcut(
         0x50 => Some("print"),     // P
         0x44 => Some("favorite"),  // D
         0x48 => Some("history"),   // H
+        0x4A => Some("downloads"), // J
         0x31 => Some("tab_1"),
         0x32 => Some("tab_2"),
         0x33 => Some("tab_3"),
@@ -119,5 +120,20 @@ pub(super) fn register_browser_shortcuts(
         {
             log::warn!("registering WebView2 keyboard shortcuts failed: {error}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ctrl_j_opens_downloads_and_plain_j_does_not() {
+        assert_eq!(
+            browser_shortcut(0x4A, true, false, false),
+            Some("downloads")
+        );
+        assert_eq!(browser_shortcut(0x4A, false, false, false), None);
+        assert_eq!(browser_shortcut(0x4A, true, false, true), None);
     }
 }

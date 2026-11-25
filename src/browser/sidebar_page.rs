@@ -23,6 +23,7 @@ const STYLES: &[&str] = &[
     include_str!("../../ui/styles/views/dialogs.css"),
     include_str!("../../ui/styles/views/settings.css"),
     include_str!("../../ui/styles/views/passwords.css"),
+    include_str!("../../ui/styles/views/downloads.css"),
 ];
 
 const SCRIPTS: &[&str] = &[
@@ -31,6 +32,7 @@ const SCRIPTS: &[&str] = &[
     include_str!("../../ui/scripts/core/space-icons.js"),
     include_str!("../../ui/scripts/core/widgets.js"),
     include_str!("../../ui/scripts/core/toast.js"),
+    include_str!("../../ui/scripts/core/format.js"),
     include_str!("../../ui/scripts/core/colors.js"),
     include_str!("../../ui/scripts/core/theme.js"),
     include_str!("../../ui/scripts/core/state.js"),
@@ -58,6 +60,8 @@ const SCRIPTS: &[&str] = &[
     include_str!("../../ui/scripts/views/settings.js"),
     include_str!("../../ui/scripts/views/router.js"),
     include_str!("../../ui/scripts/views/history.js"),
+    include_str!("../../ui/scripts/views/downloads.js"),
+    include_str!("../../ui/scripts/views/default-browser.js"),
     include_str!("../../ui/scripts/views/passwords.js"),
 ];
 

@@ -21,6 +21,8 @@ impl Browser {
             UserEvent::Page { tab, body } => self.handle_page(&tab, &body),
             UserEvent::Fullscreen { tab, active } => self.handle_fullscreen(&tab, active),
             UserEvent::UpdateReady(installer) => self.pending_update = Some(installer),
+            UserEvent::Download(event) => self.on_download_event(event),
+            UserEvent::External { url } => self.on_external_launch(url),
             UserEvent::Title { tab, title } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     t.title = clip(&title, 300);

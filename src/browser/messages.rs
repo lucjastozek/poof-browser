@@ -210,6 +210,33 @@ pub(super) enum Cmd {
         #[serde(default)]
         never: bool,
     },
+    /// The Downloads view opened: send the list.
+    ListDownloads,
+    PauseDownload {
+        id: String,
+    },
+    ResumeDownload {
+        id: String,
+    },
+    /// Cancels a running download.
+    CancelDownload {
+        id: String,
+    },
+    OpenDownload {
+        id: String,
+    },
+    /// Show the downloaded file in the system file manager.
+    ShowDownload {
+        id: String,
+    },
+    /// Remove one finished download from the list (the file stays).
+    RemoveDownload {
+        id: String,
+    },
+    ClearDownloads,
+    /// The settings view asks whether poof is the default browser.
+    DefaultBrowserStatus,
+    SetDefaultBrowser,
     ListPasswords,
     RevealPassword {
         id: String,
@@ -322,6 +349,20 @@ mod tests {
     fn devtools_commands_accept_both_spellings() {
         assert!(serde_json::from_str::<Cmd>(r#"{"cmd":"devtools_toggle"}"#).is_ok());
         assert!(serde_json::from_str::<Cmd>(r#"{"cmd":"dev_tools_toggle"}"#).is_ok());
+    }
+
+    #[test]
+    fn download_and_default_browser_commands_parse() {
+        let pause: Cmd = serde_json::from_str(r#"{"cmd":"pause_download","id":"d1"}"#).unwrap();
+        assert!(matches!(pause, Cmd::PauseDownload { id } if id == "d1"));
+        assert!(matches!(
+            serde_json::from_str::<Cmd>(r#"{"cmd":"clear_downloads"}"#),
+            Ok(Cmd::ClearDownloads)
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Cmd>(r#"{"cmd":"set_default_browser"}"#),
+            Ok(Cmd::SetDefaultBrowser)
+        ));
     }
 
     #[test]

@@ -31,6 +31,19 @@ pub(super) fn ok_url(s: &str, max: usize, allow_data: bool) -> bool {
             || (allow_data && s.starts_with("data:image/")))
 }
 
+/// An address handed over by another launch of the browser: a web link or a local file.
+pub(super) fn ok_external_url(s: &str) -> bool {
+    let s = s.trim();
+    s.len() <= EXTERNAL_URL_MAX
+        && [("http://", 7), ("https://", 8), ("file://", 7)]
+            .iter()
+            .any(|(scheme, len)| {
+                s.len() > *len
+                    && s.get(..*len)
+                        .is_some_and(|head| head.eq_ignore_ascii_case(scheme))
+            })
+}
+
 pub(super) fn clip(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
@@ -72,4 +85,23 @@ pub(super) fn now_ms() -> u64 {
         .map(|d| d.as_millis() as u64)
         .unwrap_or(1)
         .max(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn external_addresses_are_links_or_local_files_only() {
+        assert!(ok_external_url("https://example.com/a"));
+        assert!(ok_external_url("HTTP://example.com"));
+        assert!(ok_external_url("file:///C:/docs/a.html"));
+        assert!(!ok_external_url("javascript:alert(1)"));
+        assert!(!ok_external_url("data:text/html,<p>"));
+        assert!(!ok_external_url("https://"));
+        assert!(!ok_external_url(&format!(
+            "https://x/{}",
+            "a".repeat(EXTERNAL_URL_MAX)
+        )));
+    }
 }
