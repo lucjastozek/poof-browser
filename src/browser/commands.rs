@@ -107,18 +107,29 @@ impl Browser {
             Cmd::WindowClose => {
                 let _ = self.proxy.send_event(UserEvent::CloseWindow);
             }
-            Cmd::Overlay { open } => {
-                self.overlay = open;
-                if open {
-                    let _ = self.sidebar.focus();
+            Cmd::Overlay { open, snapshot } => {
+                self.awaiting_backdrop = false;
+                shortcuts::set_capturing(false);
+                if open && snapshot && !self.overlay {
+                    // The page stays until its picture is in the sidebar (`BackdropReady`).
+                    self.awaiting_backdrop = self.start_page_snapshot();
                 }
-                self.relayout();
-                if !open {
-                    if let Some(wv) = self.visible_webview() {
-                        let _ = wv.focus();
-                    }
+                if !self.awaiting_backdrop {
+                    self.apply_overlay(open);
                 }
             }
+            Cmd::BackdropReady => {
+                if std::mem::take(&mut self.awaiting_backdrop) {
+                    self.apply_overlay(true);
+                }
+            }
+            Cmd::SetShortcut { id, chord } => self.set_shortcut(&id, Some(&chord)),
+            Cmd::ResetShortcut { id } => self.set_shortcut(&id, None),
+            Cmd::ResetShortcuts => {
+                self.p.shortcuts.clear();
+                self.shortcuts_changed();
+            }
+            Cmd::ShortcutCapture { active } => shortcuts::set_capturing(active),
             Cmd::NewTab { input } => self.new_tab(&normalize(&input))?,
             Cmd::Navigate { input } => {
                 let url = normalize(&input);

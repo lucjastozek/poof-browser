@@ -1,183 +1,179 @@
-/* ---------- settings ---------- */
-function buildSettings(v) {
+/* ---------- settings: a tabbed panel over a picture of the page ---------- */
+const SETTINGS_TABS = [
+  ["general", "settings", "General"],
+  ["appearance", "sun", "Appearance"],
+  ["privacy", "lock", "Privacy & data"],
+  ["shortcuts", "key-2", "Shortcuts"],
+  ["developer", "code", "Developer"],
+];
+let settingsTab = "general";
+
+const tabIcon = (name) =>
+  name in ICONS ? ic(name, 16) : svg(SPACE_ICONS, name, 16);
+
+/* A labelled on/off row. `change(on)` runs after the switch flips. */
+function switchRow(label, hint, on, change) {
+  const sw = el("button", "switch");
+  sw.type = "button";
+  sw.setAttribute("role", "switch");
+  sw.setAttribute("aria-checked", String(!!on));
+  const text = el("span", "t");
+  text.append(el("span", null, label), el("small", null, hint));
+  sw.append(text, el("span", "track"));
+  sw.onclick = () => {
+    const next = sw.getAttribute("aria-checked") !== "true";
+    sw.setAttribute("aria-checked", String(next));
+    change(next);
+  };
+  return sw;
+}
+
+/* A segmented control; `pick(value)` runs on click. */
+function segmented(options, current, pick, label) {
   const seg = el("div", "seg");
-  [
-    ["system", "monitor", "System"],
-    ["light", "sun", "Light"],
-    ["dark", "moon", "Dark"],
-  ].forEach(([k, i, l]) => {
-    const b = el("button", S.theme === k ? "on" : "");
+  seg.setAttribute("role", "group");
+  seg.setAttribute("aria-label", label);
+  options.forEach(([value, text, icon]) => {
+    const b = el("button", value === current ? "on" : "");
     b.type = "button";
-    b.append(ic(i, 15), el("span", null, l));
+    b.setAttribute("aria-pressed", String(value === current));
+    if (icon) b.append(ic(icon, 15));
+    b.append(el("span", null, text));
     b.onclick = () => {
+      pick(value);
+      [...seg.children].forEach((c, i) => {
+        const on = options[i][0] === value;
+        c.classList.toggle("on", on);
+        c.setAttribute("aria-pressed", String(on));
+      });
+    };
+    seg.append(b);
+  });
+  return seg;
+}
+
+const RETENTION_CHOICES = [
+  ["24", "1d", "24 hours"],
+  ["48", "2d", "48 hours"],
+  ["72", "3d", "72 hours"],
+  ["168", "1w", "1 week"],
+  ["336", "2w", "2 weeks"],
+];
+
+function retentionRow(label, description, current, allowOff, change) {
+  const options = allowOff
+    ? [["0", "Off", "Off"], ...RETENTION_CHOICES]
+    : RETENTION_CHOICES;
+  const group = el("div", "retention-options");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", label);
+  options.forEach(([value, short, full]) => {
+    const b = el("button", "retention-pill", short);
+    b.type = "button";
+    b.title = full;
+    b.setAttribute("aria-label", label + ": " + full);
+    b.classList.toggle("selected", value === current);
+    b.setAttribute("aria-pressed", String(value === current));
+    b.onclick = () => {
+      [...group.children].forEach((c) => {
+        const on = c === b;
+        c.classList.toggle("selected", on);
+        c.setAttribute("aria-pressed", String(on));
+      });
+      change(value);
+    };
+    group.append(b);
+  });
+  const copy = el("div", "retention-copy");
+  copy.append(
+    el("span", "retention-name", label),
+    el("small", null, description),
+  );
+  const row = el("div", "retention-row");
+  row.append(copy, el("div", "retention-control"));
+  row.lastChild.append(group);
+  return row;
+}
+
+function generalPanel() {
+  return [
+    field(
+      "Browsing",
+      switchRow(
+        "Picture in picture",
+        "Pop out a playing video when you leave its tab",
+        S.auto_pip,
+        (on) => {
+          S.auto_pip = on;
+          send({ cmd: "set_auto_pip", on });
+        },
+      ),
+      switchRow(
+        "Restore tabs on startup",
+        "Reopen the tabs you had open when you last closed poof",
+        S.restore_tabs,
+        (on) => {
+          S.restore_tabs = on;
+          send({ cmd: "set_restore_tabs", on });
+        },
+      ),
+    ),
+    defaultBrowserSettingsField(),
+  ];
+}
+
+function appearancePanel() {
+  const theme = segmented(
+    [
+      ["system", "System", "monitor"],
+      ["light", "Light", "sun"],
+      ["dark", "Dark", "moon"],
+    ],
+    S.theme,
+    (k) => {
       S.theme = k;
       lastKey = "";
       applyMode(k);
       send({ cmd: "set_theme", theme: k });
-      [...seg.children].forEach((c, j) =>
-        c.classList.toggle("on", j === ["system", "light", "dark"].indexOf(k)),
+    },
+    "Theme",
+  );
+  const compact = switchRow(
+    "Compact sidebar",
+    "Keep an icon-only sidebar when it is open",
+    S.sidebar_compact,
+    (on) => {
+      S.sidebar_compact = on;
+      document.body.classList.toggle(
+        "compact",
+        on && !document.body.classList.contains("collapsed"),
       );
-    };
-    seg.append(b);
-  });
-  const compact = el("button", "switch");
-  compact.type = "button";
-  compact.setAttribute("role", "switch");
-  compact.setAttribute("aria-checked", String(!!S.sidebar_compact));
-  const compactText = el("span", "t");
-  compactText.append(
-    el("span", null, "Compact sidebar"),
-    el("small", null, "Keep an icon-only sidebar when it is open"),
+      send({ cmd: "sidebar_compact", compact: on });
+    },
   );
-  compact.append(compactText, el("span", "track"));
-  compact.onclick = () => {
-    const on = compact.getAttribute("aria-checked") !== "true";
-    compact.setAttribute("aria-checked", String(on));
-    S.sidebar_compact = on;
-    document.body.classList.toggle(
-      "compact",
-      on && !document.body.classList.contains("collapsed"),
-    );
-    send({ cmd: "sidebar_compact", compact: on });
-  };
-  const sw = el("button", "switch");
-  sw.type = "button";
-  sw.setAttribute("role", "switch");
-  sw.setAttribute("aria-checked", String(!!S.auto_pip));
-  const t = el("span", "t");
-  t.append(
-    el("span", null, "Picture in picture"),
-    el("small", null, "Pop out a playing video when you leave its tab"),
-  );
-  sw.append(t, el("span", "track"));
-  sw.onclick = () => {
-    const on = sw.getAttribute("aria-checked") !== "true";
-    sw.setAttribute("aria-checked", String(on));
-    S.auto_pip = on;
-    send({ cmd: "set_auto_pip", on });
-  };
-  const restore = el("button", "switch");
-  restore.type = "button";
-  restore.setAttribute("role", "switch");
-  restore.setAttribute("aria-checked", String(!!S.restore_tabs));
-  const restoreText = el("span", "t");
-  restoreText.append(
-    el("span", null, "Restore tabs on startup"),
-    el("small", null, "Reopen the tabs you had open when you last closed poof"),
-  );
-  restore.append(restoreText, el("span", "track"));
-  restore.onclick = () => {
-    const on = restore.getAttribute("aria-checked") !== "true";
-    restore.setAttribute("aria-checked", String(on));
-    S.restore_tabs = on;
-    send({ cmd: "set_restore_tabs", on });
-  };
-  const keys = el("div", "keys");
-  [
-    ["New tab", ["Ctrl", "T"]],
-    ["Address bar", ["Ctrl", "L"]],
-    ["Close tab", ["Ctrl", "W"]],
-    ["Switch space", ["Ctrl", "Alt", "←", "→"]],
-    ["Downloads", ["Ctrl", "J"]],
-    ["Developer tools", ["F12"]],
-  ].forEach(([n, k]) => {
-    const r = el("div");
-    const kk = el("span");
-    k.forEach((x) => kk.append(el("kbd", null, x)));
-    r.append(el("span", null, n), kk);
-    keys.append(r);
-  });
+  return [field("Theme", theme), field("Sidebar", compact)];
+}
+
+function privacyPanel() {
   const retention = S.profile_cleanup || {};
-  const choices = [
-    ["24", "24 hours"],
-    ["48", "48 hours"],
-    ["72", "72 hours"],
-    ["168", "1 week"],
-    ["336", "2 weeks"],
-  ];
-  const makeRetention = (key, allowOff, label, description) => {
-    let current = String(retention[key] ?? (allowOff ? 0 : 48));
-    const wrap = el("div", "retention-control");
-    const group = el("div", "retention-options");
-    group.setAttribute("role", "group");
-    group.setAttribute("aria-label", label);
-    const opts = allowOff
-      ? [
-          ["0", "Off", "Off"],
-          ...choices.map(([v], i) => [
-            v,
-            ["1d", "2d", "3d", "1w", "2w"][i],
-            choices[i][1],
-          ]),
-        ]
-      : choices.map(([v], i) => [
-          v,
-          ["1d", "2d", "3d", "1w", "2w"][i],
-          choices[i][1],
-        ]);
-    const paint = () => {
-      [...group.children].forEach((button) => {
-        const selected = button.dataset.value === current;
-        button.classList.toggle("selected", selected);
-        button.setAttribute("aria-pressed", String(selected));
-      });
-    };
-    opts.forEach(([value, shortLabel, fullLabel]) => {
-      const option = el("button", "retention-pill");
-      option.type = "button";
-      option.dataset.value = value;
-      option.textContent = shortLabel;
-      option.title = fullLabel;
-      option.setAttribute("aria-label", label + ": " + fullLabel);
-      option.setAttribute("aria-pressed", String(value === current));
-      option.onclick = () => {
-        if (current === value) return;
-        current = value;
-        paint();
-        saveRetention();
-      };
-      group.append(option);
-    });
-    paint();
-    wrap.append(group);
-    const copy = el("div", "retention-copy");
-    copy.append(
-      el("span", "retention-name", label),
-      el("small", null, description),
-    );
-    const row = el("div", "retention-row");
-    row.append(copy, wrap);
-    return {
-      row,
-      get value() {
-        return current;
-      },
-    };
+  const values = {
+    tab_retention_hours: String(retention.tab_retention_hours ?? 48),
+    cookie_retention_hours: String(retention.cookie_retention_hours ?? 0),
+    cache_retention_hours: String(retention.cache_retention_hours ?? 0),
+    history_retention_hours: String(retention.history_retention_hours ?? 0),
   };
-  const tabAge = makeRetention(
-    "tab_retention_hours",
-    false,
-    "Inactive tabs",
-    "Close tabs after they have been unused",
-  );
-  const cookieAge = makeRetention(
-    "cookie_retention_hours",
-    true,
-    "Cookies",
-    "May sign you out of websites",
-  );
-  const cacheAge = makeRetention(
-    "cache_retention_hours",
-    true,
-    "Cache",
-    "Remove older cached files",
-  );
-  const historyAge = makeRetention(
-    "history_retention_hours",
-    true,
-    "Browsing history",
-    "Remove older history entries",
-  );
+  const save = () =>
+    send({
+      cmd: "update_profile_cleanup",
+      ...Object.fromEntries(
+        Object.entries(values).map(([k, v]) => [k, Number(v)]),
+      ),
+    });
+  const row = (key, allowOff, label, description) =>
+    retentionRow(label, description, values[key], allowOff, (value) => {
+      values[key] = value;
+      save();
+    });
   const cleanup = el("div", "cleanup-section");
   cleanup.append(
     el(
@@ -185,79 +181,28 @@ function buildSettings(v) {
       "note",
       "Choose how long data stays in this profile before it is cleared.",
     ),
-    tabAge.row,
-    cookieAge.row,
-    cacheAge.row,
-    historyAge.row,
+    row(
+      "tab_retention_hours",
+      false,
+      "Inactive tabs",
+      "Close tabs after they have been unused",
+    ),
+    row(
+      "cookie_retention_hours",
+      true,
+      "Cookies",
+      "May sign you out of websites",
+    ),
+    row("cache_retention_hours", true, "Cache", "Remove older cached files"),
+    row(
+      "history_retention_hours",
+      true,
+      "Browsing history",
+      "Remove older history entries",
+    ),
   );
-  const saveRetention = () =>
-    send({
-      cmd: "update_profile_cleanup",
-      tab_retention_hours: Number(tabAge.value),
-      cookie_retention_hours: Number(cookieAge.value),
-      cache_retention_hours: Number(cacheAge.value),
-      history_retention_hours: Number(historyAge.value),
-    });
-  const devtoolsDock = el("div", "seg");
-  [
-    ["right", "Right"],
-    ["left", "Left"],
-    ["bottom", "Bottom"],
-    ["top", "Top"],
-  ].forEach(([value, label]) => {
-    const option = el(
-      "button",
-      S.devtools_position === value ? "on" : "",
-      label,
-    );
-    option.type = "button";
-    option.setAttribute("aria-pressed", String(S.devtools_position === value));
-    option.onclick = () => {
-      S.devtools_position = value;
-      send({ cmd: "devtools_position", position: value });
-      [...devtoolsDock.children].forEach((child) => {
-        const selected = child === option;
-        child.classList.toggle("on", selected);
-        child.setAttribute("aria-pressed", String(selected));
-      });
-    };
-    devtoolsDock.append(option);
-  });
-  const devtoolsSize = el("div", "seg");
-  [
-    [320, "Narrow"],
-    [420, "Default"],
-    [560, "Wide"],
-  ].forEach(([value, label]) => {
-    const option = el(
-      "button",
-      Number(S.devtools_size || 420) === value ? "on" : "",
-      label,
-    );
-    option.type = "button";
-    option.setAttribute(
-      "aria-pressed",
-      String(Number(S.devtools_size || 420) === value),
-    );
-    option.onclick = () => {
-      S.devtools_size = value;
-      send({ cmd: "devtools_size", size: value, persist: true });
-      [...devtoolsSize.children].forEach((child) => {
-        const selected = child === option;
-        child.classList.toggle("on", selected);
-        child.setAttribute("aria-pressed", String(selected));
-      });
-    };
-    devtoolsSize.append(option);
-  });
-  dialog(v, "Settings", [
-    field("Appearance", seg),
-    field("Developer tools · dock", devtoolsDock),
-    field("Developer tools · size", devtoolsSize),
-    field("Browsing", sw, restore),
-    defaultBrowserSettingsField(),
+  return [
     passwordSettingsField(),
-    field("Sidebar", compact),
     field("Automatic cleanup", cleanup),
     field(
       null,
@@ -267,6 +212,295 @@ function buildSettings(v) {
         "Settings are shared by every space using this profile. Pinned tabs and favorites are exempt from automatic closing.",
       ),
     ),
-    field("Shortcuts", keys),
-  ]);
+  ];
+}
+
+function developerPanel() {
+  const dock = segmented(
+    [
+      ["right", "Right"],
+      ["left", "Left"],
+      ["bottom", "Bottom"],
+      ["top", "Top"],
+    ],
+    S.devtools_position,
+    (value) => {
+      S.devtools_position = value;
+      send({ cmd: "devtools_position", position: value });
+    },
+    "Developer tools dock",
+  );
+  const size = segmented(
+    [
+      ["320", "Narrow"],
+      ["420", "Default"],
+      ["560", "Wide"],
+    ],
+    String(Number(S.devtools_size || 420)),
+    (value) => {
+      S.devtools_size = Number(value);
+      send({ cmd: "devtools_size", size: Number(value), persist: true });
+    },
+    "Developer tools size",
+  );
+  return [field("Dock position", dock), field("Panel size", size)];
+}
+
+/* ---- keyboard shortcuts ---- */
+const CODE_NAMES = {
+  Tab: "Tab",
+  Enter: "Enter",
+  Space: "Space",
+  Backspace: "Backspace",
+  Delete: "Delete",
+  Insert: "Insert",
+  Home: "Home",
+  End: "End",
+  PageUp: "PageUp",
+  PageDown: "PageDown",
+  ArrowLeft: "Left",
+  ArrowRight: "Right",
+  ArrowUp: "Up",
+  ArrowDown: "Down",
+  Semicolon: ";",
+  Equal: "=",
+  Comma: ",",
+  Minus: "-",
+  Period: ".",
+  Slash: "/",
+  Backquote: "`",
+  BracketLeft: "[",
+  Backslash: "\\",
+  BracketRight: "]",
+  Quote: "'",
+};
+/* The chord key for a keyboard event, in the same spelling the browser uses. */
+function chordKey(code) {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^F\d{1,2}$/.test(code)) return code;
+  return CODE_NAMES[code] || null;
+}
+const KEY_GLYPHS = { Left: "←", Right: "→", Up: "↑", Down: "↓" };
+
+function chordNode(chord) {
+  const box = el("span", "sc-chord");
+  if (!chord) {
+    box.append(el("span", "sc-none", "Not set"));
+    return box;
+  }
+  chord
+    .split("+")
+    .forEach((k) => box.append(el("kbd", null, KEY_GLYPHS[k] || k)));
+  return box;
+}
+
+function shortcutsPanel() {
+  const host = el("div", "sc");
+  let capturing = null;
+  let hint = "";
+
+  const stop = () => {
+    if (!capturing) return;
+    capturing = null;
+    hint = "";
+    removeEventListener("keydown", onKey, true);
+    removeEventListener("blur", stop);
+    send({ cmd: "shortcut_capture", active: false });
+    paint();
+  };
+  const onKey = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") return stop();
+    if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+    if (
+      (e.key === "Backspace" || e.key === "Delete") &&
+      !(e.ctrlKey || e.altKey || e.shiftKey)
+    ) {
+      const id = capturing;
+      stop();
+      return send({ cmd: "set_shortcut", id, chord: "" });
+    }
+    const key = chordKey(e.code);
+    if (!key) return;
+    if (!(e.ctrlKey || e.altKey || /^F\d+$/.test(key))) {
+      hint = "Include Ctrl or Alt, or use a function key.";
+      return paint();
+    }
+    const chord = [
+      e.ctrlKey && "Ctrl",
+      e.altKey && "Alt",
+      e.shiftKey && "Shift",
+      key,
+    ]
+      .filter(Boolean)
+      .join("+");
+    const id = capturing;
+    stop();
+    send({ cmd: "set_shortcut", id, chord });
+  };
+  const start = (id) => {
+    if (capturing) stop();
+    capturing = id;
+    hint = "";
+    send({ cmd: "shortcut_capture", active: true });
+    addEventListener("keydown", onKey, true);
+    addEventListener("blur", stop);
+    paint();
+  };
+  window.__stopShortcutCapture = stop;
+
+  function row(item) {
+    const recording = capturing === item.id;
+    const r = el("div", "sc-row");
+    r.setAttribute("role", "row");
+    const key = el("button", "sc-key" + (recording ? " recording" : ""));
+    key.type = "button";
+    key.setAttribute(
+      "aria-label",
+      "Shortcut for " +
+        item.label +
+        ": " +
+        (item.chord || "not set") +
+        ". Click to change.",
+    );
+    if (recording) {
+      key.append(el("span", "sc-prompt", hint || "Press keys…"));
+    } else {
+      key.append(chordNode(item.chord), ic("pencil", 14));
+      key.lastChild.classList.add("sc-edit");
+    }
+    key.onclick = () => (recording ? stop() : start(item.id));
+    const reset = el("span", "sc-reset");
+    if (item.chord !== item.default && !recording) {
+      const b = el("button", "ib");
+      b.type = "button";
+      b.title =
+        "Reset to default" +
+        (item.default ? " (" + item.default + ")" : " (none)");
+      b.setAttribute("aria-label", "Reset " + item.label + " to default");
+      b.append(svg(SPACE_ICONS, "refresh-2", 15));
+      b.onclick = () => send({ cmd: "reset_shortcut", id: item.id });
+      reset.append(b);
+    }
+    r.append(el("span", "sc-label", item.label), key, reset);
+    return r;
+  }
+
+  function paint() {
+    const groups = new Map();
+    (S.shortcuts || []).forEach((item) => {
+      if (!groups.has(item.group)) groups.set(item.group, []);
+      groups.get(item.group).push(item);
+    });
+    const top = el("div", "sc-top");
+    top.append(
+      el(
+        "p",
+        "note",
+        capturing
+          ? "Press the new keys. Backspace removes the shortcut, Esc cancels."
+          : "Click a shortcut to change it.",
+      ),
+      btn("ghost sm", "Reset all", () => send({ cmd: "reset_shortcuts" })),
+    );
+    host.replaceChildren(top);
+    groups.forEach((items, group) => {
+      const section = el("section", "sc-group");
+      section.append(el("h3", null, group), ...items.map(row));
+      host.append(section);
+    });
+  }
+  paint();
+  host._repaint = () => {
+    if (!capturing) paint();
+  };
+  return host;
+}
+
+function buildSettings(v) {
+  const wrap = el("div", "settings-scrim");
+  const modal = el("div", "settings-modal");
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-label", "Settings");
+  const nav = el("nav", "settings-nav");
+  nav.setAttribute("role", "tablist");
+  nav.setAttribute("aria-orientation", "vertical");
+  const content = el("div", "settings-content");
+  const panels = {
+    general: generalPanel,
+    appearance: appearancePanel,
+    privacy: privacyPanel,
+    developer: developerPanel,
+  };
+  let shortcutsHost = null;
+
+  function show(tab) {
+    if (window.__stopShortcutCapture) window.__stopShortcutCapture();
+    settingsTab = tab;
+    shortcutsHost = null;
+    [...nav.children].forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+    const title = SETTINGS_TABS.find((t) => t[0] === tab)[2];
+    const head = el("header");
+    head.append(el("h2", null, title), ib("x", "Close settings", closeView));
+    const body = el("div", "settings-panel");
+    body.setAttribute("role", "tabpanel");
+    if (tab === "shortcuts") {
+      shortcutsHost = shortcutsPanel();
+      body.append(shortcutsHost);
+    } else {
+      body.append(...panels[tab]());
+    }
+    content.replaceChildren(head, body);
+  }
+
+  SETTINGS_TABS.forEach(([id, icon, label]) => {
+    const b = el("button", "settings-tab");
+    b.type = "button";
+    b.dataset.tab = id;
+    b.setAttribute("role", "tab");
+    b.append(tabIcon(icon), el("span", null, label));
+    b.onclick = () => show(id);
+    b.onkeydown = (e) => {
+      const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[
+        e.key
+      ];
+      if (!step) return;
+      e.preventDefault();
+      const next =
+        (SETTINGS_TABS.findIndex((t) => t[0] === id) +
+          step +
+          SETTINGS_TABS.length) %
+        SETTINGS_TABS.length;
+      show(SETTINGS_TABS[next][0]);
+      nav.children[next].focus();
+    };
+    nav.append(b);
+  });
+  modal.append(nav, content);
+  wrap.append(modal);
+  wrap.addEventListener("pointerdown", (e) => {
+    if (e.target === wrap) closeView();
+  });
+  v.replaceChildren(wrap);
+  show(settingsTab);
+
+  // The shortcut list follows state pushes (a moved chord changes two rows).
+  const base = window.__setState;
+  if (!base._settingsWrapped) {
+    const wrapped = (s) => {
+      base(s);
+      if (ov === "settings" && window.__repaintShortcuts)
+        window.__repaintShortcuts();
+    };
+    wrapped._settingsWrapped = true;
+    window.__setState = wrapped;
+  }
+  window.__repaintShortcuts = () => shortcutsHost && shortcutsHost._repaint();
 }

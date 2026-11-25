@@ -67,6 +67,25 @@ pub(super) enum Cmd {
     /// The sidebar is showing a full-area view (new tab bar, dialogs): hide/show the page.
     Overlay {
         open: bool,
+        /// Show a picture of the current page behind the view instead of an empty stage.
+        #[serde(default)]
+        snapshot: bool,
+    },
+    /// The sidebar painted the page picture: the real page may be hidden now.
+    BackdropReady,
+    /// Bind `chord` to the action `id` (`""` removes it); a taken chord moves here.
+    SetShortcut {
+        id: String,
+        chord: String,
+    },
+    /// Restore one action's default chord.
+    ResetShortcut {
+        id: String,
+    },
+    ResetShortcuts,
+    /// The settings page started / stopped recording a chord.
+    ShortcutCapture {
+        active: bool,
     },
     NewTab {
         input: String,

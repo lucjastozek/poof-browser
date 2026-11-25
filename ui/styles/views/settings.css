@@ -98,11 +98,227 @@
   min-height: 40px;
 }
 .default-browser .t {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
-  color: var(--ink-3);
-  font-size: 11px;
-  line-height: 1.4;
+}
+.default-browser .t small {
+  color: var(--ink-2);
+  font-size: 12px;
 }
 .default-browser .btn[hidden] {
   display: none;
+}
+
+/* ---------- settings panel: tabs over a picture of the page ---------- */
+#stage.has-backdrop {
+  overflow: hidden;
+  background:
+    var(--backdrop) center / 100% 100% no-repeat,
+    var(--stage);
+}
+.settings-scrim {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, #000 36%, transparent);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.settings-modal {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  width: min(880px, 100%);
+  height: min(640px, 100%);
+  overflow: hidden;
+  background: var(--raised);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+  animation: pop 0.2s var(--ease);
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 10px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 550;
+  text-align: left;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.settings-tab:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.settings-tab.on {
+  background: var(--pressed);
+  color: var(--ink);
+}
+.settings-tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--space) 65%, var(--ink));
+  outline-offset: -2px;
+}
+.settings-tab svg {
+  flex: none;
+}
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.settings-content > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  padding: 18px 18px 6px 28px;
+}
+.settings-content h2 {
+  font-size: 17px;
+}
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 0;
+  padding: 14px 28px 28px;
+  overflow-y: auto;
+}
+@media (max-width: 700px) {
+  .settings-scrim {
+    padding: 8px;
+  }
+  .settings-modal {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .settings-tab {
+    flex: none;
+  }
+  .settings-panel {
+    padding: 12px 18px 22px;
+  }
+}
+
+/* ---- shortcut editor ---- */
+.sc {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sc-top .note {
+  margin: 0;
+}
+.sc-group h3 {
+  margin: 0 0 4px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sc-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.sc-group h3 + .sc-row {
+  border-top: 0;
+}
+.sc-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sc-key {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+.sc-key:hover {
+  background: var(--hover);
+  border-color: var(--line);
+}
+.sc-key:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--space) 65%, var(--ink));
+  outline-offset: 1px;
+}
+.sc-key.recording {
+  background: var(--hover);
+  border-color: var(--space);
+}
+.sc-chord {
+  display: flex;
+  gap: 4px;
+}
+.sc-none {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.sc-edit {
+  flex: none;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.sc-key:hover .sc-edit,
+.sc-key:focus-visible .sc-edit {
+  opacity: 1;
+}
+.sc-prompt {
+  color: var(--ink);
+  font-size: 12px;
+  animation: fade 0.18s var(--ease);
+}
+.sc-reset {
+  display: flex;
+  justify-content: flex-start;
 }

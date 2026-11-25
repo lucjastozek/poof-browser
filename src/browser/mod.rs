@@ -81,6 +81,7 @@ mod switcher;
 mod tabs;
 mod types;
 mod update;
+mod view_backdrop;
 mod webview;
 mod webview_events;
 
@@ -183,6 +184,8 @@ pub struct Browser {
     state_dirty: Cell<bool>,
     /// A downloaded, verified installer to run when the browser closes.
     pending_update: Option<PathBuf>,
+    /// The page picture is being captured; the page is hidden once the sidebar shows it.
+    awaiting_backdrop: bool,
     /// A newer release the user has not answered yet.
     offered_update: Option<updater::Update>,
     /// The user chose "Update now": install and restart as soon as the download is ready.
@@ -280,6 +283,7 @@ impl Browser {
             last_push: Cell::new(Instant::now() - STATE_MIN_INTERVAL),
             state_dirty: Cell::new(false),
             pending_update: None,
+            awaiting_backdrop: false,
             offered_update: None,
             update_now: false,
             passwords: PasswordStore::open(&data_dir),
@@ -292,6 +296,7 @@ impl Browser {
         b.apply_theme();
         b.preinstall();
         b.prune_history();
+        shortcuts::apply_keymap(&b.p.shortcuts);
         Ok(b)
     }
 }

@@ -50,6 +50,8 @@ pub enum UserEvent {
     /// The installer was downloaded and verified.
     UpdateReady(std::path::PathBuf),
     UpdateFailed,
+    /// PNG of the page behind a full-area view (`None` when capturing failed).
+    PageSnapshot(Option<Vec<u8>>),
     /// A file download reported by WebView2.
     Download(DownloadEvent),
     /// Another launch handed over a link or file (the address is UNTRUSTED), or just asked

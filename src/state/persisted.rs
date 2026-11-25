@@ -39,6 +39,9 @@ pub struct Persisted {
     pub current_space: String,
     #[serde(default = "yes")]
     pub auto_pip: bool,
+    /// Keyboard shortcut overrides: action id to chord, `""` when the user removed it.
+    #[serde(default)]
+    pub shortcuts: HashMap<String, String>,
     /// Offer to save logins and fill saved ones.
     #[serde(default = "yes")]
     pub save_passwords: bool,
@@ -103,6 +106,7 @@ impl Default for Persisted {
             folder_layout_version: 1,
             current_space: sid,
             auto_pip: true,
+            shortcuts: HashMap::new(),
             save_passwords: true,
             restore_tabs: false,
             active_tabs: HashMap::new(),

@@ -99,9 +99,16 @@ impl Browser {
 /// user's tabs, logins and extensions over.
 pub fn prepare_data_dir() -> Result<PathBuf> {
     let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
-    let root = base.join("Poof");
+    // `cargo run` must not share the installed browser's folder: that folder holds the
+    // single-instance lock (a dev launch would just hand its work to the installed app) and
+    // the WebView2 profiles (two builds cannot use them at once).
+    let root = base.join(if cfg!(debug_assertions) {
+        "Poof-dev"
+    } else {
+        "Poof"
+    });
     let old = base.join("ArcRS");
-    if old.is_dir() && !root.exists() {
+    if !cfg!(debug_assertions) && old.is_dir() && !root.exists() {
         let _ = fs::rename(&old, &root);
     }
     fs::create_dir_all(root.join("extensions"))?;

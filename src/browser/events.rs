@@ -25,6 +25,7 @@ impl Browser {
                 self.push_update_offer();
             }
             UserEvent::UpdateReady(installer) => self.on_update_ready(installer),
+            UserEvent::PageSnapshot(png) => self.on_page_snapshot(png),
             UserEvent::UpdateFailed => {
                 self.update_now = false;
                 self.toast("Couldn’t download the update. It will be offered again next time.");
