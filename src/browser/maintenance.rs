@@ -24,6 +24,7 @@ impl Browser {
             .collect();
         self.vid_tabs.retain(|id| loaded.contains(id.as_str()));
         self.pip_tabs.retain(|id| loaded.contains(id.as_str()));
+        self.live_tabs.retain(|id| loaded.contains(id.as_str()));
         self.low_mem.retain(|id| loaded.contains(id.as_str()));
     }
 
@@ -45,7 +46,9 @@ impl Browser {
             if visible.as_deref() == Some(t.id.as_str()) || split_ids.contains(&t.id) {
                 continue;
             }
-            let busy = self.pip_tabs.contains(&t.id) || is_playing_audio(wv);
+            let busy = self.pip_tabs.contains(&t.id)
+                || self.live_tabs.contains(&t.id)
+                || is_playing_audio(wv);
             let low = self.low_mem.contains(&t.id);
             if busy && low {
                 set_memory_level(wv, false);
@@ -59,8 +62,8 @@ impl Browser {
 
     /// Releases the WebView (and with it the renderer process) of background tabs that have been
     /// idle for `tab_sleep_minutes`. The tab stays in the sidebar at its current URL and reloads
-    /// when selected. The visible tab, the DevTools target, tabs playing audio and tabs with a
-    /// running download are kept.
+    /// when selected. The visible tab, the DevTools target, tabs playing audio, tabs in a call or
+    /// capturing media, and tabs with a running download are kept.
     pub(super) fn sleep_idle_tabs(&mut self) {
         let minutes = self.p.tab_sleep_minutes;
         if minutes == 0 {
@@ -77,6 +80,7 @@ impl Browser {
             .flat_map(|s| [s.a.clone(), s.b.clone()])
             .collect();
         let pip_tabs = &self.pip_tabs;
+        let live_tabs = &self.live_tabs;
         let downloading = self.tabs_with_live_downloads();
         for t in self.tabs.iter_mut() {
             let Some(wv) = t.webview.as_ref() else {
@@ -86,6 +90,7 @@ impl Browser {
                 || devtools_tab.as_deref() == Some(t.id.as_str())
                 || split_ids.contains(&t.id)
                 || pip_tabs.contains(&t.id)
+                || live_tabs.contains(&t.id)
                 || downloading.contains(&t.id)
             {
                 continue;

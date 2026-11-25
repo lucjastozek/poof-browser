@@ -3,6 +3,8 @@
 use super::*;
 
 /// Runs in every page (main frame) before the page scripts.
+/// Reports live capture / calls so such tabs are never put to sleep.
+pub(super) const LIVE_JS: &str = include_str!("js/live.js");
 pub(super) const INIT_JS: &str = include_str!("js/init.js");
 
 /// Fullscreen through the site's own player; also exposes `__poofToggleFullscreen`.

@@ -299,6 +299,10 @@ pub(super) enum PageMsg {
     Pip {
         active: bool,
     },
+    /// The page started / stopped live capture or a call (see `js/live.js`).
+    Live {
+        on: bool,
+    },
     /// Internal (empty tab id only): open a link in a background tab (Ctrl/middle click).
     #[serde(rename = "open_background")]
     OpenBackground {

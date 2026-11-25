@@ -289,3 +289,39 @@ body.collapsed:not(.peek) #side #toast {
 .newtab:hover {
   color: var(--ink);
 }
+
+/* Touch screens have no hover: keep the hover-only controls reachable, and make handles easier to hit. */
+@media (hover: none) {
+  .row .acts {
+    display: flex;
+  }
+  .hdr .pen {
+    opacity: 1;
+  }
+  .folder-head .folder-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (pointer: coarse) {
+  #side-resize {
+    width: 18px;
+    right: -9px;
+  }
+  .acts .ib,
+  .folder-actions .ib {
+    width: 32px;
+    height: 32px;
+  }
+  .row {
+    height: 40px;
+  }
+  /* Rows scroll vertically; dragging starts after a long press (see drag-reorder.js). */
+  .row,
+  .folder-head,
+  .sp {
+    touch-action: pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

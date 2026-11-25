@@ -173,6 +173,8 @@ pub struct Browser {
     vid_tabs: HashSet<String>,
     /// Tabs currently showing a Picture-in-Picture window: never slept or memory-trimmed.
     pip_tabs: HashSet<String>,
+    /// Tabs whose page reported live capture or a call: never slept, never memory-trimmed.
+    live_tabs: HashSet<String>,
     /// Hidden tabs whose WebView2 memory target is currently LOW.
     low_mem: HashSet<String>,
     /// When the sidebar last received a state snapshot, and whether a newer one is waiting.
@@ -268,6 +270,7 @@ impl Browser {
             saved_splits: Vec::new(),
             vid_tabs: HashSet::new(),
             pip_tabs: HashSet::new(),
+            live_tabs: HashSet::new(),
             low_mem: HashSet::new(),
             last_push: Cell::new(Instant::now() - STATE_MIN_INTERVAL),
             state_dirty: Cell::new(false),

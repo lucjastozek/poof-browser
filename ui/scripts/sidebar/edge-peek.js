@@ -37,4 +37,17 @@
     { passive: true },
   );
   document.documentElement.addEventListener("mouseleave", scheduleClose);
+  // Touch has no hover: a touch on the edge strip opens the peek, a touch outside it closes it.
+  addEventListener(
+    "pointerdown",
+    (e) => {
+      if (e.pointerType !== "touch" || !S || !S.sidebar_collapsed) return;
+      if (!S.sidebar_peek) {
+        if (e.clientX <= EDGE * 3 && e.clientY >= TOP) ask(true);
+      } else if (e.clientX > sidebarWidth + 14) {
+        ask(false);
+      }
+    },
+    { passive: true },
+  );
 }

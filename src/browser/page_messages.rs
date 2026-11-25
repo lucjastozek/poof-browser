@@ -66,6 +66,10 @@ impl Browser {
                 self.on_page_video(tab);
                 return;
             }
+            PageMsg::Live { on } => {
+                self.on_page_live(tab, on);
+                return;
+            }
             PageMsg::Pip { active } => {
                 self.on_page_pip(tab, active);
                 return;
@@ -249,6 +253,28 @@ impl Browser {
     }
 
     /// The page opened or closed a Picture-in-Picture window.
+    /// The page started or stopped live capture / a call; such a tab keeps its WebView.
+    pub(super) fn on_page_live(&mut self, tab: &str, on: bool) {
+        if tab.is_empty() || !self.tabs.iter().any(|t| t.id == tab) {
+            return;
+        }
+        if !on {
+            self.live_tabs.remove(tab);
+            return;
+        }
+        self.live_tabs.insert(tab.to_string());
+        if self.low_mem.remove(tab) {
+            if let Some(wv) = self
+                .tabs
+                .iter()
+                .find(|t| t.id == tab)
+                .and_then(|t| t.webview.as_ref())
+            {
+                set_memory_level(wv, false);
+            }
+        }
+    }
+
     pub(super) fn on_page_pip(&mut self, tab: &str, active: bool) {
         if tab.is_empty() || !self.tabs.iter().any(|t| t.id == tab) {
             return;

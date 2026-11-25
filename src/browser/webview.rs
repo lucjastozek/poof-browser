@@ -27,10 +27,14 @@ impl Browser {
             .with_bounds(bounds)
             .with_visible(false)
             .with_devtools(false)
+            // Pinch (touchpad / touch screen) and Ctrl+wheel zoom; pages such as Figma still
+            // receive the wheel events first and can handle them themselves.
+            .with_hotkeys_zoom(true)
             .with_url(&url)
             .with_initialization_script_for_main_only(INIT_JS, false)
             .with_initialization_script_for_main_only(scrollbar_script(&accent, sb_on), false)
             .with_initialization_script_for_main_only(pip::TRACK_JS, false)
+            .with_initialization_script_for_main_only(LIVE_JS, false)
             .with_initialization_script_for_main_only(FULLSCREEN_JS, false)
             .with_initialization_script_for_main_only(PASSWORDS_JS, true)
             .with_ipc_handler(move |req| {
