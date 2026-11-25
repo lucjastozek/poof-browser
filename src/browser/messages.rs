@@ -140,6 +140,9 @@ pub(super) enum Cmd {
         #[serde(default)]
         index: Option<usize>,
     },
+    /// The user answered the update prompt: install now, or later (when the browser closes).
+    UpdateAccept,
+    UpdateLater,
     ListHistory {
         #[serde(default)]
         query: String,

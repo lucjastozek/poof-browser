@@ -14,6 +14,7 @@ impl Browser {
                 self.sidebar_ready = true;
                 self.restore_space_tab()?;
                 self.push_downloads();
+                self.push_update_offer();
                 self.open_startup_urls();
             }
             Cmd::SidebarCollapsed { collapsed } => {
@@ -155,6 +156,8 @@ impl Browser {
                 folder_id,
                 index,
             } => self.move_tab_to_folder(&id, folder_id, index),
+            Cmd::UpdateAccept => self.answer_update(true),
+            Cmd::UpdateLater => self.answer_update(false),
             Cmd::ListHistory { query } => self.list_history(&query),
             Cmd::DeleteHistory { id } => self.delete_history_entry(&id),
             Cmd::ClearHistory => self.clear_history(),

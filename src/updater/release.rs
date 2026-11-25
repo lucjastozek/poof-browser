@@ -28,7 +28,7 @@ struct ApiAsset {
 }
 
 /// A newer release whose installer can be downloaded.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Update {
     pub version: Version,
     pub file_name: String,

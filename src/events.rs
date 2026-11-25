@@ -45,8 +45,11 @@ pub enum UserEvent {
         tab: String,
         browser: bool,
     },
-    /// A newer installer was downloaded and verified; it runs when the browser closes.
+    /// A newer release exists: ask the user.
+    UpdateFound(crate::updater::Update),
+    /// The installer was downloaded and verified.
     UpdateReady(std::path::PathBuf),
+    UpdateFailed,
     /// A file download reported by WebView2.
     Download(DownloadEvent),
     /// Another launch handed over a link or file (the address is UNTRUSTED), or just asked

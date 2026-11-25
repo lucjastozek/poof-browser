@@ -41,7 +41,7 @@ impl Browser {
         }
         // Last: the installer replaces our files, so everything must be saved before it starts.
         if let Some(installer) = self.pending_update.take() {
-            updater::install_on_exit(&installer);
+            updater::install_on_exit(&installer, self.update_now);
         }
     }
 

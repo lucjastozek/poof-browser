@@ -20,7 +20,15 @@ impl Browser {
             UserEvent::Ui(raw) => self.handle_ui(&raw),
             UserEvent::Page { tab, body } => self.handle_page(&tab, &body),
             UserEvent::Fullscreen { tab, active } => self.handle_fullscreen(&tab, active),
-            UserEvent::UpdateReady(installer) => self.pending_update = Some(installer),
+            UserEvent::UpdateFound(update) => {
+                self.offered_update = Some(update);
+                self.push_update_offer();
+            }
+            UserEvent::UpdateReady(installer) => self.on_update_ready(installer),
+            UserEvent::UpdateFailed => {
+                self.update_now = false;
+                self.toast("Couldn’t download the update. It will be offered again next time.");
+            }
             UserEvent::Download(event) => self.on_download_event(event),
             UserEvent::External { url } => self.on_external_launch(url),
             UserEvent::Title { tab, title } => {

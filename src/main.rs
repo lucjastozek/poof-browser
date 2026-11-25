@@ -37,12 +37,17 @@ fn main() -> anyhow::Result<()> {
     };
 
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
-    let window = WindowBuilder::new()
+    let builder = WindowBuilder::new()
         .with_title("poof")
         .with_decorations(false)
         .with_window_icon(app_icon::window_icon())
-        .with_inner_size(LogicalSize::new(1280.0, 800.0))
-        .build(&event_loop)?;
+        .with_inner_size(LogicalSize::new(1280.0, 800.0));
+    #[cfg(windows)]
+    let builder = {
+        use tao::platform::windows::WindowBuilderExtWindows;
+        builder.with_taskbar_icon(app_icon::taskbar_icon())
+    };
+    let window = builder.build(&event_loop)?;
 
     let mut browser = browser::Browser::new(window, event_loop.create_proxy(), root)?;
     if let Some(listener) = listener {

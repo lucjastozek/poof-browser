@@ -80,6 +80,7 @@ mod split;
 mod switcher;
 mod tabs;
 mod types;
+mod update;
 mod webview;
 mod webview_events;
 
@@ -182,6 +183,10 @@ pub struct Browser {
     state_dirty: Cell<bool>,
     /// A downloaded, verified installer to run when the browser closes.
     pending_update: Option<PathBuf>,
+    /// A newer release the user has not answered yet.
+    offered_update: Option<updater::Update>,
+    /// The user chose "Update now": install and restart as soon as the download is ready.
+    update_now: bool,
     /// Saved logins (encrypted on disk, see `crate::passwords`).
     passwords: PasswordStore,
     /// A login the user hasn't answered the save prompt for yet.
@@ -275,6 +280,8 @@ impl Browser {
             last_push: Cell::new(Instant::now() - STATE_MIN_INTERVAL),
             state_dirty: Cell::new(false),
             pending_update: None,
+            offered_update: None,
+            update_now: false,
             passwords: PasswordStore::open(&data_dir),
             password_offer: None,
             downloads,

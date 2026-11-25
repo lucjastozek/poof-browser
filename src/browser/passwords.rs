@@ -173,7 +173,7 @@ impl Browser {
     }
 
     /// Calls `window.<function>(argument)` in the sidebar if the UI defined it.
-    fn call_sidebar(&self, function: &str, argument: &Value) {
+    pub(super) fn call_sidebar(&self, function: &str, argument: &Value) {
         let _ = self
             .sidebar
             .evaluate_script(&format!("window.{function}&&window.{function}({argument})"));

@@ -51,6 +51,7 @@ const SCRIPTS: &[&str] = &[
     include_str!("../../ui/scripts/sidebar/edge-peek.js"),
     include_str!("../../ui/scripts/sidebar/shortcuts.js"),
     include_str!("../../ui/scripts/sidebar/password-offer.js"),
+    include_str!("../../ui/scripts/sidebar/update-offer.js"),
     include_str!("../../ui/scripts/sidebar/ready.js"),
     include_str!("../../ui/scripts/views/start-page.js"),
     include_str!("../../ui/scripts/views/dialog.js"),
