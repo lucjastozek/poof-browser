@@ -7,6 +7,9 @@ use super::*;
 pub(super) const LIVE_JS: &str = include_str!("js/live.js");
 pub(super) const INIT_JS: &str = include_str!("js/init.js");
 
+/// Two-finger swipe over the page goes back / forward (main frame only).
+pub(super) const SWIPE_NAV_JS: &str = include_str!("js/swipe-nav.js");
+
 /// Fullscreen through the site's own player; also exposes `__poofToggleFullscreen`.
 pub(super) const FULLSCREEN_JS: &str = include_str!("js/fullscreen.js");
 
