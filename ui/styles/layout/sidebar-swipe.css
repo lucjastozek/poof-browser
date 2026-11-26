@@ -1,0 +1,21 @@
+/* Swipe carousel: while swiping, every space is drawn as a full-size slide over the real
+   favorites + tab list (which stay hidden underneath). Slides copy the real elements, so ids
+   match and the normal sidebar rules style them. */
+#swipe {
+  position: absolute;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+#swipe .gs {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* same as #side, so a slide lines up with the content it replaces */
+  will-change: transform;
+}
+#side.swiping > #favs,
+#side.swiping > #pane {
+  visibility: hidden;
+}

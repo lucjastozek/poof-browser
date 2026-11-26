@@ -189,6 +189,9 @@ pub struct Browser {
     low_mem: HashSet<String>,
     /// When the sidebar last received a state snapshot, and whether a newer one is waiting.
     last_push: Cell<Instant>,
+    /// True only while a swipe switch pushes the new space's tabs before its WebView exists;
+    /// tells the sidebar not to open the start page for the momentarily empty page area.
+    switching_space: Cell<bool>,
     state_dirty: Cell<bool>,
     /// A downloaded, verified installer to run when the browser closes.
     pending_update: Option<PathBuf>,
@@ -294,6 +297,7 @@ impl Browser {
             live_tabs: HashSet::new(),
             low_mem: HashSet::new(),
             last_push: Cell::new(Instant::now() - STATE_MIN_INTERVAL),
+            switching_space: Cell::new(false),
             state_dirty: Cell::new(false),
             pending_update: None,
             awaiting_backdrop: false,

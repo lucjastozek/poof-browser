@@ -41,20 +41,15 @@ impl Browser {
         })
     }
 
-    pub(super) fn push_state(&self) {
-        let sp = self.cur_space();
+    /// What the sidebar lists for one space: favorites (shared by its profile), pinned tabs,
+    /// loose tabs and folders. Used for the current space's state and for swipe previews.
+    pub(super) fn space_view(&self, sp: &Space) -> serde_json::Map<String, Value> {
         let row = |t: &Tab| {
             json!({
                 "id": t.id, "title": t.title, "url": t.url,
                 "favicon": t.favicon, "loaded": t.webview.is_some(), "folder_id": t.folder_id
             })
         };
-        let favorites: Vec<_> = self
-            .tabs
-            .iter()
-            .filter(|t| t.kind == Kind::Favorite && t.profile_id == sp.profile_id)
-            .map(row)
-            .collect();
         let in_space = |k: Kind| -> Vec<_> {
             self.tabs
                 .iter()
@@ -62,6 +57,44 @@ impl Browser {
                 .map(row)
                 .collect()
         };
+        let favorites: Vec<_> = self
+            .tabs
+            .iter()
+            .filter(|t| t.kind == Kind::Favorite && t.profile_id == sp.profile_id)
+            .map(row)
+            .collect();
+        let folders: Vec<_> = self
+            .p
+            .folders
+            .iter()
+            .filter(|f| f.space_id == sp.id)
+            .collect();
+        let mut view = serde_json::Map::new();
+        view.insert("favorites".into(), json!(favorites));
+        view.insert("pinned".into(), json!(in_space(Kind::Pinned)));
+        view.insert("tabs".into(), json!(in_space(Kind::Normal)));
+        view.insert("folders".into(), json!(folders));
+        view
+    }
+
+    /// Every space's lists, keyed by space id, for the sidebar's swipe carousel. Sent on request
+    /// only (never with the regular state), so ordinary pushes stay small.
+    pub(super) fn push_space_snapshots(&self) {
+        let all: serde_json::Map<String, Value> = self
+            .p
+            .spaces
+            .iter()
+            .map(|sp| (sp.id.clone(), Value::Object(self.space_view(sp))))
+            .collect();
+        let payload = Value::Object(all).to_string();
+        let _ = self
+            .sidebar
+            .evaluate_script(&format!("window.__setSnaps&&window.__setSnaps({payload})"));
+    }
+
+    pub(super) fn push_state(&self) {
+        let sp = self.cur_space();
+        let view = self.space_view(sp);
         let url = self
             .visible
             .as_ref()
@@ -71,16 +104,13 @@ impl Browser {
 
         let sugg_ref = self.suggestions_cached();
         let sugg: &[Value] = &sugg_ref;
-        let state = json!({
+        let mut state = json!({
             "profiles": self.p.profiles,
             "spaces": self.p.spaces,
             "current": sp.id,
             "active": self.visible,
+            "switching": self.switching_space.get(),
             "url": url,
-            "favorites": favorites,
-            "pinned": in_space(Kind::Pinned),
-            "tabs": in_space(Kind::Normal),
-            "folders": self.p.folders.iter().filter(|f| f.space_id == sp.id).collect::<Vec<_>>(),
             "suggestions": sugg,
             "store_ext": self.store_ext(),
             "theme": self.p.theme,
@@ -113,6 +143,9 @@ impl Browser {
                 .unwrap_or_else(|| json!({})),
         });
         drop(sugg_ref);
+        if let Some(fields) = state.as_object_mut() {
+            fields.extend(view);
+        }
 
         // Skip the IPC round-trip and the sidebar re-render when nothing visible changed.
         let payload = state.to_string();

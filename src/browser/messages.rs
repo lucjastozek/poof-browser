@@ -117,7 +117,13 @@ pub(super) enum Cmd {
     },
     SwitchSpace {
         id: String,
+        /// A touchpad swipe keeps the sidebar focused, so the next swipe still reaches it
+        /// (wheel events go to the focused WebView, not the one under the pointer).
+        #[serde(default)]
+        keep_focus: bool,
     },
+    /// The sidebar asks for every space's lists so a swipe can show the neighbours.
+    SpaceSnapshots,
     CycleSpace {
         dir: i32,
     },

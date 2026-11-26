@@ -148,7 +148,13 @@ impl Browser {
             Cmd::PinTab { id } => self.set_kind(&id, Kind::Pinned),
             Cmd::UnpinTab { id } | Cmd::UnfavTab { id } => self.set_kind(&id, Kind::Normal),
             Cmd::FavTab { id } => self.set_kind(&id, Kind::Favorite),
-            Cmd::SwitchSpace { id } => self.switch_space(&id)?,
+            Cmd::SwitchSpace { id, keep_focus } => {
+                self.switch_space_with(&id, keep_focus)?;
+                if keep_focus {
+                    let _ = self.sidebar.focus();
+                }
+            }
+            Cmd::SpaceSnapshots => self.push_space_snapshots(),
             Cmd::CycleSpace { dir } => self.cycle_space(dir)?,
             Cmd::AddSpace(space) => self.add_space(space)?,
             Cmd::EditSpace {

@@ -1,3 +1,24 @@
+// One favorite tile; also used by the swipe carousel to draw other spaces.
+function favTile(s, t) {
+  const d = el(
+    "div",
+    "tile" + (s.active === t.id ? " on" : "") + (t.loaded ? "" : " idle"),
+  );
+  d.dataset.id = t.id;
+  d.title = (t.title || t.url) + "\nRight-click to remove";
+  d.append(icon(t));
+  d.onclick = () => {
+    if (noClick) return;
+    go({ cmd: "select_tab", id: t.id });
+  };
+  d.onpointerdown = (e) => watchDrag(e, d, t, "fav");
+  d.oncontextmenu = (e) => {
+    e.preventDefault();
+    send({ cmd: "unfav_tab", id: t.id });
+  };
+  return d;
+}
+
 window.__setState = (s) => {
   if (drag) {
     pending = s;
@@ -15,7 +36,7 @@ window.__setState = (s) => {
       `${sidebarWidth}px`,
     );
   }
-  document.body.classList.toggle("has-page", !!s.active);
+  document.body.classList.toggle("has-page", !!s.active || !!s.switching);
   document.body.classList.toggle("collapsed", !!s.sidebar_collapsed);
   document.body.classList.toggle(
     "peek",
@@ -42,27 +63,7 @@ window.__setState = (s) => {
   pen.append(ic("pencil", 14));
   $("hdr").title = "Edit space";
   $("hdr").replaceChildren(chipi, el("b", null, sp.name), pen);
-  $("favs").replaceChildren(
-    ...s.favorites.map((t) => {
-      const d = el(
-        "div",
-        "tile" + (s.active === t.id ? " on" : "") + (t.loaded ? "" : " idle"),
-      );
-      d.dataset.id = t.id;
-      d.title = (t.title || t.url) + "\nRight-click to remove";
-      d.append(icon(t));
-      d.onclick = () => {
-        if (noClick) return;
-        go({ cmd: "select_tab", id: t.id });
-      };
-      d.onpointerdown = (e) => watchDrag(e, d, t, "fav");
-      d.oncontextmenu = (e) => {
-        e.preventDefault();
-        send({ cmd: "unfav_tab", id: t.id });
-      };
-      return d;
-    }),
-  );
+  $("favs").replaceChildren(...s.favorites.map((t) => favTile(s, t)));
   $("favs").classList.toggle("empty", !s.favorites.length);
   $("pinned").replaceChildren(...folderArea(s, true));
   $("tabs").replaceChildren(...folderArea(s, false));
@@ -80,7 +81,8 @@ window.__setState = (s) => {
     dots.push(b);
   });
   $("dots").replaceChildren(...dots);
-  if (prevIdx >= 0 && idx !== prevIdx) {
+  // A swipe already slid the new space in; the carousel hands over to this real content.
+  if (prevIdx >= 0 && idx !== prevIdx && !sw) {
     const pane = $("pane");
     pane.classList.remove("l", "r");
     void pane.offsetWidth;
@@ -90,7 +92,8 @@ window.__setState = (s) => {
   $("addExt").hidden = !s.store_ext;
   syncUrl();
   ensureSpaceIcons(s);
-  if (!s.active && !ov)
+  if (sw) swipeOnState();
+  if (!s.active && !ov && !s.switching)
     openView("newtab"); /* no page open: show the start page */
 };
 $("addExt").onclick = () => send({ cmd: "install_ext", input: S.store_ext });

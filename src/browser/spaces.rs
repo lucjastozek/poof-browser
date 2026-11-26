@@ -46,11 +46,22 @@ impl Browser {
     }
 
     pub(super) fn switch_space(&mut self, id: &str) -> Result<()> {
+        self.switch_space_with(id, false)
+    }
+
+    /// `tabs_first`: show the new space's tab list in the sidebar before its page is created.
+    /// Creating a WebView takes hundreds of milliseconds; a swipe must not wait for it.
+    pub(super) fn switch_space_with(&mut self, id: &str, tabs_first: bool) -> Result<()> {
         if !self.p.spaces.iter().any(|s| s.id == id) || self.p.current_space == id {
             return Ok(());
         }
         self.hide_visible(); // triggers auto-PiP for the outgoing tab
         self.p.current_space = id.to_string();
+        if tabs_first {
+            self.switching_space.set(true);
+            self.push_state();
+            self.switching_space.set(false);
+        }
         self.restore_space_tab()?;
         self.save();
         Ok(())
