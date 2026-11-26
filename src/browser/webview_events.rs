@@ -15,6 +15,7 @@ pub(super) fn attach_native_handlers(wv: &WebView, proxy: &EventLoopProxy<UserEv
     watch_crashes(wv, proxy, tab);
     watch_downloads(wv, proxy, tab);
     popup_watch::watch_popups(wv, proxy, true);
+    context_menu::watch_context_menu(wv, proxy);
     show_link_status(wv);
 }
 

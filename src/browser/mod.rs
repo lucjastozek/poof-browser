@@ -52,6 +52,7 @@ mod arc_import;
 mod clean_link;
 mod commands;
 mod constants;
+mod context_menu;
 mod default_app;
 mod devtools;
 mod devtools_icons;
