@@ -58,6 +58,15 @@ const UI = {
   "folder-open": ["folder-open", "folder-open-2"],
   "chevron-right": ["right"],
   "chevron-down": ["down"],
+  // Used by downloads.js:
+  "file-default": ["file"],
+  "file-image": ["photo-album", "file"],
+  "file-video": ["video", "file"],
+  "file-audio": ["music", "file"],
+  "file-archive": ["folder", "file"],
+  "file-code": ["code", "file"],
+  "file-spreadsheet": ["file-spreadsheet", "file-chart-column"],
+  "file-document": ["file-text", "document-2", "file"],
 };
 
 // Saved spaces may still hold Lucide icon names. MingCute's names match Lucide's for many icons
