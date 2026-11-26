@@ -176,7 +176,7 @@
   border-radius: 9px;
   background: var(--hover);
   color: var(--ink-2);
-  font: 600 10px var(--f-display);
+  font: 400 10px var(--f-display);
   letter-spacing: 0.02em;
 }
 #downloads-panel .d-ico svg {
