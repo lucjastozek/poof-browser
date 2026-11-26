@@ -8,6 +8,7 @@ mod extensions;
 mod gesture;
 mod import;
 mod instance;
+mod live;
 mod passwords;
 mod pip;
 mod state;
@@ -66,6 +67,7 @@ fn main() -> anyhow::Result<()> {
                 browser.flush_save();
                 if Instant::now() >= next_maintenance {
                     browser.cleanup_expired_tabs();
+                    browser.refresh_due_live_folders();
                     next_maintenance = Instant::now() + MAINTENANCE_EVERY;
                 }
             }

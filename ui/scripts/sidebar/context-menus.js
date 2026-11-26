@@ -6,7 +6,13 @@ createFolderItem.onclick = () => {
   folderContextMenu.remove();
   send({ cmd: "create_folder", name: "New folder" });
 };
-folderContextMenu.append(createFolderItem);
+const createLiveFolderItem = el("button", "folder-context-item", "New live folder");
+createLiveFolderItem.type = "button";
+createLiveFolderItem.onclick = () => {
+  folderContextMenu.remove();
+  openView("livefolder:add");
+};
+folderContextMenu.append(createFolderItem, createLiveFolderItem);
 
 // Right-clicking a tab row: split view actions.
 const rowMenu = el("div", "folder-context-menu");
@@ -71,7 +77,7 @@ $("side").addEventListener("contextmenu", (e) => {
   $("side").append(folderContextMenu);
   const bounds = $("side").getBoundingClientRect();
   folderContextMenu.style.left =
-    Math.max(8, Math.min(e.clientX - bounds.left, bounds.width - 148)) + "px";
+    Math.max(8, Math.min(e.clientX - bounds.left, bounds.width - 168)) + "px";
   folderContextMenu.style.top = Math.max(8, e.clientY - bounds.top) + "px";
 });
 document.addEventListener("pointerdown", (e) => {

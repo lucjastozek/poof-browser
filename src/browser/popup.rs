@@ -176,6 +176,7 @@ impl Browser {
             .build_as_child(&window)?;
         watch_close(&page, &self.proxy, id);
         watch_popups(&page, &self.proxy, false);
+        show_link_status(&page);
         let popup = Popup { window, bar, page };
         popup.layout();
         Ok(popup)

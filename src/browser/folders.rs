@@ -15,6 +15,7 @@ impl Browser {
                 collapsed: false,
                 pinned: false,
                 order: usize::MAX,
+                live: None,
             });
             self.save();
         }
@@ -124,6 +125,16 @@ impl Browser {
         index: Option<usize>,
     ) {
         let space = self.p.current_space.clone();
+        // A live folder shows what its source says; tabs cannot be put into it.
+        let into_live = folder_id.as_ref().is_some_and(|fid| {
+            self.p
+                .folders
+                .iter()
+                .any(|f| f.id == *fid && f.live.is_some())
+        });
+        if into_live {
+            return;
+        }
         let target_pinned = folder_id
             .as_ref()
             .and_then(|fid| {

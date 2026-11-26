@@ -15,8 +15,9 @@ use crate::{
     pip,
     state::{
         file_name, load_downloads, load_history, new_id, save_downloads, save_history, unique_path,
-        valid_icon, DownloadEntry, DownloadStatus, HistoryEntry, Kind, Persisted, Profile, Saved,
-        Space, TabFolder,
+        valid_icon, DownloadEntry, DownloadStatus, HistoryEntry, Kind, LiveFolder, LiveItem,
+        LiveSource, Persisted, Profile, Saved, Space, TabFolder, LIVE_INTERVAL_MAX,
+        LIVE_INTERVAL_MIN,
     },
     updater, UserEvent,
 };
@@ -63,6 +64,7 @@ mod fullscreen;
 mod geometry;
 mod history;
 mod layout;
+mod live_folders;
 mod maintenance;
 mod messages;
 mod page_messages;
@@ -202,6 +204,8 @@ pub struct Browser {
     password_offer: Option<passwords::PasswordOffer>,
     /// An import from another browser is reading files on a background thread.
     importing: bool,
+    /// Live folders being refreshed right now, with the source each fetch was started for.
+    live_fetching: HashMap<String, LiveSource>,
     /// Newest first; running ones are backed by a WebView2 operation (`download_hooks`).
     downloads: Vec<DownloadEntry>,
     /// WebViews of closed tabs kept alive while their downloads run.
@@ -298,6 +302,7 @@ impl Browser {
             passwords: PasswordStore::open(&data_dir),
             password_offer: None,
             importing: false,
+            live_fetching: HashMap::new(),
             downloads,
             lingering: Vec::new(),
             sidebar_ready: false,

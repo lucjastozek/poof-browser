@@ -199,6 +199,7 @@ impl Browser {
                         collapsed: false,
                         pinned: true,
                         order,
+                        live: None,
                     });
                     let mut added = 0;
                     for tab in tabs {

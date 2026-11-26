@@ -272,6 +272,21 @@ pub(super) enum Cmd {
     SetSavePasswords {
         on: bool,
     },
+    /// A folder whose links come from a feed or a GitHub search.
+    CreateLiveFolder {
+        name: String,
+        source: LiveSource,
+        interval_minutes: u32,
+    },
+    EditLiveFolder {
+        id: String,
+        name: String,
+        source: LiveSource,
+        interval_minutes: u32,
+    },
+    RefreshLiveFolder {
+        id: String,
+    },
     /// Settings > Import: bring spaces / passwords over from Arc.
     ImportArc {
         spaces: bool,
@@ -391,6 +406,34 @@ mod tests {
                 passwords: false
             }
         ));
+    }
+
+    #[test]
+    fn live_folder_commands_nest_the_source() {
+        let create: Cmd = serde_json::from_str(
+            r#"{"cmd":"create_live_folder","name":"News","source":{"kind":"feed","url":"https://example.com/f"},"interval_minutes":30}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            create,
+            Cmd::CreateLiveFolder {
+                source: LiveSource::Feed { .. },
+                interval_minutes: 30,
+                ..
+            }
+        ));
+        let edit: Cmd = serde_json::from_str(
+            r#"{"cmd":"edit_live_folder","id":"f","name":"","source":{"kind":"github","query":"is:pr"},"interval_minutes":60}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            edit,
+            Cmd::EditLiveFolder {
+                source: LiveSource::Github { .. },
+                ..
+            }
+        ));
+        assert!(serde_json::from_str::<Cmd>(r#"{"cmd":"refresh_live_folder","id":"f"}"#).is_ok());
     }
 
     #[test]

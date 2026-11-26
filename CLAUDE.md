@@ -220,3 +220,11 @@ These are requirements, not nice-to-haves.
   is decrypted with the AES key in `Local State`, which DPAPI protects, so it only works on
   Windows as the same user. `v20` (app-bound) passwords are counted and skipped. Arc's
   `StorableSidebar.json` is undocumented: the parser skips what it does not recognise.
+- **Live folders** (`state/live.rs`, `live/`, `browser/live_folders.rs`): a folder with `live` set shows
+  links from an RSS/Atom feed or a GitHub search instead of tabs. Fetching runs on short threads and
+  returns a `UserEvent::LiveFolder`; refreshes are scheduled by the 60 s maintenance tick (no timer
+  of their own), failures retry after 5 minutes. Everything fetched is untrusted: only `http(s)`
+  links, plain one-line titles (`live/clean.rs`). Tabs cannot be dropped into a live folder.
+- **Link destination**: wry turns WebView2's status bubble off; `show_link_status`
+  (`webview_events.rs`) turns it back on for tabs and popups. It is drawn by the browser, so a
+  page cannot fake or hide where a link goes. Never replace it with page-injected script.

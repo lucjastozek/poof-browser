@@ -40,6 +40,13 @@ pub enum UserEvent {
         dir: Option<std::path::PathBuf>,
         id: Option<String>,
     },
+    /// What a live folder refresh found (or why it failed). `source` says what was fetched, so a
+    /// result for a folder edited meanwhile is ignored.
+    LiveFolder {
+        id: String,
+        source: crate::state::LiveSource,
+        result: Result<Vec<crate::state::LiveItem>, String>,
+    },
     /// Everything read from Arc (or why it failed); applied on the main thread.
     ImportDone(Box<Result<crate::import::ArcImport, String>>),
     /// A WebView2 render process (or the whole browser process of a profile) died.

@@ -59,6 +59,7 @@ const SCRIPTS: &[&str] = &[
     include_str!("../../ui/scripts/views/space-editor.js"),
     include_str!("../../ui/scripts/views/extensions.js"),
     include_str!("../../ui/scripts/views/settings.js"),
+    include_str!("../../ui/scripts/views/live-folder.js"),
     include_str!("../../ui/scripts/views/router.js"),
     include_str!("../../ui/scripts/views/history.js"),
     include_str!("../../ui/scripts/views/downloads.js"),

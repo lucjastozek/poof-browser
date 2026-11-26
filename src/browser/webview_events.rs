@@ -15,6 +15,7 @@ pub(super) fn attach_native_handlers(wv: &WebView, proxy: &EventLoopProxy<UserEv
     watch_crashes(wv, proxy, tab);
     watch_downloads(wv, proxy, tab);
     popup_watch::watch_popups(wv, proxy, true);
+    show_link_status(wv);
 }
 
 #[cfg(not(windows))]
@@ -24,6 +25,27 @@ pub(super) fn attach_native_handlers(
     _tab: &str,
 ) {
 }
+
+/// Shows the real destination of a hovered link in the lower-left corner of the page.
+///
+/// wry switches WebView2's own status bubble off, so it is switched back on here. It is drawn by
+/// the browser process, not the page: a site can neither fake nor hide where a link really goes,
+/// which is what makes it useful against phishing. Popups call this too, as they have no URL bar.
+#[cfg(windows)]
+pub(super) fn show_link_status(wv: &WebView) {
+    let enabled = unsafe {
+        wv.controller()
+            .CoreWebView2()
+            .and_then(|core| core.Settings())
+            .and_then(|settings| settings.SetIsStatusBarEnabled(true))
+    };
+    if let Err(error) = enabled {
+        log::warn!("showing the link status bubble failed: {error}");
+    }
+}
+
+#[cfg(not(windows))]
+pub(super) fn show_link_status(_wv: &WebView) {}
 
 /// Reports every top-level URL change (link clicks, redirects, history.pushState) from WebView2 itself,
 /// so the address bar does not depend on the page-side script.

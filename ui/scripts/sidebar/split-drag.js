@@ -190,7 +190,7 @@ function updateDrag(ev) {
       ? null
       : document.elementFromPoint(x, y)?.closest(".tab-folder");
   const folderTarget = folderGroup?.querySelector(".folder-head");
-  if (folderTarget?.dataset.folderId) {
+  if (folderTarget?.dataset.folderId && !folderTarget.dataset.live) {
     zone = "folder:" + folderTarget.dataset.folderId;
     const contents = folderGroup.querySelector(".folder-contents");
     const rows = [...contents.children].filter((c) => c !== d.row);

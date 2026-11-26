@@ -1,5 +1,6 @@
 //! Plain data the browser persists: profiles, spaces, folders and saved tabs.
 
+use super::live::LiveFolder;
 use serde::{Deserialize, Serialize};
 
 pub fn new_id() -> String {
@@ -85,6 +86,9 @@ pub struct TabFolder {
     /// Position among loose tabs and folders in the sidebar section.
     #[serde(default = "folder_order_default")]
     pub order: usize,
+    /// Set for a live folder: its links come from the source instead of from tabs.
+    #[serde(default)]
+    pub live: Option<LiveFolder>,
 }
 
 fn folder_order_default() -> usize {

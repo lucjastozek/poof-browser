@@ -53,3 +53,41 @@ fn prune_sites_keeps_the_most_visited() {
     assert!(state.sites.contains_key("h449.test"));
     assert!(!state.sites.contains_key("h0.test"));
 }
+
+#[test]
+fn folders_saved_before_live_folders_load_as_ordinary_folders() {
+    let folder: TabFolder =
+        serde_json::from_str(r#"{"id":"f","space_id":"s","name":"Docs","collapsed":true}"#)
+            .unwrap();
+    assert!(folder.live.is_none());
+}
+
+#[test]
+fn a_live_folder_keeps_its_source_and_links_across_a_save() {
+    let mut live = LiveFolder::new(
+        LiveSource::Feed {
+            url: "https://example.com/feed.xml".into(),
+        },
+        30,
+    );
+    live.items.push(LiveItem {
+        title: "Hello".into(),
+        url: "https://example.com/hello".into(),
+    });
+    live.checked_at = 1_700_000_000;
+    let folder = TabFolder {
+        id: "f".into(),
+        space_id: "s".into(),
+        name: "News".into(),
+        collapsed: false,
+        pinned: false,
+        order: 0,
+        live: Some(live),
+    };
+    let json = serde_json::to_string(&folder).unwrap();
+    let back: TabFolder = serde_json::from_str(&json).unwrap();
+    let live = back.live.unwrap();
+    assert_eq!(live.items.len(), 1);
+    assert_eq!(live.checked_at, 1_700_000_000);
+    assert!(json.contains(r#""kind":"feed""#));
+}

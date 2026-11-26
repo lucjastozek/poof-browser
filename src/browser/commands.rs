@@ -16,6 +16,7 @@ impl Browser {
                 self.push_downloads();
                 self.push_update_offer();
                 self.open_startup_urls();
+                self.refresh_due_live_folders();
             }
             Cmd::SidebarCollapsed { collapsed } => {
                 self.p.sidebar_collapsed = collapsed;
@@ -159,6 +160,18 @@ impl Browser {
             Cmd::DeleteSpace { id } => self.delete_space(&id)?,
             Cmd::MoveTab { id, to, index } => self.move_tab(&id, &to, index),
             Cmd::CreateFolder { name } => self.create_folder(&name),
+            Cmd::CreateLiveFolder {
+                name,
+                source,
+                interval_minutes,
+            } => self.create_live_folder(&name, source, interval_minutes),
+            Cmd::EditLiveFolder {
+                id,
+                name,
+                source,
+                interval_minutes,
+            } => self.edit_live_folder(&id, &name, source, interval_minutes),
+            Cmd::RefreshLiveFolder { id } => self.refresh_live_folder(&id),
             Cmd::RenameFolder { id, name } => self.rename_folder(&id, &name),
             Cmd::DeleteFolder { id } => self.delete_folder(&id),
             Cmd::ToggleFolderCollapsed { id } => self.toggle_folder_collapsed(&id),

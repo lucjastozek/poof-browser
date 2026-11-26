@@ -73,6 +73,9 @@ impl Browser {
                     self.push_state();
                 }
             }
+            UserEvent::LiveFolder { id, source, result } => {
+                self.apply_live_result(&id, &source, result)
+            }
             UserEvent::ImportDone(result) => self.finish_arc_import(*result),
             UserEvent::ExtResult { ok, msg, dir, id } => {
                 self.toast(&msg);
