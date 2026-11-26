@@ -179,6 +179,11 @@
   font: 600 10px var(--f-display);
   letter-spacing: 0.02em;
 }
+#downloads-panel .d-ico svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.72;
+}
 #downloads-panel .d-body {
   flex: 1;
   min-width: 0;
