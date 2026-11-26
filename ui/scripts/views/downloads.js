@@ -10,7 +10,6 @@
   const NS = "http://www.w3.org/2000/svg";
   const RING_RADIUS = 12;
   const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-  const EXT_BADGE_MAX = 4;
   const DRAG_START_PX = 6; // pointer travel with the button held before a drag starts
   const CLICK_SHIELD_MS = 400; // a click this soon after a drag is the drag ending, not a click
   /* Pause and play are not part of the generated icon set. */
@@ -105,12 +104,229 @@
   }
 
   /* ----- rows ----- */
+
+  const FILE_TYPES = {
+    spreadsheet: new Set(["xlsx", "xls", "csv", "ods"]),
+    document: new Set(["doc", "docx", "odt", "rtf", "pdf", "txt"]),
+    image: new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "ico"]),
+    video: new Set(["mp4", "mkv", "mov", "avi", "webm"]),
+    audio: new Set(["mp3", "wav", "ogg", "flac", "m4a", "aac"]),
+    archive: new Set(["zip", "rar", "7z", "tar", "gz", "bz2"]),
+    code: new Set([
+      "js",
+      "ts",
+      "jsx",
+      "tsx",
+      "html",
+      "css",
+      "json",
+      "xml",
+      "rs",
+      "py",
+      "go",
+    ]),
+  };
+
+  const FILE_EXTENSIONS = {
+    pdf: ["pdf"],
+
+    images: [
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "webp",
+      "avif",
+      "svg",
+      "bmp",
+      "ico",
+      "tif",
+      "tiff",
+      "heic",
+      "heif",
+      "raw",
+      "psd",
+      "ai",
+      "eps",
+      "xcf",
+    ],
+
+    video: [
+      "mp4",
+      "m4v",
+      "mkv",
+      "mov",
+      "avi",
+      "webm",
+      "wmv",
+      "flv",
+      "mpeg",
+      "mpg",
+      "3gp",
+      "ts",
+      "mts",
+    ],
+
+    audio: [
+      "mp3",
+      "wav",
+      "flac",
+      "aac",
+      "ogg",
+      "oga",
+      "opus",
+      "m4a",
+      "wma",
+      "aiff",
+      "mid",
+      "midi",
+    ],
+
+    archives: [
+      "zip",
+      "rar",
+      "7z",
+      "tar",
+      "gz",
+      "bz2",
+      "xz",
+      "zst",
+      "tgz",
+      "tbz2",
+      "txz",
+      "lz",
+      "lz4",
+      "cab",
+      "iso",
+      "dmg",
+      "pkg",
+      "deb",
+      "rpm",
+    ],
+
+    documents: [
+      "doc",
+      "docx",
+      "odt",
+      "rtf",
+      "txt",
+      "text",
+      "md",
+      "markdown",
+      "pages",
+      "wps",
+    ],
+
+    spreadsheets: ["xls", "xlsx", "xlsm", "ods", "csv", "tsv", "numbers"],
+
+    presentations: ["ppt", "pptx", "pps", "ppsx", "odp", "key"],
+
+    code: [
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "html",
+      "htm",
+      "css",
+      "scss",
+      "sass",
+      "less",
+      "json",
+      "xml",
+      "yaml",
+      "yml",
+      "toml",
+      "ini",
+      "py",
+      "rs",
+      "go",
+      "java",
+      "kt",
+      "swift",
+      "c",
+      "h",
+      "cpp",
+      "hpp",
+      "cs",
+      "php",
+      "rb",
+      "lua",
+      "sh",
+      "bash",
+      "ps1",
+      "sql",
+      "vue",
+      "svelte",
+      "astro",
+      "wasm",
+    ],
+
+    executables: [
+      "exe",
+      "msi",
+      "app",
+      "apk",
+      "aab",
+      "ipa",
+      "appx",
+      "msix",
+      "bat",
+      "cmd",
+      "com",
+    ],
+
+    fonts: ["ttf", "otf", "woff", "woff2", "eot"],
+
+    ebooks: ["epub", "mobi", "azw", "azw3", "djvu", "cbz", "cbr"],
+  };
+
+  const EXTENSION_TYPES = new Map(
+    Object.entries(FILE_EXTENSIONS).flatMap(([group, extensions]) =>
+      extensions.map((extension) => [extension, FILE_TYPES[group]]),
+    ),
+  );
+
+  const FILE_ICONS = {
+    pdf: "file-pdf",
+    image: "pic",
+    video: "video",
+    audio: "music",
+    archive: "folder-zip",
+    document: "file",
+    spreadsheet: "file-excel",
+    presentation: "file-ppt",
+    code: "code",
+    font: "font",
+    ebook: "book-2",
+    file: "file",
+  };
+
+  function fileType(name) {
+    const filename = String(name || "")
+      .split(/[\\/]/)
+      .pop();
+    const match = filename.match(/\.([^.]+)$/);
+    return match
+      ? EXTENSION_TYPES.get(match[1].toLowerCase()) || "file"
+      : "file";
+  }
+
   function extBadge(name) {
     const i = name.lastIndexOf(".");
-    const ext = i > 0 ? name.slice(i + 1) : "";
+    const ext = i > 0 ? name.slice(i + 1).toLowerCase() : "";
+
+    let icon = "file-default";
+
+    for (const [type, extensions] of Object.entries(FILE_TYPES)) {
+      if (extensions.has(ext)) {
+        icon = `file-${type}`;
+        break;
+      }
+    }
+
     const box = el("span", "d-ico");
-    if (ext && ext.length <= EXT_BADGE_MAX) box.append(el("span", null, ext.toUpperCase()));
-    else box.append(ic("file", 18));
+    box.append(ic(icon, 20));
     return box;
   }
 
@@ -124,7 +340,8 @@
     if (d.status === "paused") return "Paused · " + parts[0];
     if (d.speed > 0) {
       parts.push(formatBytes(d.speed) + "/s");
-      if (d.total > 0) parts.push(formatTimeLeft((d.total - d.received) / d.speed));
+      if (d.total > 0)
+        parts.push(formatTimeLeft((d.total - d.received) / d.speed));
     }
     return parts.filter(Boolean).join(" · ");
   }
@@ -134,14 +351,19 @@
     if (d.status === "completed") {
       if (d.missing) return "File moved or deleted";
       const from = /^https?:/i.test(d.url) ? hostOf(d.url) : "";
-      return [formatBytes(d.total || d.received), from].filter(Boolean).join(" · ");
+      return [formatBytes(d.total || d.received), from]
+        .filter(Boolean)
+        .join(" · ");
     }
     return d.status === "cancelled" ? "Cancelled" : "Failed";
   }
 
   function paintProgress(refs, d) {
     refs.meta.textContent = metaText(d);
-    refs.meta.classList.toggle("err", d.status === "failed" || (d.status === "completed" && d.missing));
+    refs.meta.classList.toggle(
+      "err",
+      d.status === "failed" || (d.status === "completed" && d.missing),
+    );
     if (!isLive(d)) return;
     const hasTotal = d.total > 0;
     refs.bar.classList.toggle("unknown", !hasTotal && d.status === "active");
@@ -200,7 +422,12 @@
   }
 
   function buildRow(d) {
-    const row = el("div", "d-row" + (isLive(d) ? " live" : "") + (d.status === "completed" ? " done" : ""));
+    const row = el(
+      "div",
+      "d-row" +
+        (isLive(d) ? " live" : "") +
+        (d.status === "completed" ? " done" : ""),
+    );
     row.tabIndex = 0;
     row.dataset.id = d.id;
     const name = el("div", "d-name", d.name);
@@ -260,7 +487,8 @@
   }
 
   /* Same rows in the same states: only the numbers moved, so update them in place. */
-  const signature = () => rows.map((d) => d.id + d.status + d.missing).join("|");
+  const signature = () =>
+    rows.map((d) => d.id + d.status + d.missing).join("|");
 
   window.__setDownloads = (incoming) => {
     rows = Array.isArray(incoming) ? incoming : [];
@@ -291,7 +519,10 @@
     clearButton.type = "button";
     clearButton.onclick = () => send({ cmd: "clear_downloads" });
     const tools = el("div", "d-tools");
-    tools.append(clearButton, ib("x", "Close downloads (Esc)", () => close()));
+    tools.append(
+      clearButton,
+      ib("x", "Close downloads (Esc)", () => close()),
+    );
     const head = el("div", "d-head");
     head.append(el("h1", null, "Downloads"), tools);
     const top = el("div", "d-top");
@@ -313,7 +544,14 @@
     const key = [r.left, r.top, r.width, r.height].map(Math.round).join(",");
     if (key === reported) return;
     reported = key;
-    send({ cmd: "downloads_panel", open: true, x: r.left, y: r.top, w: r.width, h: r.height });
+    send({
+      cmd: "downloads_panel",
+      open: true,
+      x: r.left,
+      y: r.top,
+      w: r.width,
+      h: r.height,
+    });
   }
 
   function open() {
@@ -353,7 +591,8 @@
     }
     // The history view is full-area and hides the page: swap it out first.
     const history = $("history-panel");
-    if (history && !history.hidden && window.__toggleHistory) window.__toggleHistory();
+    if (history && !history.hidden && window.__toggleHistory)
+      window.__toggleHistory();
     open();
   }
   window.__toggleDownloads = toggle;
@@ -383,7 +622,8 @@
     "pointerdown",
     (e) => {
       if (!isOpen || !e.target.closest) return;
-      if (e.target.closest("#downloads-panel") || e.target.closest("#dlBtn")) return;
+      if (e.target.closest("#downloads-panel") || e.target.closest("#dlBtn"))
+        return;
       close();
     },
     true,
