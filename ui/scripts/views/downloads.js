@@ -269,6 +269,20 @@
     cbr: "ebooks",
   };
 
+  const FILE_ICON_CLASSES = {
+    images: "image",
+    video: "video",
+    audio: "audio",
+    archives: "archive",
+    documents: "document",
+    spreadsheets: "spreadsheet",
+    presentations: "presentation",
+    code: "code",
+    executables: "executable",
+    fonts: "font",
+    ebooks: "ebook",
+  };
+
   function extBadge(name) {
     const filename = String(name || "");
     const basename = filename.slice(
@@ -277,9 +291,10 @@
     const dot = basename.lastIndexOf(".");
     const extension = dot > 0 ? basename.slice(dot + 1).toLowerCase() : "";
     const group = FILE_EXTENSIONS[extension];
-    const box = el("span", "d-ico");
-    box.append(ic(FILE_ICONS[group] || "file-default", 19));
-    if (extension) box.append(el("span", "d-ext", extension));
+    const colorClass =
+      extension === "pdf" ? "pdf" : FILE_ICON_CLASSES[group];
+    const box = el("span", "d-ico" + (colorClass ? " d-ico-" + colorClass : ""));
+    box.append(ic(FILE_ICONS[group] || "file-default", 22));
     return box;
   }
 
