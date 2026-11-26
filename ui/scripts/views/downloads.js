@@ -10,7 +10,6 @@
   const NS = "http://www.w3.org/2000/svg";
   const RING_RADIUS = 12;
   const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-  const EXT_BADGE_MAX = 4;
   const DRAG_START_PX = 6; // pointer travel with the button held before a drag starts
   const CLICK_SHIELD_MS = 400; // a click this soon after a drag is the drag ending, not a click
   /* Pause and play are not part of the generated icon set. */
@@ -105,12 +104,182 @@
   }
 
   /* ----- rows ----- */
+
+  const FILE_ICONS = {
+    images: "file-image",
+    video: "file-video",
+    audio: "file-audio",
+    archives: "file-archive",
+    documents: "file-document",
+    spreadsheets: "file-spreadsheet",
+    presentations: "file-document",
+    code: "file-code",
+    executables: "file-code",
+    fonts: "file-document",
+    ebooks: "file-document",
+  };
+
+  const FILE_EXTENSIONS = {
+    pdf: "documents",
+    png: "images",
+    jpg: "images",
+    jpeg: "images",
+    gif: "images",
+    webp: "images",
+    avif: "images",
+    svg: "images",
+    bmp: "images",
+    ico: "images",
+    tif: "images",
+    tiff: "images",
+    heic: "images",
+    heif: "images",
+    raw: "images",
+    psd: "images",
+    ai: "images",
+    eps: "images",
+    xcf: "images",
+    mp4: "video",
+    m4v: "video",
+    mkv: "video",
+    mov: "video",
+    avi: "video",
+    webm: "video",
+    wmv: "video",
+    flv: "video",
+    mpeg: "video",
+    mpg: "video",
+    "3gp": "video",
+    ts: "video",
+    mts: "video",
+    mp3: "audio",
+    wav: "audio",
+    flac: "audio",
+    aac: "audio",
+    ogg: "audio",
+    oga: "audio",
+    opus: "audio",
+    m4a: "audio",
+    wma: "audio",
+    aiff: "audio",
+    mid: "audio",
+    midi: "audio",
+    zip: "archives",
+    rar: "archives",
+    "7z": "archives",
+    tar: "archives",
+    gz: "archives",
+    bz2: "archives",
+    xz: "archives",
+    zst: "archives",
+    tgz: "archives",
+    tbz2: "archives",
+    txz: "archives",
+    lz: "archives",
+    lz4: "archives",
+    cab: "archives",
+    iso: "archives",
+    dmg: "archives",
+    pkg: "archives",
+    deb: "archives",
+    rpm: "archives",
+    doc: "documents",
+    docx: "documents",
+    odt: "documents",
+    rtf: "documents",
+    txt: "documents",
+    text: "documents",
+    md: "documents",
+    markdown: "documents",
+    pages: "documents",
+    wps: "documents",
+    xls: "spreadsheets",
+    xlsx: "spreadsheets",
+    xlsm: "spreadsheets",
+    ods: "spreadsheets",
+    csv: "spreadsheets",
+    tsv: "spreadsheets",
+    numbers: "spreadsheets",
+    ppt: "presentations",
+    pptx: "presentations",
+    pps: "presentations",
+    ppsx: "presentations",
+    odp: "presentations",
+    key: "presentations",
+    js: "code",
+    jsx: "code",
+    ts: "code",
+    tsx: "code",
+    html: "code",
+    htm: "code",
+    css: "code",
+    scss: "code",
+    sass: "code",
+    less: "code",
+    json: "code",
+    xml: "code",
+    yaml: "code",
+    yml: "code",
+    toml: "code",
+    ini: "code",
+    py: "code",
+    rs: "code",
+    go: "code",
+    java: "code",
+    kt: "code",
+    swift: "code",
+    c: "code",
+    h: "code",
+    cpp: "code",
+    hpp: "code",
+    cs: "code",
+    php: "code",
+    rb: "code",
+    lua: "code",
+    sh: "code",
+    bash: "code",
+    ps1: "code",
+    sql: "code",
+    vue: "code",
+    svelte: "code",
+    astro: "code",
+    wasm: "code",
+    exe: "executables",
+    msi: "executables",
+    app: "executables",
+    apk: "executables",
+    aab: "executables",
+    ipa: "executables",
+    appx: "executables",
+    msix: "executables",
+    bat: "executables",
+    cmd: "executables",
+    com: "executables",
+    ttf: "fonts",
+    otf: "fonts",
+    woff: "fonts",
+    woff2: "fonts",
+    eot: "fonts",
+    epub: "ebooks",
+    mobi: "ebooks",
+    azw: "ebooks",
+    azw3: "ebooks",
+    djvu: "ebooks",
+    cbz: "ebooks",
+    cbr: "ebooks",
+  };
+
   function extBadge(name) {
-    const i = name.lastIndexOf(".");
-    const ext = i > 0 ? name.slice(i + 1) : "";
+    const filename = String(name || "");
+    const basename = filename.slice(
+      Math.max(filename.lastIndexOf("/"), filename.lastIndexOf("\\")) + 1,
+    );
+    const dot = basename.lastIndexOf(".");
+    const extension = dot > 0 ? basename.slice(dot + 1).toLowerCase() : "";
+    const group = FILE_EXTENSIONS[extension];
     const box = el("span", "d-ico");
-    if (ext && ext.length <= EXT_BADGE_MAX) box.append(el("span", null, ext.toUpperCase()));
-    else box.append(ic("file", 18));
+    box.append(ic(FILE_ICONS[group] || "file-default", 19));
+    if (extension) box.append(el("span", "d-ext", extension));
     return box;
   }
 
@@ -124,7 +293,8 @@
     if (d.status === "paused") return "Paused · " + parts[0];
     if (d.speed > 0) {
       parts.push(formatBytes(d.speed) + "/s");
-      if (d.total > 0) parts.push(formatTimeLeft((d.total - d.received) / d.speed));
+      if (d.total > 0)
+        parts.push(formatTimeLeft((d.total - d.received) / d.speed));
     }
     return parts.filter(Boolean).join(" · ");
   }
@@ -134,14 +304,19 @@
     if (d.status === "completed") {
       if (d.missing) return "File moved or deleted";
       const from = /^https?:/i.test(d.url) ? hostOf(d.url) : "";
-      return [formatBytes(d.total || d.received), from].filter(Boolean).join(" · ");
+      return [formatBytes(d.total || d.received), from]
+        .filter(Boolean)
+        .join(" · ");
     }
     return d.status === "cancelled" ? "Cancelled" : "Failed";
   }
 
   function paintProgress(refs, d) {
     refs.meta.textContent = metaText(d);
-    refs.meta.classList.toggle("err", d.status === "failed" || (d.status === "completed" && d.missing));
+    refs.meta.classList.toggle(
+      "err",
+      d.status === "failed" || (d.status === "completed" && d.missing),
+    );
     if (!isLive(d)) return;
     const hasTotal = d.total > 0;
     refs.bar.classList.toggle("unknown", !hasTotal && d.status === "active");
@@ -200,7 +375,12 @@
   }
 
   function buildRow(d) {
-    const row = el("div", "d-row" + (isLive(d) ? " live" : "") + (d.status === "completed" ? " done" : ""));
+    const row = el(
+      "div",
+      "d-row" +
+        (isLive(d) ? " live" : "") +
+        (d.status === "completed" ? " done" : ""),
+    );
     row.tabIndex = 0;
     row.dataset.id = d.id;
     const name = el("div", "d-name", d.name);
@@ -260,7 +440,8 @@
   }
 
   /* Same rows in the same states: only the numbers moved, so update them in place. */
-  const signature = () => rows.map((d) => d.id + d.status + d.missing).join("|");
+  const signature = () =>
+    rows.map((d) => d.id + d.status + d.missing).join("|");
 
   window.__setDownloads = (incoming) => {
     rows = Array.isArray(incoming) ? incoming : [];
@@ -291,7 +472,10 @@
     clearButton.type = "button";
     clearButton.onclick = () => send({ cmd: "clear_downloads" });
     const tools = el("div", "d-tools");
-    tools.append(clearButton, ib("x", "Close downloads (Esc)", () => close()));
+    tools.append(
+      clearButton,
+      ib("x", "Close downloads (Esc)", () => close()),
+    );
     const head = el("div", "d-head");
     head.append(el("h1", null, "Downloads"), tools);
     const top = el("div", "d-top");
@@ -313,7 +497,14 @@
     const key = [r.left, r.top, r.width, r.height].map(Math.round).join(",");
     if (key === reported) return;
     reported = key;
-    send({ cmd: "downloads_panel", open: true, x: r.left, y: r.top, w: r.width, h: r.height });
+    send({
+      cmd: "downloads_panel",
+      open: true,
+      x: r.left,
+      y: r.top,
+      w: r.width,
+      h: r.height,
+    });
   }
 
   function open() {
@@ -353,7 +544,8 @@
     }
     // The history view is full-area and hides the page: swap it out first.
     const history = $("history-panel");
-    if (history && !history.hidden && window.__toggleHistory) window.__toggleHistory();
+    if (history && !history.hidden && window.__toggleHistory)
+      window.__toggleHistory();
     open();
   }
   window.__toggleDownloads = toggle;
@@ -383,7 +575,8 @@
     "pointerdown",
     (e) => {
       if (!isOpen || !e.target.closest) return;
-      if (e.target.closest("#downloads-panel") || e.target.closest("#dlBtn")) return;
+      if (e.target.closest("#downloads-panel") || e.target.closest("#dlBtn"))
+        return;
       close();
     },
     true,

@@ -86,7 +86,7 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 8px;
-  background: var(--stage);
+  background: var(--chrome);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-lg);
   color: var(--ink);
@@ -137,20 +137,23 @@
   letter-spacing: 0.01em;
 }
 #downloads-panel .d-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
   padding: 4px;
 }
+
 #downloads-panel .d-row {
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 60px;
-  padding: 8px 8px 8px 10px;
+  padding: 4px 8px 4px 10px;
   border-radius: var(--r-md);
   transition: background 0.12s;
 }
+
+#downloads-panel .d-row:not(:last-child) {
+  border-bottom: 1px solid var(--line);
+}
+
 #downloads-panel .d-row.done {
   cursor: pointer;
 }
@@ -160,8 +163,7 @@
   outline: 0;
 }
 #downloads-panel .d-row:focus-visible {
-  box-shadow: inset 0 0 0 2px
-    color-mix(in srgb, var(--space) 65%, var(--ink));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--space) 65%, var(--ink));
 }
 #downloads-panel .d-row.done:active {
   background: var(--pressed);
@@ -176,9 +178,72 @@
   border-radius: 9px;
   background: var(--hover);
   color: var(--ink-2);
-  font: 600 10px var(--f-display);
-  letter-spacing: 0.02em;
+  flex-direction: column;
+  gap: 1px;
 }
+
+#downloads-panel .d-ico svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+}
+
+#downloads-panel .d-ico .d-ext {
+  max-width: 34px;
+  overflow: hidden;
+  color: currentColor;
+  font: 400 8px/1 var(--f-text);
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#downloads-panel .d-ico-pdf {
+  color: #e56b6b;
+}
+
+#downloads-panel .d-ico-image {
+  color: #42a58a;
+}
+
+#downloads-panel .d-ico-video {
+  color: #9b82db;
+}
+
+#downloads-panel .d-ico-audio {
+  color: #d59a49;
+}
+
+#downloads-panel .d-ico-archive {
+  color: #bd985d;
+}
+
+#downloads-panel .d-ico-document,
+#downloads-panel .d-ico-ebook {
+  color: #5799d5;
+}
+
+#downloads-panel .d-ico-spreadsheet {
+  color: #55a77c;
+}
+
+#downloads-panel .d-ico-presentation {
+  color: #d98b57;
+}
+
+#downloads-panel .d-ico-code {
+  color: #9a91d8;
+}
+
+#downloads-panel .d-ico-executable {
+  color: #7e94b1;
+}
+
+#downloads-panel .d-ico-font {
+  color: #c28cba;
+}
+
 #downloads-panel .d-body {
   flex: 1;
   min-width: 0;
