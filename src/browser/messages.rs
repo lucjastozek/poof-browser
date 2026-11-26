@@ -272,6 +272,11 @@ pub(super) enum Cmd {
     SetSavePasswords {
         on: bool,
     },
+    /// Settings > Import: bring spaces / passwords over from Arc.
+    ImportArc {
+        spaces: bool,
+        passwords: bool,
+    },
     TabDrag {
         active: bool,
     },
@@ -372,6 +377,20 @@ mod tests {
             Cmd::UpdateProfileCleanup(c) => assert_eq!(c.history_retention_hours, 72),
             _ => panic!("expected UpdateProfileCleanup"),
         }
+    }
+
+    #[test]
+    fn import_command_carries_both_choices() {
+        let cmd: Cmd =
+            serde_json::from_str(r#"{"cmd":"import_arc","spaces":true,"passwords":false}"#)
+                .unwrap();
+        assert!(matches!(
+            cmd,
+            Cmd::ImportArc {
+                spaces: true,
+                passwords: false
+            }
+        ));
     }
 
     #[test]

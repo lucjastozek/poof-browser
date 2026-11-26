@@ -6,6 +6,7 @@ mod default_browser;
 mod events;
 mod extensions;
 mod gesture;
+mod import;
 mod instance;
 mod passwords;
 mod pip;

@@ -16,6 +16,7 @@ mod origin;
 mod vault;
 
 pub use origin::origin_of;
+use vault::Added;
 pub use vault::{Credential, Offer};
 
 use anyhow::{anyhow, bail, Result};
@@ -55,6 +56,22 @@ impl KeyProvider for OsKeyring {
     fn set(&self, key: &[u8]) -> Result<()> {
         Ok(Self::entry()?.set_secret(key)?)
     }
+}
+
+/// A login to add in bulk (`PasswordStore::import_logins`).
+pub struct NewLogin {
+    pub profile_id: String,
+    pub origin: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Default, PartialEq)]
+pub struct ImportCounts {
+    pub added: usize,
+    pub already_saved: usize,
+    /// Not added because the vault is full.
+    pub rejected: usize,
 }
 
 pub struct PasswordStore {
@@ -141,6 +158,33 @@ impl PasswordStore {
             self.write(&vault)?;
         }
         Ok(removed)
+    }
+
+    /// Adds many logins with one read and one write. Existing logins are left untouched.
+    pub fn import_logins(&mut self, logins: Vec<NewLogin>) -> Result<ImportCounts> {
+        let mut counts = ImportCounts::default();
+        if logins.is_empty() {
+            return Ok(counts);
+        }
+        let mut vault = self.read()?;
+        let now = now_secs();
+        for login in &logins {
+            match vault.add_if_new(
+                &login.profile_id,
+                &login.origin,
+                &login.username,
+                &login.password,
+                now,
+            ) {
+                Added::Yes => counts.added += 1,
+                Added::AlreadySaved => counts.already_saved += 1,
+                Added::VaultFull => counts.rejected += 1,
+            }
+        }
+        if counts.added > 0 {
+            self.write(&vault)?;
+        }
+        Ok(counts)
     }
 
     pub fn never_save(&mut self, profile_id: &str, origin: &str) -> Result<()> {
@@ -265,6 +309,36 @@ mod tests {
             (found[0].username.as_str(), found[0].password.as_str()),
             ("ann", "s3cret")
         );
+    }
+
+    #[test]
+    fn imported_logins_are_saved_once_and_keep_local_passwords() {
+        let (path, keys) = (temp_vault(), MemoryKeys::default());
+        let mut s = store(&path, &keys);
+        s.save("p", SITE, "ann", "mine").unwrap();
+        let login = |user: &str, pw: &str| NewLogin {
+            profile_id: "p".into(),
+            origin: SITE.into(),
+            username: user.into(),
+            password: pw.into(),
+        };
+        let counts = s
+            .import_logins(vec![login("ann", "theirs"), login("bob", "pw")])
+            .unwrap();
+        assert_eq!(
+            counts,
+            ImportCounts {
+                added: 1,
+                already_saved: 1,
+                rejected: 0
+            }
+        );
+        let mut reopened = store(&path, &keys);
+        let found = reopened.credentials_for("p", SITE).unwrap();
+        assert_eq!(found.len(), 2);
+        assert!(found
+            .iter()
+            .any(|c| c.username == "ann" && c.password == "mine"));
     }
 
     #[test]

@@ -210,3 +210,13 @@ These are requirements, not nice-to-haves.
   loaded again (`ext_done`).
 - Anti-bot and auth iframes (Cloudflare Turnstile, Google sign-in) get no injected scripts at all.
 - `poof-icon.svg` is embedded by `app_icon.rs` and must exist at the project root.
+- **One user-data folder, one set of browser args.** wry builds a new WebView2 environment for every
+  WebView, and WebView2 refuses two environments with different args on the same folder. Every
+  WebView built on `ui_ctx` (sidebar, popup bar, DevTools frontend) must pass `WEBVIEW2_UI_ARGS`,
+  otherwise it silently fails to load (the DevTools panel opened empty because of this).
+- **Importing from Arc** (`src/import/`, `browser/arc_import.rs`): files are read on a thread and
+  returned as plain data; the main thread creates profiles, spaces and logins and never replaces
+  anything that exists. Passwords: `Login Data` (SQLite, copied first, Arc locks it while running)
+  is decrypted with the AES key in `Local State`, which DPAPI protects, so it only works on
+  Windows as the same user. `v20` (app-bound) passwords are counted and skipped. Arc's
+  `StorableSidebar.json` is undocumented: the parser skips what it does not recognise.

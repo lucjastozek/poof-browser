@@ -1,6 +1,6 @@
 [package]
 name = "poof"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 
 [dependencies]
@@ -23,6 +23,8 @@ base64 = "0.22"
 resvg = { version = "0.45", default-features = false }
 sha2 = "0.11.1"
 aes-gcm = "0.10"
+# Reads the saved-passwords file of other browsers (import). SQLite is built in: no system library.
+rusqlite = { version = "0.31", features = ["bundled"] }
 keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service", "crypto-rust"] }
 
 # Windows only: raw WebView2 access (extensions + gesture-enabled JS for auto-PiP).
@@ -30,7 +32,7 @@ keyring = { version = "3", features = ["windows-native", "apple-native", "sync-s
 # Check with: cargo tree -i webview2-com   /   cargo tree -i windows
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_System_Com_StructuredStorage"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_System_Com_StructuredStorage", "Win32_Security_Cryptography"] }
 
 [build-dependencies]
 resvg = "0.45"

@@ -34,6 +34,21 @@ pub struct Profile {
     pub last_cleanup_at: u64,
 }
 
+impl Profile {
+    /// A profile with the default cleanup rules.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            id: new_id(),
+            name: name.into(),
+            tab_retention_hours: default_tab_retention(),
+            cookie_retention_hours: 0,
+            cache_retention_hours: 0,
+            history_retention_hours: 0,
+            last_cleanup_at: 0,
+        }
+    }
+}
+
 pub(super) fn default_tab_retention() -> u64 {
     48
 }

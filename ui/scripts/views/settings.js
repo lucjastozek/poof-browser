@@ -3,6 +3,7 @@ const SETTINGS_TABS = [
   ["general", "settings", "General"],
   ["appearance", "sun", "Appearance"],
   ["privacy", "lock", "Privacy & data"],
+  ["import", "download", "Import"],
   ["shortcuts", "key-2", "Shortcuts"],
   ["developer", "code", "Developer"],
 ];
@@ -241,6 +242,61 @@ function privacyPanel() {
   ];
 }
 
+/* ---- import from other browsers ---- */
+let importBusy = false;
+let importUi = null; // the button and status line of the panel that is open
+
+/* The native side reports when it is done (also if the panel was closed meanwhile). */
+window.__importFinished = ({ ok, message }) => {
+  importBusy = false;
+  if (importUi && importUi.status.isConnected) {
+    importUi.run.disabled = false;
+    importUi.status.textContent = message;
+    importUi.status.classList.toggle("error", !ok);
+  }
+  if (window.__toast) window.__toast(message);
+};
+
+function importPanel() {
+  const choice = { spaces: true, passwords: true };
+  const status = el("div", "note", importBusy ? "Importing…" : "");
+  status.setAttribute("role", "status");
+  const run = btn("primary", "Import from Arc", () => {
+    if (importBusy) return;
+    importBusy = true;
+    run.disabled = true;
+    status.classList.remove("error");
+    status.textContent = "Importing…";
+    send({ cmd: "import_arc", ...choice });
+  });
+  run.disabled = importBusy;
+  importUi = { run, status };
+  return [
+    field(
+      "Arc",
+      el(
+        "div",
+        "note",
+        "Quit Arc first so its saved passwords can be read. Nothing here is replaced: spaces, profiles and passwords you already have are kept.",
+      ),
+      switchRow(
+        "Profiles, spaces and tabs",
+        "Spaces with their pinned tabs and folders, favorites, and the profiles they use",
+        choice.spaces,
+        (on) => (choice.spaces = on),
+      ),
+      switchRow(
+        "Passwords",
+        "Saved logins of each Arc profile (Windows only)",
+        choice.passwords,
+        (on) => (choice.passwords = on),
+      ),
+      run,
+      status,
+    ),
+  ];
+}
+
 function developerPanel() {
   const dock = segmented(
     [
@@ -458,6 +514,7 @@ function buildSettings(v) {
     general: generalPanel,
     appearance: appearancePanel,
     privacy: privacyPanel,
+    import: importPanel,
     developer: developerPanel,
   };
   let shortcutsHost = null;

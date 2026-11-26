@@ -83,16 +83,9 @@ impl Browser {
             .filter(|n| !n.is_empty())
         {
             Some(n) => {
-                let id = new_id();
-                self.p.profiles.push(Profile {
-                    id: id.clone(),
-                    name: n,
-                    tab_retention_hours: 48,
-                    cookie_retention_hours: 0,
-                    cache_retention_hours: 0,
-                    history_retention_hours: 0,
-                    last_cleanup_at: 0,
-                });
+                let profile = Profile::new(n);
+                let id = profile.id.clone();
+                self.p.profiles.push(profile);
                 id
             }
             None => profile_id

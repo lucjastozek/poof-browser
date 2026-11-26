@@ -47,6 +47,7 @@ use wry::{
 #[cfg(windows)]
 use wry::WebViewExtWindows;
 
+mod arc_import;
 mod commands;
 mod constants;
 mod default_app;
@@ -199,6 +200,8 @@ pub struct Browser {
     passwords: PasswordStore,
     /// A login the user hasn't answered the save prompt for yet.
     password_offer: Option<passwords::PasswordOffer>,
+    /// An import from another browser is reading files on a background thread.
+    importing: bool,
     /// Newest first; running ones are backed by a WebView2 operation (`download_hooks`).
     downloads: Vec<DownloadEntry>,
     /// WebViews of closed tabs kept alive while their downloads run.
@@ -294,6 +297,7 @@ impl Browser {
             update_now: false,
             passwords: PasswordStore::open(&data_dir),
             password_offer: None,
+            importing: false,
             downloads,
             lingering: Vec::new(),
             sidebar_ready: false,

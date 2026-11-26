@@ -73,6 +73,7 @@ impl Browser {
                     self.push_state();
                 }
             }
+            UserEvent::ImportDone(result) => self.finish_arc_import(*result),
             UserEvent::ExtResult { ok, msg, dir, id } => {
                 self.toast(&msg);
                 if ok {

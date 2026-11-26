@@ -96,6 +96,7 @@ impl Browser {
                 self.p.save_passwords = on;
                 self.save();
             }
+            Cmd::ImportArc { spaces, passwords } => self.start_arc_import(spaces, passwords),
             Cmd::WindowMinimize => self.window.set_minimized(true),
             Cmd::WindowToggleMaximize => self.window.set_maximized(!self.window.is_maximized()),
             Cmd::WindowDrag => {

@@ -42,6 +42,14 @@ pub enum Offer {
     Update(String),
 }
 
+/// Result of `Vault::add_if_new`.
+#[derive(Debug, PartialEq)]
+pub enum Added {
+    Yes,
+    AlreadySaved,
+    VaultFull,
+}
+
 impl Vault {
     /// Credentials for one site, newest first.
     pub fn for_origin(&self, profile_id: &str, origin: &str) -> Vec<&Credential> {
@@ -111,6 +119,30 @@ impl Vault {
             updated: now,
         });
         true
+    }
+
+    /// Adds a login unless the same username is already saved for that site: an import never
+    /// replaces a password the user has here.
+    pub fn add_if_new(
+        &mut self,
+        profile_id: &str,
+        origin: &str,
+        username: &str,
+        password: &str,
+        now: u64,
+    ) -> Added {
+        let known = self
+            .credentials
+            .iter()
+            .any(|c| c.profile_id == profile_id && c.origin == origin && c.username == username);
+        if known {
+            return Added::AlreadySaved;
+        }
+        if self.upsert(profile_id, origin, username, password, now) {
+            Added::Yes
+        } else {
+            Added::VaultFull
+        }
     }
 
     pub fn remove(&mut self, id: &str) -> bool {
@@ -193,6 +225,24 @@ mod tests {
         assert_eq!(v.offer("p", SITE, "ann", "pw"), Offer::Skip);
         assert_eq!(v.offer("p", "https://other.com", "ann", "pw"), Offer::New);
         assert_eq!(v.offer("q", SITE, "ann", "pw"), Offer::New);
+    }
+
+    #[test]
+    fn add_if_new_never_replaces_an_existing_password() {
+        let mut v = Vault::default();
+        assert_eq!(v.add_if_new("p", SITE, "ann", "first", 1), Added::Yes);
+        assert_eq!(
+            v.add_if_new("p", SITE, "ann", "other", 2),
+            Added::AlreadySaved
+        );
+        assert_eq!(v.add_if_new("p", SITE, "bob", "pw", 2), Added::Yes);
+        assert_eq!(v.add_if_new("q", SITE, "ann", "pw", 2), Added::Yes);
+        assert_eq!(v.for_origin("p", SITE).len(), 2);
+        let ann = v
+            .for_origin("p", SITE)
+            .into_iter()
+            .find(|c| c.username == "ann");
+        assert_eq!(ann.unwrap().password, "first");
     }
 
     #[test]

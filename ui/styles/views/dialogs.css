@@ -67,6 +67,9 @@
   font-size: 12px;
   line-height: 1.55;
 }
+.note.error {
+  color: var(--danger, #d64933);
+}
 .row2 {
   display: flex;
   gap: 8px;

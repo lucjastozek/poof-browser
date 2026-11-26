@@ -89,18 +89,11 @@ pub struct Persisted {
 
 impl Default for Persisted {
     fn default() -> Self {
-        let pid = new_id();
+        let profile = Profile::new("Personal");
+        let pid = profile.id.clone();
         let sid = new_id();
         Self {
-            profiles: vec![Profile {
-                id: pid.clone(),
-                name: "Personal".into(),
-                tab_retention_hours: default_tab_retention(),
-                cookie_retention_hours: 0,
-                cache_retention_hours: 0,
-                history_retention_hours: 0,
-                last_cleanup_at: 0,
-            }],
+            profiles: vec![profile],
             spaces: vec![Space {
                 id: sid.clone(),
                 profile_id: pid,

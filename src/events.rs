@@ -40,6 +40,8 @@ pub enum UserEvent {
         dir: Option<std::path::PathBuf>,
         id: Option<String>,
     },
+    /// Everything read from Arc (or why it failed); applied on the main thread.
+    ImportDone(Box<Result<crate::import::ArcImport, String>>),
     /// A WebView2 render process (or the whole browser process of a profile) died.
     TabCrashed {
         tab: String,
