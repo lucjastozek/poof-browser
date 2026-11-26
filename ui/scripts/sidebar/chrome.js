@@ -78,12 +78,11 @@ $("pageNav").append(
   ib("reload", "Reload", () => send({ cmd: "reload" })),
 );
 $("copyLink").append(ic("link", 15));
-$("copyLink").onclick = async () => {
-  const value = S && S.url ? S.url : "";
-  if (!value) return;
+// Copies text and says so. Shortcut copies come from native code (a page had focus), which
+// passes the tab to give focus back to once the clipboard is written.
+async function copyLink(value, message, returnTo) {
   try {
     await navigator.clipboard.writeText(value);
-    window.__toast("Link copied");
   } catch (_) {
     const tmp = el("textarea");
     tmp.value = value;
@@ -93,11 +92,16 @@ $("copyLink").onclick = async () => {
     tmp.select();
     try {
       document.execCommand("copy");
-      window.__toast("Link copied");
     } finally {
       tmp.remove();
     }
   }
+  window.__toast(message);
+  if (returnTo) send({ cmd: "focus_tab", id: returnTo });
+}
+window.__copyLink = copyLink;
+$("copyLink").onclick = () => {
+  if (S && S.url) copyLink(S.url, "Link copied");
 };
 $("pageToolbar").append(ib("puzzle", "Extensions", () => openView("ext")));
 $("pageToolbar").append(

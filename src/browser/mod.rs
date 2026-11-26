@@ -49,6 +49,7 @@ use wry::{
 use wry::WebViewExtWindows;
 
 mod arc_import;
+mod clean_link;
 mod commands;
 mod constants;
 mod default_app;

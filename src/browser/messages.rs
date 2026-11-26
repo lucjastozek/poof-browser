@@ -124,6 +124,10 @@ pub(super) enum Cmd {
     },
     /// The sidebar asks for every space's lists so a swipe can show the neighbours.
     SpaceSnapshots,
+    /// Gives the keyboard focus back to a page after the sidebar borrowed it (clipboard copy).
+    FocusTab {
+        id: String,
+    },
     CycleSpace {
         dir: i32,
     },

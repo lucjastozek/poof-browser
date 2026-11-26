@@ -266,6 +266,20 @@ impl Browser {
         Ok(())
     }
 
+    /// Focuses the page of a visible tab (or split pane); no-op when it is not on screen.
+    pub(super) fn focus_tab(&mut self, id: &str) {
+        if self.visible.as_deref() == Some(id) || self.split_has(id) {
+            if let Some(wv) = self
+                .tabs
+                .iter()
+                .find(|t| t.id == id)
+                .and_then(|t| t.webview.as_ref())
+            {
+                let _ = wv.focus();
+            }
+        }
+    }
+
     pub(super) fn close_tab(&mut self, id: &str) -> Result<()> {
         let Some(idx) = self.tabs.iter().position(|t| t.id == id) else {
             return Ok(());

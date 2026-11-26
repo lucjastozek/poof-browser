@@ -155,6 +155,7 @@ impl Browser {
                 }
             }
             Cmd::SpaceSnapshots => self.push_space_snapshots(),
+            Cmd::FocusTab { id } => self.focus_tab(&id),
             Cmd::CycleSpace { dir } => self.cycle_space(dir)?,
             Cmd::AddSpace(space) => self.add_space(space)?,
             Cmd::EditSpace {

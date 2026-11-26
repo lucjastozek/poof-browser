@@ -231,6 +231,10 @@ impl Browser {
                 self.eval_visible("window.print()");
                 Ok(())
             }
+            "copy_clean_link" => {
+                self.copy_clean_link(tab);
+                Ok(())
+            }
             "favorite" => {
                 self.set_kind(tab, Kind::Favorite);
                 Ok(())

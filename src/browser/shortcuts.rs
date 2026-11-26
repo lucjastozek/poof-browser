@@ -76,6 +76,13 @@ const ACTIONS: &[Action] = &[
     action("forward", "forward", "Forward", NAV, "Alt+Right"),
     action("reload", "reload", "Reload", NAV, "Ctrl+R"),
     action("print", "print", "Print", NAV, "Ctrl+P"),
+    action(
+        "copy_clean_link",
+        "copy_clean_link",
+        "Copy clean link",
+        NAV,
+        "Ctrl+Shift+C",
+    ),
     action("history", "history", "History", VIEWS, "Ctrl+H"),
     action("downloads", "downloads", "Downloads", VIEWS, "Ctrl+J"),
     action(
