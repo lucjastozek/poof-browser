@@ -178,18 +178,25 @@
   border-radius: 9px;
   background: var(--hover);
   color: var(--ink-2);
-  font: 600 10px var(--f-display);
-  letter-spacing: 0.02em;
+  flex-direction: column;
+  gap: 1px;
 }
 
 #downloads-panel .d-ico svg {
-  width: 21px;
-  height: 21px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  display: block;
+  width: 19px;
+  height: 19px;
+}
+
+#downloads-panel .d-ico .d-ext {
+  max-width: 34px;
+  overflow: hidden;
+  color: currentColor;
+  font: 400 8px/1 var(--f-text);
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 #downloads-panel .d-ico-pdf {

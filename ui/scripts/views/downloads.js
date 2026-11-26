@@ -270,11 +270,16 @@
   };
 
   function extBadge(name) {
-    const filename = String(name || "").split(/[\\\\/]/).pop();
-    const match = filename.match(/\\.([^.]+)$/);
-    const group = match ? FILE_EXTENSIONS[match[1].toLowerCase()] : null;
+    const filename = String(name || "");
+    const basename = filename.slice(
+      Math.max(filename.lastIndexOf("/"), filename.lastIndexOf("\\")) + 1,
+    );
+    const dot = basename.lastIndexOf(".");
+    const extension = dot > 0 ? basename.slice(dot + 1).toLowerCase() : "";
+    const group = FILE_EXTENSIONS[extension];
     const box = el("span", "d-ico");
-    box.append(ic(FILE_ICONS[group] || "file-default", 20));
+    box.append(ic(FILE_ICONS[group] || "file-default", 19));
+    if (extension) box.append(el("span", "d-ext", extension));
     return box;
   }
 
