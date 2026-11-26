@@ -7,7 +7,7 @@ import { writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { join } from "node:path";
 
-const REPO = "Richard9394/MingCute";
+const REPO = "mingcute-design/mingcute-icons";
 const BRANCHES = ["main", "master"];
 // MingCute now ships as packages/svg/<style>/<name>.svg with kebab-case names.
 // "core-regular" is the outline ("line") style, "core-filled" the filled one.
@@ -58,6 +58,26 @@ const UI = {
   "folder-open": ["folder-open", "folder-open-2"],
   "chevron-right": ["right"],
   "chevron-down": ["down"],
+  "file-default": ["file"],
+  "file-document": ["file-type", "file"],
+  "file-pdf": ["file-type", "file"],
+  "file-spreadsheet": ["file-spreadsheet", "file"],
+  "file-presentation": ["file-type", "file"],
+  "file-image": ["file-image", "file"],
+  "file-video": ["file-video-camera", "file"],
+  "file-audio": ["file-volume", "file"],
+  "file-archive": ["folder-zip", "file"],
+  "file-code": ["file-code", "file"],
+  "file-package": ["file-box", "file"],
+  "file-font": ["file-type", "file"],
+  "file-database": ["file-box", "file"],
+  "file-design": ["file-image", "file"],
+  "file-ebook": ["file-type", "file"],
+  "file-email": ["mail", "file"],
+  "file-subtitle": ["file-type", "file"],
+  "file-config": ["file-code", "file"],
+  "file-certificate": ["file-type", "file"],
+  "file-torrent": ["file-box", "file"],
 };
 
 // Saved spaces may still hold Lucide icon names. MingCute's names match Lucide's for many icons
