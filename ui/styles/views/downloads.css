@@ -80,8 +80,8 @@
   z-index: 50;
   top: 44px;
   right: 12px;
-  width: min(400px, calc(100vw - 24px));
-  max-height: calc(100vh - 44px - 12px);
+  width: min(300px, calc(30vw - 24px));
+  max-height: calc(50vh - 44px - 12px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -114,11 +114,7 @@
   font: 600 16px/1.2 var(--f-display);
   letter-spacing: -0.01em;
 }
-#downloads-panel .d-tools {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
+
 #downloads-panel .btn:disabled {
   opacity: 0.45;
   pointer-events: none;
@@ -145,8 +141,7 @@
   align-items: center;
   gap: 12px;
   min-height: 60px;
-  padding: 4px 8px 4px 10px;
-  border-radius: var(--r-md);
+  padding: 4px 8px 4px 4px;
   transition: background 0.12s;
 }
 
@@ -170,13 +165,12 @@
 }
 #downloads-panel .d-ico {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 9px;
-  background: var(--hover);
   color: var(--ink-2);
   flex-direction: column;
   gap: 1px;
@@ -300,16 +294,15 @@
 }
 #downloads-panel .d-actions {
   display: flex;
-  flex: none;
   gap: 2px;
 }
 /* Finished rows keep their buttons out of the way until the row is hovered or focused. */
 #downloads-panel .d-row:not(.live) .ib {
-  opacity: 0;
+  display: none;
 }
 #downloads-panel .d-row:hover .ib,
 #downloads-panel .d-row:focus-within .ib {
-  opacity: 1;
+  display: flex;
 }
 #downloads-panel .d-empty {
   padding: 40px 0;

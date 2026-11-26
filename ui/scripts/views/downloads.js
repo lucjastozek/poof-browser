@@ -24,7 +24,6 @@
   let shown = "";
   let panel = null;
   let list = null;
-  let clearButton = null;
   let isOpen = false;
   let openedActive = null;
   let reported = "";
@@ -291,9 +290,11 @@
     const dot = basename.lastIndexOf(".");
     const extension = dot > 0 ? basename.slice(dot + 1).toLowerCase() : "";
     const group = FILE_EXTENSIONS[extension];
-    const colorClass =
-      extension === "pdf" ? "pdf" : FILE_ICON_CLASSES[group];
-    const box = el("span", "d-ico" + (colorClass ? " d-ico-" + colorClass : ""));
+    const colorClass = extension === "pdf" ? "pdf" : FILE_ICON_CLASSES[group];
+    const box = el(
+      "span",
+      "d-ico" + (colorClass ? " d-ico-" + colorClass : ""),
+    );
     box.append(ic(FILE_ICONS[group] || "file-default", 22));
     return box;
   }
@@ -435,7 +436,6 @@
     if (!list) return;
     list.replaceChildren();
     live.clear();
-    clearButton.disabled = !rows.some((d) => !isLive(d));
     if (!rows.length) {
       list.append(el("div", "d-empty", "No downloads yet."));
       return;
@@ -483,24 +483,13 @@
     panel.hidden = true;
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-label", "Downloads");
-    clearButton = el("button", "btn sm", "Clear completed");
-    clearButton.type = "button";
-    clearButton.onclick = () => send({ cmd: "clear_downloads" });
-    const tools = el("div", "d-tools");
-    tools.append(
-      clearButton,
-      ib("x", "Close downloads (Esc)", () => close()),
-    );
-    const head = el("div", "d-head");
-    head.append(el("h1", null, "Downloads"), tools);
     const top = el("div", "d-top");
     const topWrap = el("div", "d-wrap");
-    topWrap.append(head);
     top.append(topWrap);
     const scroll = el("div", "d-scroll");
     list = el("div", "d-wrap");
     scroll.append(list);
-    panel.append(top, scroll);
+    panel.append(scroll);
     document.body.append(panel);
   }
 
