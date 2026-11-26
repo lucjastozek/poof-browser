@@ -31,6 +31,17 @@ for (const [type, extensions] of Object.entries(cases)) {
   assert.ok(types[type], `Missing ${type} category`);
   for (const ext of extensions) assert.ok(types[type].has(ext), `Missing .${ext}`);
 }
+const iconMatch = source.match(/const FILE_ICONS = (\{[\s\S]*?\n  \});/);
+assert.ok(iconMatch, "Every file category must have an icon mapping");
+const iconsByType = vm.runInNewContext(`(${iconMatch[1]})`);
+const generated = await readFile("ui/icons.js", "utf8");
+const generatedMatch = generated.match(/const ICONS = (\{[\s\S]*?\});\nconst SPACE_ICONS =/);
+assert.ok(generatedMatch, "Generated MingCute UI icons must be readable");
+const generatedIcons = JSON.parse(generatedMatch[1]);
+for (const [type, icon] of Object.entries(iconsByType)) {
+  assert.ok(types[type], `Icon mapping has no extension category: ${type}`);
+  assert.ok(generatedIcons[icon], `Missing generated MingCute icon: ${icon}`);
+}
 const all = Object.entries(types).flatMap(([type, extensions]) =>
   [...extensions].map(ext => [ext, type])
 );
