@@ -16,7 +16,7 @@
     spreadsheet: new Set("csv ods ots numbers tsv xls xlsb xlsm xlsx xlt xltm xltx".split(" ")),
     presentation: new Set("key odp otp pot potm potx pps ppsm ppsx ppt pptm pptx".split(" ")),
     image: new Set("ai apng avif bmp cdr dib emf eps gif heic heif ico jfif jif jpe jpeg jpg png psd raw svg tif tiff webp".split(" ")),
-    video: new Set("3g2 3gp asf avi flv m2ts m2v m4v mkv mov mp4 mpe mpeg mpg mts ogv rm swf ts vob webm wmv".split(" ")),
+    video: new Set("3g2 3gp asf avi flv m2ts m2v m4v mkv mov mp4 mpe mpeg mpg mts ogv rm swf vob webm wmv".split(" ")),
     audio: new Set("aac aif aiff alac amr ape au dss flac m4a m4b mid midi mka mp3 mpc oga ogg opus ra ram wav wma".split(" ")),
     archive: new Set("7z ace alz arj bz2 cab cpio gz iso lha lz lzh lzma lzo rar sit sitx tar tbz tbz2 tgz txz xz z zip zst".split(" ")),
     code: new Set("asm bash c cc clj cljc cljs cmake cjs cpp cs css cxx dart diff dockerfile ex go h hpp hs htm html java js json jsx kt lua m mjs ml php pl py r rb rs sass scss sh sql svelte swift toml ts tsx vb vue wasm xml yaml yml".split(" ")),
@@ -28,7 +28,7 @@
     email: new Set("eml emlx msg oft ost pst vcf".split(" ")),
     subtitle: new Set("ass srt ssa sub vtt".split(" ")),
     config: new Set("cfg conf editorconfig env gitignore ini lock log properties".split(" ")),
-    certificate: new Set("cer crt der key p12 p7b p7c pem pfx".split(" ")),
+    certificate: new Set("cer crt der p12 p7b p7c pem pfx".split(" ")),
     torrent: new Set(["torrent"]),
   };
   const FILE_ICONS = {
