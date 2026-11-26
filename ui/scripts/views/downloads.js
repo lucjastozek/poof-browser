@@ -10,7 +10,48 @@
   const NS = "http://www.w3.org/2000/svg";
   const RING_RADIUS = 12;
   const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-  const EXT_BADGE_MAX = 4;
+  const FILE_TYPES = {
+    document: new Set("doc docm docx dot dotx odt ott pages rtf wpd wps".split(" ")),
+    pdf: new Set("pdf xps oxps".split(" ")),
+    spreadsheet: new Set("csv ods ots numbers tsv xls xlsb xlsm xlsx xlt xltm xltx".split(" ")),
+    presentation: new Set("key odp otp pot potm potx pps ppsm ppsx ppt pptm pptx".split(" ")),
+    image: new Set("ai apng avif bmp cdr dib emf eps gif heic heif ico jfif jif jpe jpeg jpg png psd raw svg tif tiff webp".split(" ")),
+    video: new Set("3g2 3gp asf avi flv m2ts m2v m4v mkv mov mp4 mpe mpeg mpg mts ogv rm swf ts vob webm wmv".split(" ")),
+    audio: new Set("aac aif aiff alac amr ape au dss flac m4a m4b mid midi mka mp3 mpc oga ogg opus ra ram wav wma".split(" ")),
+    archive: new Set("7z ace alz arj bz2 cab cpio gz iso lha lz lzh lzma lzo rar sit sitx tar tbz tbz2 tgz txz xz z zip zst".split(" ")),
+    code: new Set("asm bash c cc clj cljc cljs cmake cjs cpp cs css cxx dart diff dockerfile ex go h hpp hs htm html java js json jsx kt lua m mjs ml php pl py r rb rs sass scss sh sql svelte swift toml ts tsx vb vue wasm xml yaml yml".split(" ")),
+    package: new Set("app apk appx bat bin cmd com deb dll dmg exe ipa jar msi pkg rpm so".split(" ")),
+    font: new Set("eot fon otf pfb pfm ttc ttf woff woff2".split(" ")),
+    database: new Set("accdb db db3 dbf mdb mdf ndjson sqlite sqlite3 sqlitedb".split(" ")),
+    design: new Set("3ds blend c4d dae dcm dds dwg dxf fbx glb gltf max obj stl step stp".split(" ")),
+    ebook: new Set("azw azw3 azw4 cbr cbz epub fb2 lit mobi pdb".split(" ")),
+    email: new Set("eml emlx msg oft ost pst vcf".split(" ")),
+    subtitle: new Set("ass srt ssa sub vtt".split(" ")),
+    config: new Set("cfg conf editorconfig env gitignore ini lock log properties".split(" ")),
+    certificate: new Set("cer crt der key p12 p7b p7c pem pfx".split(" ")),
+    torrent: new Set(["torrent"]),
+  };
+  const FILE_ICONS = {
+    document: "file-document",
+    pdf: "file-pdf",
+    spreadsheet: "file-spreadsheet",
+    presentation: "file-presentation",
+    image: "file-image",
+    video: "file-video",
+    audio: "file-audio",
+    archive: "file-archive",
+    code: "file-code",
+    package: "file-package",
+    font: "file-font",
+    database: "file-database",
+    design: "file-design",
+    ebook: "file-ebook",
+    email: "file-email",
+    subtitle: "file-subtitle",
+    config: "file-config",
+    certificate: "file-certificate",
+    torrent: "file-torrent",
+  };
   const DRAG_START_PX = 6; // pointer travel with the button held before a drag starts
   const CLICK_SHIELD_MS = 400; // a click this soon after a drag is the drag ending, not a click
   /* Pause and play are not part of the generated icon set. */
@@ -106,11 +147,12 @@
 
   /* ----- rows ----- */
   function extBadge(name) {
-    const i = name.lastIndexOf(".");
-    const ext = i > 0 ? name.slice(i + 1) : "";
+    const base = name.split(/[\\/]/).pop() || "";
+    const i = base.lastIndexOf(".");
+    const ext = i > 0 ? base.slice(i + 1).toLowerCase() : "";
+    const type = Object.keys(FILE_TYPES).find((key) => FILE_TYPES[key].has(ext));
     const box = el("span", "d-ico");
-    if (ext && ext.length <= EXT_BADGE_MAX) box.append(el("span", null, ext.toUpperCase()));
-    else box.append(ic("file", 18));
+    box.append(ic(type ? FILE_ICONS[type] : "file-default", 16));
     return box;
   }
 
