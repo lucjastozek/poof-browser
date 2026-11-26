@@ -1,6 +1,7 @@
 /* ---------- downloads (Ctrl+J) ----------
    A toolbar button with a progress ring (shown once there is something to show) and a
-   full-area view like the history view. The native side pushes the complete list with
+   popover that floats over the page you are on (the page stays live, so a download can be dragged
+   straight onto it). The native side pushes the complete list with
    `window.__setDownloads(rows)`: at most a few times a second while something downloads, and
    never otherwise. Uses the helpers from scripts/core (el, ib, ic, $, send, hostOf, dayLabel,
    formatBytes, formatTimeLeft), the global `ov` and `S`, and the tokens from
@@ -10,6 +11,8 @@
   const RING_RADIUS = 12;
   const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
   const EXT_BADGE_MAX = 4;
+  const DRAG_START_PX = 6; // pointer travel with the button held before a drag starts
+  const CLICK_SHIELD_MS = 400; // a click this soon after a drag is the drag ending, not a click
   /* Pause and play are not part of the generated icon set. */
   const EXTRA_ICONS = {
     pause:
@@ -25,9 +28,11 @@
   let clearButton = null;
   let isOpen = false;
   let openedActive = null;
-  let openedUrl = null;
+  let reported = "";
+  let resizeWatch = null;
   let unseen = false;
   let known = null;
+  let dragEndedAt = -CLICK_SHIELD_MS;
   const live = new Map();
 
   /* ----- toolbar button ----- */
@@ -166,6 +171,34 @@
     return out;
   }
 
+  /* A finished download can be dragged out of the list onto a page (upload) or into another
+     app. Native code runs the drag, which takes over the pointer until the button is released,
+     so this only decides when it starts. The row's buttons keep working as buttons. */
+  function armDrag(row, d) {
+    row.onpointerdown = (e) => {
+      if (e.button !== 0 || e.target.closest(".d-actions")) return;
+      const x0 = e.clientX;
+      const y0 = e.clientY;
+      const stop = () => {
+        document.removeEventListener("pointermove", move, true);
+        document.removeEventListener("pointerup", stop, true);
+        document.removeEventListener("pointercancel", stop, true);
+      };
+      const move = (m) => {
+        if (!(m.buttons & 1)) return stop();
+        if (Math.hypot(m.clientX - x0, m.clientY - y0) < DRAG_START_PX) return;
+        stop();
+        dragEndedAt = performance.now();
+        send({ cmd: "drag_download", id: d.id });
+      };
+      document.addEventListener("pointermove", move, true);
+      document.addEventListener("pointerup", stop, true);
+      document.addEventListener("pointercancel", stop, true);
+    };
+    // No browser-style drag of the row's text or icon competing with the native drag.
+    row.ondragstart = (e) => e.preventDefault();
+  }
+
   function buildRow(d) {
     const row = el("div", "d-row" + (isLive(d) ? " live" : "") + (d.status === "completed" ? " done" : ""));
     row.tabIndex = 0;
@@ -186,8 +219,12 @@
     const refs = { meta, bar: barEl, fill };
     paintProgress(refs, d);
     if (d.status === "completed") {
-      const open = () => send({ cmd: "open_download", id: d.id });
+      const open = () => {
+        if (performance.now() - dragEndedAt < CLICK_SHIELD_MS) return;
+        send({ cmd: "open_download", id: d.id });
+      };
       row.onclick = open;
+      if (!d.missing) armDrag(row, d);
       row.onkeydown = (e) => {
         if (e.key === "Enter" && e.target === row) {
           e.preventDefault();
@@ -254,7 +291,7 @@
     clearButton.type = "button";
     clearButton.onclick = () => send({ cmd: "clear_downloads" });
     const tools = el("div", "d-tools");
-    tools.append(clearButton, ib("x", "Close downloads (Esc)", () => close(true)));
+    tools.append(clearButton, ib("x", "Close downloads (Esc)", () => close()));
     const head = el("div", "d-head");
     head.append(el("h1", null, "Downloads"), tools);
     const top = el("div", "d-top");
@@ -268,75 +305,93 @@
     document.body.append(panel);
   }
 
+  /* Native page views always draw above this one, so the popover can only show over the page
+     by having the page cut a hole where it sits: tell native code the box, whenever it moves. */
+  function report() {
+    if (!isOpen || !panel) return;
+    const r = panel.getBoundingClientRect();
+    const key = [r.left, r.top, r.width, r.height].map(Math.round).join(",");
+    if (key === reported) return;
+    reported = key;
+    send({ cmd: "downloads_panel", open: true, x: r.left, y: r.top, w: r.width, h: r.height });
+  }
+
   function open() {
     build();
     openedActive = S ? S.active : null;
-    openedUrl = S ? S.url : null;
     unseen = false;
     panel.hidden = false;
     isOpen = true;
     shown = signature();
     render();
     updateButton();
-    // Another full-area view already hides the page; otherwise hide it ourselves.
-    if (!ov) send({ cmd: "overlay", open: true });
+    reported = "";
+    report();
+    if (window.ResizeObserver) {
+      resizeWatch = new ResizeObserver(report);
+      resizeWatch.observe(panel);
+    }
     send({ cmd: "list_downloads" });
     panel.querySelector(".d-row, .btn, .ib")?.focus();
   }
 
-  function close(notify) {
+  function close() {
     if (!isOpen) return;
     isOpen = false;
     panel.hidden = true;
+    if (resizeWatch) resizeWatch.disconnect();
+    resizeWatch = null;
+    reported = "";
     updateButton();
-    if (notify && !ov) send({ cmd: "overlay", open: false });
+    send({ cmd: "downloads_panel", open: false });
   }
 
   function toggle() {
     if (isOpen) {
-      close(true);
+      close();
       return;
     }
-    // The history view is also full-area: swap it out, keeping the page hidden.
+    // The history view is full-area and hides the page: swap it out first.
     const history = $("history-panel");
     if (history && !history.hidden && window.__toggleHistory) window.__toggleHistory();
     open();
   }
   window.__toggleDownloads = toggle;
+  window.__closeDownloads = close;
 
   /* Opening history while this view is up replaces it. */
   const baseToggleHistory = window.__toggleHistory;
   if (baseToggleHistory) {
     window.__toggleHistory = () => {
-      close(false);
+      close();
       baseToggleHistory();
     };
   }
 
-  // A tab or address change shows the page again from the native side: just drop the panel.
+  // Switching tabs closes it; navigating inside the same tab does not (the page stays usable).
   const baseSetState = window.__setState;
   window.__setState = (s) => {
     baseSetState(s);
-    if (isOpen && (s.active !== openedActive || s.url !== openedUrl)) close(false);
+    if (isOpen && s.active !== openedActive) close();
   };
+  // The popover's x depends on the window width.
+  addEventListener("resize", report);
 
+  // A press anywhere else in the browser chrome dismisses it (presses on the page never reach
+  // this view). The toolbar button toggles it by itself.
   document.addEventListener(
     "pointerdown",
     (e) => {
-      if (
-        isOpen &&
-        e.target.closest &&
-        e.target.closest("#side") &&
-        !e.target.closest("#side-resize")
-      )
-        close(true);
+      if (!isOpen || !e.target.closest) return;
+      if (e.target.closest("#downloads-panel") || e.target.closest("#dlBtn")) return;
+      close();
     },
     true,
   );
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && isOpen) {
       e.preventDefault();
-      close(true);
+      close();
     }
   });
 })();

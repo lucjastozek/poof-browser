@@ -49,6 +49,16 @@ impl Browser {
         ])
     }
 
+    /// Everything cut out of a page WebView whose origin is (px, py), so the sidebar's own
+    /// cards (the peeking sidebar, the Downloads popover) show above the live page.
+    pub(super) fn page_holes(&self, px: f64, py: f64) -> Vec<[f64; 4]> {
+        let mut holes: Vec<[f64; 4]> = self.peek_hole(px, py).into_iter().collect();
+        if let Some([x, y, w, h]) = self.downloads_hole.filter(|_| !self.fullscreen) {
+            holes.push([x - px, y - py, w, h]);
+        }
+        holes
+    }
+
     pub(super) fn open_split(
         &mut self,
         other: &str,

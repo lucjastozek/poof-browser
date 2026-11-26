@@ -170,7 +170,7 @@ impl Browser {
                     ph,
                     scale,
                     !self.fullscreen && !self.devtools_open,
-                    self.peek_hole(px, py),
+                    &self.page_holes(px, py),
                 );
                 unsafe {
                     let _ = wv.controller().NotifyParentWindowPositionChanged();
@@ -193,7 +193,7 @@ impl Browser {
                     #[cfg(windows)]
                     {
                         let (px, py, pw, ph) = rect_parts(r, scale);
-                        apply_webview_radius(wv, pw, ph, scale, true, self.peek_hole(px, py));
+                        apply_webview_radius(wv, pw, ph, scale, true, &self.page_holes(px, py));
                         unsafe {
                             let _ = wv.controller().NotifyParentWindowPositionChanged();
                         }
@@ -215,7 +215,7 @@ impl Browser {
                     #[cfg(windows)]
                     {
                         let size = bounds.size.to_logical::<f64>(scale);
-                        apply_webview_radius(devtools, size.width, size.height, scale, true, None);
+                        apply_webview_radius(devtools, size.width, size.height, scale, true, &[]);
                     }
                     let show = self.devtools_open
                         && !self.overlay

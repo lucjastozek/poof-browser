@@ -73,6 +73,19 @@ pub(super) enum Cmd {
     },
     /// The sidebar painted the page picture: the real page may be hidden now.
     BackdropReady,
+    /// The Downloads popover opened, moved or closed. `x`, `y`, `w`, `h` are its box in window
+    /// coordinates; the page gets a hole there so the popover shows above the live page.
+    DownloadsPanel {
+        open: bool,
+        #[serde(default)]
+        x: f64,
+        #[serde(default)]
+        y: f64,
+        #[serde(default)]
+        w: f64,
+        #[serde(default)]
+        h: f64,
+    },
     /// Bind `chord` to the action `id` (`""` removes it); a taken chord moves here.
     SetShortcut {
         id: String,
@@ -255,6 +268,10 @@ pub(super) enum Cmd {
     },
     /// Cancels a running download.
     CancelDownload {
+        id: String,
+    },
+    /// Starts a native drag of a finished download (the pointer is still down).
+    DragDownload {
         id: String,
     },
     OpenDownload {
@@ -456,6 +473,15 @@ mod tests {
     fn download_and_default_browser_commands_parse() {
         let pause: Cmd = serde_json::from_str(r#"{"cmd":"pause_download","id":"d1"}"#).unwrap();
         assert!(matches!(pause, Cmd::PauseDownload { id } if id == "d1"));
+        let panel: Cmd = serde_json::from_str(
+            r#"{"cmd":"downloads_panel","open":true,"x":10.5,"y":44,"w":400,"h":300}"#,
+        )
+        .unwrap();
+        assert!(matches!(panel, Cmd::DownloadsPanel { open: true, w, .. } if w == 400.0));
+        assert!(matches!(
+            serde_json::from_str::<Cmd>(r#"{"cmd":"downloads_panel","open":false}"#),
+            Ok(Cmd::DownloadsPanel { open: false, .. })
+        ));
         assert!(matches!(
             serde_json::from_str::<Cmd>(r#"{"cmd":"clear_downloads"}"#),
             Ok(Cmd::ClearDownloads)

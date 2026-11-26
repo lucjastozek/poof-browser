@@ -17,6 +17,7 @@ function leaveView() {
   stage.style.removeProperty("--backdrop");
 }
 function openView(name) {
+  if (window.__closeDownloads) window.__closeDownloads();
   // Settings float over a picture of the page that was showing; other views replace it.
   const snapshot = name === "settings" && !ov;
   leaveView();

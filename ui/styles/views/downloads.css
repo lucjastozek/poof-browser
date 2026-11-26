@@ -1,4 +1,4 @@
-/* ---------- downloads: toolbar button with progress ring, and the full-area view ---------- */
+/* ---------- downloads: toolbar button with progress ring, and the popover ---------- */
 #dlBtn {
   position: relative;
   flex: none;
@@ -74,40 +74,33 @@
   }
 }
 
-/* The view sits exactly where the history view does. */
+/* A popover under the toolbar, over the live page: the page is cut away behind it natively. */
 #downloads-panel {
   position: fixed;
   z-index: 50;
-  left: calc(var(--sidebar-width, 280px) + 8px);
-  top: 40px;
-  right: 8px;
-  bottom: 8px;
+  top: 44px;
+  right: 12px;
+  width: min(400px, calc(100vw - 24px));
+  max-height: calc(100vh - 44px - 12px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-radius: 8px;
   background: var(--stage);
   border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
   color: var(--ink);
   font-family: var(--f-text);
   animation: fade 0.18s ease;
-}
-body.compact #downloads-panel {
-  left: 64px;
-}
-body.collapsed #downloads-panel {
-  left: 8px;
 }
 #downloads-panel[hidden] {
   display: none;
 }
 #downloads-panel .d-top {
   flex: none;
-  padding: 28px 32px 14px;
+  padding: 14px 14px 4px 16px;
 }
 #downloads-panel .d-wrap {
-  max-width: 860px;
-  margin: 0 auto;
   width: 100%;
 }
 #downloads-panel .d-head {
@@ -118,7 +111,7 @@ body.collapsed #downloads-panel {
 #downloads-panel h1 {
   flex: 1;
   margin: 0;
-  font: 600 24px/1.2 var(--f-display);
+  font: 600 16px/1.2 var(--f-display);
   letter-spacing: -0.01em;
 }
 #downloads-panel .d-tools {
@@ -132,11 +125,12 @@ body.collapsed #downloads-panel {
 }
 #downloads-panel .d-scroll {
   flex: 1;
+  min-height: 0;
   overflow: auto;
-  padding: 0 32px 28px;
+  padding: 0 8px 8px;
 }
 #downloads-panel .d-day {
-  padding: 20px 12px 8px;
+  padding: 12px 8px 6px;
   font-size: 12px;
   font-weight: 600;
   color: var(--ink-2);
@@ -253,7 +247,7 @@ body.collapsed #downloads-panel {
   opacity: 1;
 }
 #downloads-panel .d-empty {
-  padding: 72px 0;
+  padding: 40px 0;
   text-align: center;
   color: var(--ink-3);
 }

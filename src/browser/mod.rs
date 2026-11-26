@@ -125,6 +125,8 @@ pub struct Browser {
     active: HashMap<String, String>,
     visible: Option<String>,
     overlay: bool,
+    /// Box of the Downloads popover (window coordinates) while it is open; cut out of the page.
+    downloads_hole: Option<[f64; 4]>,
     fullscreen: bool,
     closed_tabs: Vec<String>,
     devtools_open: bool,
@@ -256,6 +258,7 @@ impl Browser {
             active: initial_active,
             visible: None,
             overlay: false,
+            downloads_hole: None,
             fullscreen: false,
             closed_tabs: Vec::new(),
             devtools_open: false,

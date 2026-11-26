@@ -79,7 +79,7 @@ pub(super) fn apply_webview_radius(
     height: f64,
     scale: f64,
     rounded: bool,
-    hole: Option<[f64; 4]>, // [x, y, w, h] cut out of the page, relative to the WebView
+    holes: &[[f64; 4]], // [x, y, w, h] boxes cut out of the page, relative to the WebView
 ) {
     use windows::Win32::{
         Foundation::HWND,
@@ -94,7 +94,7 @@ pub(super) fn apply_webview_radius(
         if wv.controller().ParentWindow(&mut hwnd).is_err() || hwnd.0.is_null() {
             return;
         }
-        if !rounded && hole.is_none() {
+        if !rounded && holes.is_empty() {
             let _ = SetWindowRgn(hwnd, None, true);
             return;
         }
@@ -109,7 +109,7 @@ pub(super) fn apply_webview_radius(
         if region.0.is_null() {
             return;
         }
-        if let Some([hx, hy, hw, hh]) = hole {
+        for &[hx, hy, hw, hh] in holes {
             let l = (hx * scale).round() as i32;
             let t = (hy * scale).round() as i32;
             let r = ((hx + hw) * scale).round() as i32;

@@ -84,6 +84,7 @@ impl Browser {
             Cmd::PauseDownload { id } => self.pause_download(&id),
             Cmd::ResumeDownload { id } => self.resume_download(&id),
             Cmd::CancelDownload { id } => self.cancel_download(&id),
+            Cmd::DragDownload { id } => self.drag_download(&id),
             Cmd::OpenDownload { id } => self.open_download(&id),
             Cmd::ShowDownload { id } => self.show_download(&id),
             Cmd::RemoveDownload { id } => self.remove_download(&id),
@@ -118,6 +119,14 @@ impl Browser {
                 }
                 if !self.awaiting_backdrop {
                     self.apply_overlay(open);
+                }
+            }
+            Cmd::DownloadsPanel { open, x, y, w, h } => {
+                let valid = [x, y, w, h].iter().all(|v| v.is_finite()) && w > 0.0 && h > 0.0;
+                let hole = (open && valid).then_some([x, y, w, h]);
+                if hole != self.downloads_hole {
+                    self.downloads_hole = hole;
+                    self.relayout();
                 }
             }
             Cmd::BackdropReady => {

@@ -14,6 +14,10 @@ pub(super) struct Lingering {
     _webview: WebView,
 }
 
+/// What follows the pointer while a download is dragged out (a generic document card).
+#[cfg(any(windows, target_os = "macos"))]
+const DRAG_PREVIEW: &[u8] = include_bytes!("drag-file.png");
+
 impl Browser {
     pub(super) fn on_download_event(&mut self, event: DownloadEvent) {
         match event {
@@ -204,6 +208,34 @@ impl Browser {
         } else {
             self.mark_download_missing(id);
         }
+    }
+
+    /// Drags a finished download out of the window: dropped on a page it is uploaded, dropped in
+    /// another app or a folder it is copied. The sidebar sends this once the pointer has moved
+    /// far enough with the button held; the drag then runs until the button is released.
+    pub(super) fn drag_download(&mut self, id: &str) {
+        let Some(path) = self.finished_download_path(id) else {
+            return;
+        };
+        if !path.is_file() {
+            self.mark_download_missing(id);
+            return;
+        }
+        #[cfg(any(windows, target_os = "macos"))]
+        {
+            let result = drag::start_drag(
+                &self.window,
+                drag::DragItem::Files(vec![path]),
+                drag::Image::Raw(DRAG_PREVIEW.to_vec()),
+                |_, _| {},
+                drag::Options::default(),
+            );
+            if let Err(e) = result {
+                log::warn!("download drag failed: {e}");
+            }
+        }
+        #[cfg(not(any(windows, target_os = "macos")))]
+        log::info!("dragging downloads out is not supported on this platform: {path:?}");
     }
 
     pub(super) fn show_download(&mut self, id: &str) {
