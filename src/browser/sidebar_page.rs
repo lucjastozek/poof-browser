@@ -87,10 +87,14 @@ pub(super) fn create_sidebar(
     ctx: &mut WebContext,
 ) -> Result<WebView> {
     let ipc_proxy = proxy.clone();
+    let drop_proxy = proxy.clone();
     let builder = WebViewBuilder::new_with_web_context(ctx)
         .with_bounds(full_rect(window))
         .with_devtools(false)
         .with_html(sidebar_html())
+        // Files dropped on the sidebar (a download dragged out of the list, or a file from the
+        // file manager) open in tabs. Without this the sidebar page itself would navigate to them.
+        .with_drag_drop_handler(move |event| open_dropped_files(event, &drop_proxy))
         .with_ipc_handler(move |req| {
             let _ = ipc_proxy.send_event(UserEvent::Ui(req.into_body()));
         });
@@ -107,4 +111,21 @@ pub(super) fn create_sidebar(
     register_browser_shortcuts(&sidebar, proxy.clone(), String::new());
 
     Ok(sidebar)
+}
+
+/// Most files opened by one drop, so a huge selection cannot flood the tab list.
+const DROP_FILES_MAX: usize = 10;
+
+/// Opens dropped files as tabs (PDFs reach the built-in viewer). Always claims the drop.
+fn open_dropped_files(event: wry::DragDropEvent, proxy: &EventLoopProxy<UserEvent>) -> bool {
+    if let wry::DragDropEvent::Drop { paths, .. } = event {
+        for path in paths.iter().take(DROP_FILES_MAX) {
+            if let Ok(address) = url::Url::from_file_path(path) {
+                let _ = proxy.send_event(UserEvent::External {
+                    url: Some(address.to_string()),
+                });
+            }
+        }
+    }
+    true
 }

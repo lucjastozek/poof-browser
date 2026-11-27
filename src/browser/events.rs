@@ -65,6 +65,7 @@ impl Browser {
                     self.state_dirty.set(true);
                 }
             }
+            UserEvent::OpenPdf { tab, url } => self.open_pdf_in_tab(&tab, &url),
             UserEvent::OpenTab { url } => {
                 if ok_url(&url, 4096, false) {
                     if let Err(e) = self.new_tab(&url) {

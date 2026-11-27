@@ -71,6 +71,7 @@ mod maintenance;
 mod messages;
 mod page_messages;
 mod passwords;
+mod pdf_viewer;
 mod persistence;
 mod platform;
 mod popup;

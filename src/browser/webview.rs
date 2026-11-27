@@ -22,6 +22,7 @@ impl Browser {
 
         let (p1, p2, p3) = (self.proxy.clone(), self.proxy.clone(), self.proxy.clone());
         let (id1, id2) = (id.clone(), id.clone());
+        let (nav_proxy, nav_tab) = (self.proxy.clone(), id.clone());
 
         let builder = WebViewBuilder::new_with_web_context(ctx)
             .with_bounds(bounds)
@@ -33,11 +34,15 @@ impl Browser {
             .with_url(&url)
             .with_initialization_script_for_main_only(INIT_JS, false)
             .with_initialization_script_for_main_only(scrollbar_script(&accent, sb_on), false)
+            .with_initialization_script_for_main_only(pdf_theme_script(&accent), false)
             .with_initialization_script_for_main_only(pip::TRACK_JS, false)
             .with_initialization_script_for_main_only(LIVE_JS, false)
             .with_initialization_script_for_main_only(SWIPE_NAV_JS, false)
             .with_initialization_script_for_main_only(FULLSCREEN_JS, false)
             .with_initialization_script_for_main_only(PASSWORDS_JS, true)
+            .with_navigation_handler(move |address| {
+                pdf_viewer::allow_navigation(&address, &nav_tab, &nav_proxy)
+            })
             .with_ipc_handler(move |req| {
                 let _ = p1.send_event(UserEvent::Page {
                     tab: id1.clone(),
@@ -60,6 +65,8 @@ impl Browser {
                     other => other,
                 }
             });
+
+        let builder = pdf_viewer::register(builder);
 
         #[cfg(windows)]
         let builder = {

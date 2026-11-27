@@ -17,6 +17,13 @@ pub(super) const FULLSCREEN_JS: &str = include_str!("js/fullscreen.js");
 pub(super) const PASSWORDS_JS: &str = include_str!("js/passwords.js");
 
 const SCROLLBAR_JS: &str = include_str!("js/scrollbar.js");
+const PDF_THEME_JS: &str = include_str!("js/pdf-theme.js");
+
+/// Colours the built-in PDF viewer with the space's accent.
+pub(super) fn pdf_theme_script(accent: &str) -> String {
+    let accent = if ok_color(accent) { accent } else { "#6dc5e2" };
+    PDF_THEME_JS.replace("__ACCENT__", accent)
+}
 
 pub(super) fn scrollbar_script(accent: &str, visible: bool) -> String {
     let accent = if ok_color(accent) { accent } else { "#6dc5e2" };

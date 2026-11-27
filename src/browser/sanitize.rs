@@ -8,6 +8,9 @@ pub fn normalize(input: &str, engine: &str) -> String {
     if s.is_empty() {
         return "about:blank".into();
     }
+    if matches!(s, "poof://pdf" | "poof:pdf" | "pdf://") {
+        return pdf_viewer::home_url();
+    }
     if let Ok(u) = url::Url::parse(s) {
         if matches!(u.scheme(), "http" | "https") || s == "about:blank" {
             return s.to_string();

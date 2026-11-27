@@ -14,6 +14,14 @@ function siteTile(s) {
   d.onclick = () => go({ cmd: "new_tab", input: s.url });
   return d;
 }
+/* Opens the built-in PDF viewer and tools. */
+function pdfTile() {
+  const d = el("div", "site");
+  d.append(ic("external", 18), el("span", "n", "PDF tools"));
+  d.title = "Open or edit PDF files";
+  d.onclick = () => go({ cmd: "new_tab", input: "poof://pdf" });
+  return d;
+}
 function buildNewTab(v) {
   const wrap = el("div", "center"),
     box = el("div", "w nt");
@@ -44,6 +52,7 @@ function buildNewTab(v) {
     ].slice(0, 8);
     const g = el("div", "sites");
     list.forEach((x) => g.append(siteTile(x)));
+    g.append(pdfTile());
     body.append(g);
   }
   function showResults(txt) {

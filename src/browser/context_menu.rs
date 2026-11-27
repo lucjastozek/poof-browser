@@ -77,7 +77,10 @@ fn image_url(
         }
         let value = uri.to_string().ok();
         CoTaskMemFree(Some(uri.0 as *const std::ffi::c_void));
-        let scheme = value.as_deref().and_then(|v| v.split(':').next()).unwrap_or("");
+        let scheme = value
+            .as_deref()
+            .and_then(|v| v.split(':').next())
+            .unwrap_or("");
         value.filter(|value| ok_url(value, IMAGE_URL_MAX, false))
     }
 }

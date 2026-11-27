@@ -33,6 +33,11 @@ pub enum UserEvent {
     OpenTab {
         url: String,
     },
+    /// A tab tried to open a PDF; it loads the built-in viewer instead.
+    OpenPdf {
+        tab: String,
+        url: String,
+    },
     /// Result of a background extension install (Web Store download).
     ExtResult {
         ok: bool,
