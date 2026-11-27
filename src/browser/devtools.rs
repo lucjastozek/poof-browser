@@ -282,7 +282,7 @@ impl Browser {
         if self.devtools_icons_version != 0 && !self.devtools_icons_applied {
             cfg["icons"] = json!(self.devtools_icons);
         }
-        format!("({DEVTOOLS_SYNC_JS})({cfg})")
+        call_script(DEVTOOLS_SYNC_JS, cfg)
     }
 
     /// Asks the frontend for its state and enforces the layout.
@@ -378,7 +378,7 @@ impl Browser {
         let arg = cfg.map(|c| c.to_string()).unwrap_or_else(|| "null".into());
         let _ = self
             .sidebar
-            .evaluate_script(&format!("({DEVTOOLS_CHROME_JS})({arg})"));
+            .evaluate_script(&call_script(DEVTOOLS_CHROME_JS, arg));
     }
 
     /// Merges the sidebar's own icons over the bundled defaults for the DevTools frontend.

@@ -2,6 +2,13 @@
 
 use super::*;
 
+/// Builds a call of a script file that holds one function expression. Formatters such as Prettier
+/// rewrite such a file to end in `;`, which would be a syntax error inside the parentheses.
+pub(super) fn call_script(function: &str, args: impl std::fmt::Display) -> String {
+    let function = function.trim_end().trim_end_matches(';');
+    format!("({function})({args})")
+}
+
 /// Runs in every page (main frame) before the page scripts.
 /// Reports live capture / calls so such tabs are never put to sleep.
 pub(super) const LIVE_JS: &str = include_str!("js/live.js");
