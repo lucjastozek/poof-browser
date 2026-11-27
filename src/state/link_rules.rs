@@ -56,7 +56,7 @@ impl LinkRule {
 }
 
 /// The lowercase host of an `http(s)` link, without `www.`; `None` for anything else.
-fn host_of(url: &str) -> Option<String> {
+pub fn host_of(url: &str) -> Option<String> {
     let parsed = url::Url::parse(url).ok()?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return None;

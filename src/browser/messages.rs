@@ -229,6 +229,23 @@ pub(super) enum Cmd {
         #[serde(default)]
         target: Option<RuleTarget>,
     },
+    /// Adds or replaces the boost of `domain`.
+    SaveBoost {
+        domain: String,
+        #[serde(default)]
+        enabled: bool,
+        #[serde(default)]
+        css: String,
+        #[serde(default)]
+        js: String,
+        #[serde(default)]
+        zap: Vec<String>,
+    },
+    DeleteBoost {
+        domain: String,
+    },
+    /// Starts the "click an element to hide it" picker on the visible page.
+    StartZap,
     ListExt,
     InstallExt {
         input: String,
@@ -393,6 +410,12 @@ pub(super) enum PageMsg {
     Pip {
         active: bool,
     },
+    /// Boost picker result. UNTRUSTED: only a selector; the site comes from the tab.
+    BoostZap {
+        s: String,
+    },
+    /// The page loaded and wants the JavaScript of its site's boosts run.
+    BoostRun,
     /// The page started / stopped live capture or a call (see `js/live.js`).
     Live {
         on: bool,

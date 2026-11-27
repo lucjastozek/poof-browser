@@ -94,6 +94,17 @@ impl Browser {
                 self.on_page_pip(tab, active);
                 return;
             }
+            PageMsg::BoostZap { s } => {
+                if !tab.is_empty() {
+                    self.add_zap(tab, s);
+                }
+            }
+            PageMsg::BoostRun => {
+                if !tab.is_empty() {
+                    self.run_boost_js(tab);
+                }
+                return;
+            }
             PageMsg::Focus => self.on_page_focus(tab),
         }
         // The sidebar is a separate WebView and only sees tab changes through pushed state.

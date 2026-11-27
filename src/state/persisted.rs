@@ -1,6 +1,7 @@
 //! Everything that lives in state.json: preferences plus the user's spaces, folders and tabs.
 
 use super::{
+    boosts::{Boost, BOOSTS_MAX},
     link_rules::{target_exists, LinkRule, RuleTarget, LINK_RULES_MAX},
     model::*,
     storage::write_json_atomically,
@@ -92,6 +93,9 @@ pub struct Persisted {
     /// Air Traffic Control: where links from other apps open. First matching rule wins.
     #[serde(default)]
     pub link_rules: Vec<LinkRule>,
+    /// Boosts: per-site CSS, JS and zapped elements.
+    #[serde(default)]
+    pub boosts: Vec<Boost>,
     /// Where links that match no rule open; `None` keeps the space that is showing.
     #[serde(default)]
     pub link_fallback: Option<RuleTarget>,
@@ -131,6 +135,7 @@ impl Default for Persisted {
             preinstalled: vec![],
             tab_sleep_minutes: default_tab_sleep_minutes(),
             link_rules: vec![],
+            boosts: vec![],
             link_fallback: None,
         }
     }
@@ -220,6 +225,11 @@ impl Persisted {
         p.sidebar_width = p.sidebar_width.clamp(180.0, 480.0);
         p.sanitize_devtools_preferences();
         p.prune_link_rules();
+        p.boosts = std::mem::take(&mut p.boosts)
+            .into_iter()
+            .filter_map(Boost::cleaned)
+            .take(BOOSTS_MAX)
+            .collect();
         p.tab_sleep_minutes = p.tab_sleep_minutes.min(10_080);
         if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
             p.theme = system();

@@ -4,6 +4,7 @@ const SETTINGS_TABS = [
   ["appearance", "sun", "Appearance"],
   ["privacy", "lock", "Privacy & data"],
   ["links", "airplane", "Air Traffic Control"],
+  ["boosts", "magic-2", "Boosts"],
   ["import", "download-2", "Import"],
   ["shortcuts", "key-2", "Shortcuts"],
   ["developer", "code", "Developer"],
@@ -513,6 +514,7 @@ function buildSettings(v) {
     appearance: appearancePanel,
     privacy: privacyPanel,
     links: linkRoutingPanel,
+    boosts: boostsPanel,
     import: importPanel,
     developer: developerPanel,
   };
@@ -584,6 +586,7 @@ function buildSettings(v) {
       if (ov !== "settings") return;
       if (window.__repaintShortcuts) window.__repaintShortcuts();
       if (window.__repaintLinkRules) window.__repaintLinkRules();
+      if (window.__repaintBoosts) window.__repaintBoosts();
     };
     wrapped._settingsWrapped = true;
     window.__setState = wrapped;
