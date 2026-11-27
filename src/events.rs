@@ -80,6 +80,17 @@ pub enum UserEvent {
     CloseWindow,
     /// A page asked for a popup window (sign-in, `window.open`); the main thread builds it.
     Popup(PopupRequest),
+    /// Opens the mini window (empty address: a quick search). Needs the event-loop target.
+    OpenMini {
+        url: String,
+    },
+    /// A button on the link-peek overlay's bar (UNTRUSTED text: matched exactly).
+    PeekCmd {
+        cmd: String,
+    },
+    PeekTitle {
+        title: String,
+    },
     /// The title of a popup window's page changed.
     /// A button or drag on a popup window's title bar (UNTRUSTED text: matched exactly).
     PopupCmd {

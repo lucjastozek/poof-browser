@@ -113,6 +113,22 @@ impl Browser {
             } => {
                 self.on_page_media(tab, on, playing, title, artist);
             }
+            PageMsg::PeekClose => {
+                if self.visible.as_deref() == Some(tab) {
+                    self.close_peek();
+                }
+                return;
+            }
+            PageMsg::Peek { u } => {
+                let from_visible = self.visible.as_deref() == Some(tab);
+                if from_visible && ok_url(&u, 4096, false) {
+                    if let Err(error) = self.open_peek(&u) {
+                        log::warn!("peek failed: {error:#}");
+                        let _ = self.new_tab(&u);
+                    }
+                }
+                return;
+            }
             PageMsg::Focus => self.on_page_focus(tab),
         }
         // The sidebar is a separate WebView and only sees tab changes through pushed state.
@@ -313,10 +329,8 @@ impl Browser {
             return;
         }
         if on {
-            self.media.insert(
-                tab.to_string(),
-                (playing, clip(&title, 200), clip(&artist, 200)),
-            );
+            self.media
+                .insert(tab.to_string(), (playing, clip(&title, 200), clip(&artist, 200)));
         } else {
             self.media.remove(tab);
         }

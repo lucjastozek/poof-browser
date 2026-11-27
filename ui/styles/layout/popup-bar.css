@@ -16,3 +16,61 @@
 #titlebar > #window-drag {
   flex: 1;
 }
+.bar-go {
+  flex: 0 1 260px;
+  min-width: 0;
+  height: 26px;
+  margin-left: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  outline: 0;
+}
+.bar-go[hidden] {
+  display: none;
+}
+.expand-glyph {
+  font-size: 14px;
+  line-height: 1;
+}
+.window-control[hidden] {
+  display: none;
+}
+
+/* Peek overlay: a floating card header, like Arc's. */
+body.mode-peek #titlebar {
+  height: 36px;
+  --topbar-height: 36px;
+  padding: 0 6px 0 14px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--line);
+  box-shadow: inset 0 2px 0 var(--space);
+}
+body.mode-peek .popup-title {
+  flex: 1;
+  padding: 0;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+body.mode-peek #popupTitle:empty {
+  display: block;
+}
+body.mode-peek #window-drag {
+  display: none;
+}
+body.mode-peek .window-controls {
+  gap: 2px;
+}
+body.mode-peek .window-control {
+  width: 28px;
+  height: 26px;
+  border-radius: 8px;
+}
+body.mode-peek .window-control.close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}

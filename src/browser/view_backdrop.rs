@@ -15,6 +15,7 @@ impl Browser {
     pub(super) fn apply_overlay(&mut self, open: bool) {
         self.overlay = open;
         if open {
+            self.close_peek();
             let _ = self.sidebar.focus();
         }
         self.relayout();

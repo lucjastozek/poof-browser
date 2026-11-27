@@ -144,6 +144,27 @@ function generalPanel() {
         },
       ),
     ),
+    field(
+      "Experimental",
+      switchRow(
+        "Mini window",
+        "Open links from other apps in a small window, and add a quick search window to the command bar",
+        S.mini_window,
+        (on) => {
+          S.mini_window = on;
+          send({ cmd: "set_mini_window", on });
+        },
+      ),
+      switchRow(
+        "Peek links",
+        "Alt+click a link to preview it over the page",
+        S.peek_links,
+        (on) => {
+          S.peek_links = on;
+          send({ cmd: "set_peek_links", on });
+        },
+      ),
+    ),
     defaultBrowserSettingsField(),
   ];
 }

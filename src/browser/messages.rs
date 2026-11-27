@@ -246,6 +246,14 @@ pub(super) enum Cmd {
     },
     /// Starts the "click an element to hide it" picker on the visible page.
     StartZap,
+    SetMiniWindow {
+        on: bool,
+    },
+    SetPeekLinks {
+        on: bool,
+    },
+    /// Opens the small quick-search window.
+    OpenMini,
     /// Play or pause the media of a tab (the mini player).
     MediaToggle {
         id: String,
@@ -430,6 +438,12 @@ pub(super) enum PageMsg {
         #[serde(default)]
         artist: String,
     },
+    /// Alt+click on a link while Peek is on. UNTRUSTED: checked like any address.
+    Peek {
+        u: String,
+    },
+    /// A click on the dimmed page behind the peek overlay.
+    PeekClose,
     /// The page started / stopped live capture or a call (see `js/live.js`).
     Live {
         on: bool,

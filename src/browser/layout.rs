@@ -151,6 +151,7 @@ impl Browser {
         let scale = self.window.scale_factor();
         let _ = self.sidebar.set_bounds(full_rect(&self.window));
         let _ = self.sidebar.set_visible(true);
+        self.layout_peek();
         self.sync_fullscreen_backdrop();
         let layout = self.layout();
 

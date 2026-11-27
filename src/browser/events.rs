@@ -7,7 +7,9 @@ impl Browser {
         match ev {
             UserEvent::CloseWindow => {}
             // `Popup` needs the event-loop target and is handled in main.rs.
-            UserEvent::Popup(_) => {}
+            UserEvent::Popup(_) | UserEvent::OpenMini { .. } => {}
+            UserEvent::PeekCmd { cmd } => self.on_peek_cmd(&cmd),
+            UserEvent::PeekTitle { title } => self.set_peek_title(&title),
             UserEvent::PopupCmd { window, cmd } => self.on_popup_cmd(window, &cmd),
             UserEvent::PopupClose { window } => {
                 self.popups.remove(&window);

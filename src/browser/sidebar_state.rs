@@ -139,6 +139,8 @@ impl Browser {
             "restore_tabs": self.p.restore_tabs,
             "link_rules": self.p.link_rules,
             "boosts": self.p.boosts,
+            "mini_window": self.p.mini_window,
+            "peek_links": self.p.peek_links,
             "media": self.media_rows(),
             "link_fallback": self.p.link_fallback,
             "save_passwords": self.p.save_passwords,

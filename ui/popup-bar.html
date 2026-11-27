@@ -13,8 +13,25 @@
   <body>
     <div id="titlebar" aria-label="Window title and controls">
       <span class="popup-title" id="popupTitle"></span>
+      <input
+        id="barGo"
+        class="bar-go"
+        hidden
+        spellcheck="false"
+        placeholder="Search or enter an address"
+        aria-label="Search or enter an address"
+      />
       <div class="window-drag" id="window-drag"></div>
       <div class="window-controls">
+        <button
+          class="window-control"
+          id="winExpand"
+          hidden
+          title="Open in a tab"
+          aria-label="Open in a tab"
+        >
+          <span class="expand-glyph">↗</span>
+        </button>
         <button
           class="window-control"
           id="winMin"

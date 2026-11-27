@@ -96,6 +96,7 @@ fn main() -> anyhow::Result<()> {
             Event::UserEvent(UserEvent::Popup(request)) => {
                 browser.open_popup_window(request, target)
             }
+            Event::UserEvent(UserEvent::OpenMini { url }) => browser.open_mini_window(&url, target),
             Event::UserEvent(ev) => browser.on_user_event(ev),
             _ => {}
         }

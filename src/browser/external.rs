@@ -15,6 +15,12 @@ impl Browser {
             self.startup_urls.push(url.trim().to_string());
             return;
         }
+        if self.wants_mini(url.trim()) {
+            let _ = self.proxy.send_event(UserEvent::OpenMini {
+                url: url.trim().to_string(),
+            });
+            return;
+        }
         if let Err(error) = self.open_routed(url.trim()) {
             log::error!("{error:#}");
         }
@@ -31,8 +37,11 @@ impl Browser {
 
     /// Another launch asked this browser to come to the front (and maybe open a link).
     pub(super) fn on_external_launch(&mut self, url: Option<String>) {
-        self.window.set_minimized(false);
-        self.window.set_focus();
+        let mini = url.as_deref().is_some_and(|u| self.wants_mini(u.trim()));
+        if !mini {
+            self.window.set_minimized(false);
+            self.window.set_focus();
+        }
         if let Some(url) = url {
             self.open_external(&url);
         }

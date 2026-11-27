@@ -15,6 +15,7 @@ impl Browser {
         let accent = self.cur_space().color.clone();
         let dir = self.root.join("profiles").join(&profile_id);
         let sb_on = self.scrollbar_visible;
+        let peek_js = mini::peek_script(self.p.peek_links);
         let boost_js = boosts::boost_script(&self.p.boosts);
         let ctx = self
             .contexts
@@ -36,6 +37,7 @@ impl Browser {
             .with_initialization_script_for_main_only(INIT_JS, false)
             .with_initialization_script_for_main_only(boost_js, false)
             .with_initialization_script_for_main_only(MEDIA_JS, false)
+            .with_initialization_script_for_main_only(peek_js, false)
             .with_initialization_script_for_main_only(scrollbar_script(&accent, sb_on), false)
             .with_initialization_script_for_main_only(pdf_theme_script(&accent), false)
             .with_initialization_script_for_main_only(pip::TRACK_JS, false)

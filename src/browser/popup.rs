@@ -15,7 +15,7 @@ const POPUP_DEFAULT_SIZE: (f64, f64) = (500.0, 650.0);
 const POPUP_MIN_SIZE: (f64, f64) = (320.0, 240.0);
 const POPUP_MAX_SIZE: (f64, f64) = (1600.0, 1200.0);
 /// Height of the top bar in logical pixels: `--topbar-height` in `ui/styles/layout/topbar.css`.
-const BAR_HEIGHT: f64 = 40.0;
+pub(super) const BAR_HEIGHT: f64 = 40.0;
 
 const BAR_PAGE: &str = include_str!("../../ui/popup-bar.html");
 const BAR_STYLES: &[&str] = &[
@@ -32,14 +32,16 @@ const BAR_SCRIPTS: &[&str] = &[
 
 /// A popup window with its top bar and page; dropping it closes all three.
 pub(super) struct Popup {
-    window: Window,
-    bar: WebView,
-    page: WebView,
+    pub(super) window: Window,
+    pub(super) bar: WebView,
+    pub(super) page: WebView,
+    /// The mini window: its bar has an address field.
+    pub(super) mini: bool,
 }
 
 /// The top bar document with styles, scripts and the window's initial state inlined.
-fn popup_bar_html(theme: &str, space: &str, title: &str) -> String {
-    let init = json!({ "theme": theme, "space": space, "title": title })
+pub(super) fn popup_bar_html(theme: &str, space: &str, title: &str, mode: &str) -> String {
+    let init = json!({ "theme": theme, "space": space, "title": title, "mode": mode })
         .to_string()
         .replace('<', "\\u003c");
     let styles = format!("<style>{}</style>", BAR_STYLES.concat());
@@ -57,7 +59,7 @@ fn popup_bar_html(theme: &str, space: &str, title: &str) -> String {
 
 impl Popup {
     /// Puts the bar on top and the page under it, filling the window.
-    fn layout(&self) {
+    pub(super) fn layout(&self) {
         let (width, height) = logical(&self.window);
         let _ = self.bar.set_bounds(rect(0.0, 0.0, width, BAR_HEIGHT));
         let _ = self
@@ -141,7 +143,7 @@ impl Browser {
         self.center_over_main(&window);
         let id = window.id();
 
-        let html = popup_bar_html(&self.p.theme, &self.cur_space().color, "");
+        let html = popup_bar_html(&self.p.theme, &self.cur_space().color, "", "popup");
         let bar_proxy = self.proxy.clone();
         let bar = WebViewBuilder::new_with_web_context(&mut self.ui_ctx)
             .with_bounds(rect(0.0, 0.0, size.width, BAR_HEIGHT))
@@ -177,7 +179,12 @@ impl Browser {
         watch_close(&page, &self.proxy, id);
         watch_popups(&page, &self.proxy, false);
         show_link_status(&page);
-        let popup = Popup { window, bar, page };
+        let popup = Popup {
+            window,
+            bar,
+            page,
+            mini: false,
+        };
         popup.layout();
         Ok(popup)
     }
@@ -234,6 +241,20 @@ impl Browser {
             }
             "close" => {
                 self.popups.remove(&window);
+            }
+            "expand" => {
+                let url = popup.page.url().unwrap_or_default();
+                self.popups.remove(&window);
+                if ok_external_url(&url) {
+                    let _ = self.new_tab(&url);
+                }
+                self.window.set_minimized(false);
+                self.window.set_focus();
+                self.push_state();
+            }
+            go if go.starts_with("go:") && popup.mini => {
+                let url = normalize(&clip(&go[3..], 2000), &self.p.search_engine);
+                let _ = popup.page.load_url(&url);
             }
             _ => {}
         }

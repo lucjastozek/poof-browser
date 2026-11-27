@@ -14,10 +14,10 @@ use crate::{
     passwords::PasswordStore,
     pip,
     state::{
-        boosts_for, file_name, load_downloads, load_history, new_id, ok_selector, save_downloads,
-        save_history, unique_path, valid_icon, Boost, DownloadEntry, DownloadStatus, HistoryEntry,
-        Kind, LiveFolder, LiveItem, LiveSource, Persisted, Profile, RuleMatch, RuleTarget, Saved,
-        Space, TabFolder, BOOSTS_MAX, BOOST_ZAP_MAX, LIVE_INTERVAL_MAX, LIVE_INTERVAL_MIN,
+        boosts_for, file_name, load_downloads, load_history, new_id, save_downloads, save_history, unique_path,
+        valid_icon, Boost, DownloadEntry, DownloadStatus, HistoryEntry, Kind, LiveFolder, LiveItem,
+        LiveSource, Persisted, Profile, RuleMatch, RuleTarget, Saved, Space, TabFolder,
+        LIVE_INTERVAL_MAX, LIVE_INTERVAL_MIN, BOOSTS_MAX, BOOST_ZAP_MAX, ok_selector,
     },
     updater, UserEvent,
 };
@@ -71,6 +71,7 @@ mod layout;
 mod link_routing;
 mod live_folders;
 mod maintenance;
+mod mini;
 mod messages;
 mod page_messages;
 mod passwords;
@@ -187,6 +188,8 @@ pub struct Browser {
     saved_splits: Vec<Split>,
     /// Tabs where the user started a video (only those are worth waking for auto-PIP).
     vid_tabs: HashSet<String>,
+    /// The link-peek overlay, when one is open.
+    link_peek: Option<mini::Peek>,
     /// Media a page reported, by tab: (playing, title, artist). Shown as the mini player.
     media: HashMap<String, (bool, String, String)>,
     /// Open popup windows (sign-in, `window.open`), by window id.
@@ -304,6 +307,7 @@ impl Browser {
             tab_drag: false,
             saved_splits: Vec::new(),
             vid_tabs: HashSet::new(),
+            link_peek: None,
             media: HashMap::new(),
             popups: HashMap::new(),
             pip_tabs: HashSet::new(),

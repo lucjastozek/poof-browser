@@ -93,6 +93,12 @@ pub struct Persisted {
     /// Air Traffic Control: where links from other apps open. First matching rule wins.
     #[serde(default)]
     pub link_rules: Vec<LinkRule>,
+    /// Little Arc: links from other apps open in a small chrome-less window. Off by default.
+    #[serde(default)]
+    pub mini_window: bool,
+    /// Peek: Alt+click on a link previews it in an overlay. Off by default.
+    #[serde(default)]
+    pub peek_links: bool,
     /// Boosts: per-site CSS, JS and zapped elements.
     #[serde(default)]
     pub boosts: Vec<Boost>,
@@ -136,6 +142,8 @@ impl Default for Persisted {
             tab_sleep_minutes: default_tab_sleep_minutes(),
             link_rules: vec![],
             boosts: vec![],
+            mini_window: false,
+            peek_links: false,
             link_fallback: None,
         }
     }

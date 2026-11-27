@@ -171,6 +171,7 @@ impl Browser {
     }
 
     pub(super) fn hide_visible(&mut self) {
+        self.close_peek();
         self.end_split();
         self.leave_fullscreen();
         let Some(id) = self.visible.take() else {
