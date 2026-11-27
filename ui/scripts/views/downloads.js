@@ -12,13 +12,6 @@
   const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
   const DRAG_START_PX = 6; // pointer travel with the button held before a drag starts
   const CLICK_SHIELD_MS = 400; // a click this soon after a drag is the drag ending, not a click
-  /* Pause and play are not part of the generated icon set. */
-  const EXTRA_ICONS = {
-    pause:
-      '<path fill="currentColor" d="M8 4.5h-1a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-13a1 1 0 0 0-1-1Zm9 0h-1a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-13a1 1 0 0 0-1-1Z"/>',
-    play: '<path fill="currentColor" d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.2-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6Z"/>',
-  };
-  const extraIcon = (name, size) => svg(EXTRA_ICONS, name, size);
 
   let rows = [];
   let shown = "";
@@ -56,7 +49,7 @@
   }
   bar.style.strokeDasharray = String(RING_LENGTH);
   bar.style.strokeDashoffset = String(RING_LENGTH);
-  button.append(ring, ic("download", 16), el("span", "dot"));
+  button.append(ring, ic("download-2", 16), el("span", "dot"));
   const toolbar = $("pageToolbar");
   toolbar.insertBefore(button, toolbar.querySelector(".urlwrap").nextSibling);
   button.onclick = () => toggle();
@@ -105,17 +98,17 @@
   /* ----- rows ----- */
 
   const FILE_ICONS = {
-    images: "file-image",
-    video: "file-video",
-    audio: "file-audio",
-    archives: "file-archive",
-    documents: "file-document",
+    images: "photo-album",
+    video: "video",
+    audio: "music",
+    archives: "folder",
+    documents: "document-2",
     spreadsheets: "file-spreadsheet",
-    presentations: "file-document",
-    code: "file-code",
-    executables: "file-code",
-    fonts: "file-document",
-    ebooks: "file-document",
+    presentations: "document-2",
+    code: "code",
+    executables: "code",
+    fonts: "document-2",
+    ebooks: "document-2",
   };
 
   const FILE_EXTENSIONS = {
@@ -295,7 +288,7 @@
       "span",
       "d-ico" + (colorClass ? " d-ico-" + colorClass : ""),
     );
-    box.append(ic(FILE_ICONS[group] || "file-default", 22));
+    box.append(ic(FILE_ICONS[group] || "file", 22));
     return box;
   }
 
@@ -349,19 +342,20 @@
   function actionsFor(d) {
     const out = [];
     const tool = (icon, tip, cmd) => {
-      const b = ib("x", tip, () => send({ cmd, id: d.id }));
+      const b = ib("close", tip, () => send({ cmd, id: d.id }));
       b.replaceChildren(typeof icon === "string" ? ic(icon) : icon);
       return b;
     };
     if (d.status === "active")
-      out.push(tool(extraIcon("pause", 16), "Pause", "pause_download"));
+      out.push(tool(ic("pause", 16), "Pause", "pause_download"));
     if (d.status === "paused")
-      out.push(tool(extraIcon("play", 16), "Resume", "resume_download"));
-    if (isLive(d)) out.push(tool("x", "Cancel download", "cancel_download"));
+      out.push(tool(ic("play", 16), "Resume", "resume_download"));
+    if (isLive(d))
+      out.push(tool("close", "Cancel download", "cancel_download"));
     else {
       if (d.status === "completed")
-        out.push(tool("folder", "Show in folder", "show_download"));
-      out.push(tool("x", "Remove from list", "remove_download"));
+        out.push(tool("folder-2", "Show in folder", "show_download"));
+      out.push(tool("close", "Remove from list", "remove_download"));
     }
     return out;
   }

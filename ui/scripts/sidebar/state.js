@@ -50,7 +50,7 @@ window.__setState = (s) => {
   collapseBtn.title = isCollapsed ? "Expand sidebar" : "Collapse sidebar";
   collapseBtn.setAttribute("aria-label", collapseBtn.title);
   collapseBtn.replaceChildren(
-    ic(isCollapsed ? "panelLeftOpen" : "panelLeftClose"),
+    ic(isCollapsed ? "sidebar-left-open" : "sidebar-left-close"),
   );
   const idx = s.spaces.findIndex((x) => x.id === s.current),
     sp = s.spaces[idx];

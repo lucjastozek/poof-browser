@@ -2,7 +2,13 @@
 "use strict";
 
 const THUMB_W = 132;
-const Panels = { tab: "thumbs", thumbs: [], observer: null, rendering: false, queue: [] };
+const Panels = {
+  tab: "thumbs",
+  thumbs: [],
+  observer: null,
+  rendering: false,
+  queue: [],
+};
 
 function toggleSidePanel(force) {
   const side = $("side");
@@ -18,11 +24,16 @@ function buildSidePanel() {
   const body = el("div", "side-body");
   const show = (tab) => {
     Panels.tab = tab;
-    tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+    tabs
+      .querySelectorAll("button")
+      .forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
     if (tab === "thumbs") buildThumbs(body);
     else buildOutline(body);
   };
-  for (const [tab, icon, label] of [["thumbs", "pages", "Pages"], ["outline", "list", "Outline"]]) {
+  for (const [tab, icon, label] of [
+    ["thumbs", "copy-3", "Pages"],
+    ["outline", "list-check", "Outline"],
+  ]) {
     const b = el("button", "tab");
     b.type = "button";
     b.dataset.tab = tab;
@@ -46,7 +57,8 @@ function buildThumbs(body) {
   if (!V.doc) return;
   Panels.observer = new IntersectionObserver(
     (entries) => {
-      for (const e of entries) if (e.isIntersecting && !e.target.__done) Panels.queue.push(e.target);
+      for (const e of entries)
+        if (e.isIntersecting && !e.target.__done) Panels.queue.push(e.target);
       drawNextThumb();
     },
     { root: body, rootMargin: "200px 0px" },
@@ -81,7 +93,10 @@ async function drawNextThumb() {
     const canvas = document.createElement("canvas");
     canvas.width = Math.floor(viewport.width);
     canvas.height = Math.floor(viewport.height);
-    await page.render({ canvasContext: canvas.getContext("2d", { alpha: false }), viewport }).promise;
+    await page.render({
+      canvasContext: canvas.getContext("2d", { alpha: false }),
+      viewport,
+    }).promise;
     if (V.doc === doc) {
       target.__holder.replaceChildren(canvas);
       target.style.aspectRatio = base.width + " / " + base.height;
@@ -94,7 +109,8 @@ async function drawNextThumb() {
 function markThumb(n) {
   Panels.thumbs.forEach((b) => b.classList.toggle("on", b.__num === n));
   const b = Panels.thumbs[n - 1];
-  if (b && !$("side").hidden && Panels.tab === "thumbs") b.scrollIntoView({ block: "nearest" });
+  if (b && !$("side").hidden && Panels.tab === "thumbs")
+    b.scrollIntoView({ block: "nearest" });
 }
 
 /* ---------- outline ---------- */
@@ -106,7 +122,8 @@ async function buildOutline(body) {
   const doc = V.doc;
   const items = await doc.pdf.getOutline().catch(() => null);
   if (V.doc !== doc || Panels.tab !== "outline") return;
-  if (!items || !items.length) return body.append(el("p", "muted pad", "This document has no outline."));
+  if (!items || !items.length)
+    return body.append(el("p", "muted pad", "This document has no outline."));
   body.append(outlineList(items, 0));
 }
 function outlineList(items, depth) {
@@ -121,7 +138,10 @@ function outlineList(items, depth) {
     if (kids) twist.append(ic("right", 14));
     const link = el("button", "tree-link", item.title || "Untitled");
     link.type = "button";
-    link.onclick = () => (item.url && /^https?:/i.test(item.url) ? window.open(item.url) : goToDestination(item.dest));
+    link.onclick = () =>
+      item.url && /^https?:/i.test(item.url)
+        ? window.open(item.url)
+        : goToDestination(item.dest);
     row.append(twist, link);
     li.append(row);
     if (kids) {
@@ -158,7 +178,9 @@ async function showProperties() {
     ["PDF version", info.PDFFormatVersion],
   ].filter((r) => r[1]);
   const dl = el("dl", "props");
-  rows.forEach(([k, val]) => dl.append(el("dt", "", k), el("dd", "", String(val))));
+  rows.forEach(([k, val]) =>
+    dl.append(el("dt", "", k), el("dd", "", String(val))),
+  );
   dialog("Document properties", dl);
 }
 
@@ -177,8 +199,13 @@ async function printDocument() {
       const canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext("2d", { alpha: false }), viewport }).promise;
-      const url = URL.createObjectURL(await canvasBlob(canvas, "image/jpeg", 0.92));
+      await page.render({
+        canvasContext: canvas.getContext("2d", { alpha: false }),
+        viewport,
+      }).promise;
+      const url = URL.createObjectURL(
+        await canvasBlob(canvas, "image/jpeg", 0.92),
+      );
       urls.push(url);
       const img = new Image();
       img.src = url;
@@ -198,8 +225,14 @@ async function printDocument() {
 
 V.on("doc", () => {
   const side = $("side");
-  if (side.hidden) side.replaceChildren(); // rebuilt for the new file when it is opened
+  if (side.hidden)
+    side.replaceChildren(); // rebuilt for the new file when it is opened
   else Panels.show?.(Panels.tab);
 });
 V.on("page", markThumb);
-V.on("sizes", () => Panels.thumbs.forEach((b, i) => !b.__done && (b.style.aspectRatio = V.pages[i].w + " / " + V.pages[i].h)));
+V.on("sizes", () =>
+  Panels.thumbs.forEach(
+    (b, i) =>
+      !b.__done && (b.style.aspectRatio = V.pages[i].w + " / " + V.pages[i].h),
+  ),
+);

@@ -22,9 +22,12 @@
     card.setAttribute("aria-label", title);
 
     const text = el("div", "pw-text");
-    text.append(el("div", "pw-title", title), el("div", "pw-user", "Restarts poof to update"));
+    text.append(
+      el("div", "pw-title", title),
+      el("div", "pw-user", "Restarts poof to update"),
+    );
     const head = el("div", "pw-head");
-    head.append(ic("download", 18), text);
+    head.append(ic("download-2", 18), text);
 
     const actions = el("div", "pw-actions");
     const now = btn("primary sm", "Update now", () => answer("update_accept"));

@@ -32,7 +32,8 @@ const V = {
   },
 };
 const scrollBox = () => $("scroll");
-const natural = (p) => (V.rotation % 180 ? { w: p.h, h: p.w } : { w: p.w, h: p.h });
+const natural = (p) =>
+  V.rotation % 180 ? { w: p.h, h: p.w } : { w: p.w, h: p.h };
 
 /* ---------- open / close ---------- */
 async function openDocument(bytes, name, source) {
@@ -110,7 +111,15 @@ function buildPages() {
     const el = document.createElement("div");
     el.className = "pg";
     el.dataset.page = i;
-    const p = { num: i, el, w: first.w, h: first.h, rendered: false, want: false, busy: false };
+    const p = {
+      num: i,
+      el,
+      w: first.w,
+      h: first.h,
+      rendered: false,
+      want: false,
+      busy: false,
+    };
     el.__page = p;
     V.pages.push(p);
     holder.append(el);
@@ -130,14 +139,18 @@ async function loadSizes() {
   const doc = V.doc;
   for (let start = 1; start <= doc.n; start += 24) {
     const batch = [];
-    for (let i = start; i < start + 24 && i <= doc.n; i++) batch.push(doc.pdf.getPage(i));
+    for (let i = start; i < start + 24 && i <= doc.n; i++)
+      batch.push(doc.pdf.getPage(i));
     const pages = await Promise.all(batch).catch(() => null);
     if (V.doc !== doc || !pages) return;
     let changed = false;
     pages.forEach((page, k) => {
       const v = page.getViewport({ scale: 1 });
       const p = V.pages[start - 1 + k];
-      if (p && (Math.abs(p.w - v.width) > 0.5 || Math.abs(p.h - v.height) > 0.5)) {
+      if (
+        p &&
+        (Math.abs(p.w - v.width) > 0.5 || Math.abs(p.h - v.height) > 0.5)
+      ) {
         p.w = v.width;
         p.h = v.height;
         changed = true;
@@ -180,7 +193,9 @@ function relayout(keep) {
     return top;
   });
   $("pages").style.height = y - PAGE_GAP + PAD + "px";
-  if (anchor) box.scrollTop = V.tops[anchor.i] + anchor.f * natural(V.pages[anchor.i]).h * V.scale;
+  if (anchor)
+    box.scrollTop =
+      V.tops[anchor.i] + anchor.f * natural(V.pages[anchor.i]).h * V.scale;
   V.emit("zoom", V.scale);
 }
 function anchorAt(scrollTop) {
@@ -203,14 +218,16 @@ function pageAt(y) {
 /* ---------- zoom, rotate, navigate ---------- */
 let rerenderTimer = 0;
 function setZoom(mode) {
-  V.zoomMode = typeof mode === "number" ? clamp(mode, ZOOM_MIN, ZOOM_MAX) : mode;
+  V.zoomMode =
+    typeof mode === "number" ? clamp(mode, ZOOM_MIN, ZOOM_MAX) : mode;
   relayout(true);
   clearTimeout(rerenderTimer);
   rerenderTimer = setTimeout(rerenderAll, 90);
 }
 const zoomBy = (factor) => setZoom(V.scale * factor);
 function rotateView(deg) {
-  if (typeof Ann !== "undefined" && Ann.active) return toast("Finish editing before rotating the view.");
+  if (typeof Ann !== "undefined" && Ann.active)
+    return toast("Finish editing before rotating the view.");
   V.rotation = (V.rotation + deg + 360) % 360;
   relayout(true);
   rerenderAll();
@@ -224,7 +241,8 @@ function rerenderAll() {
 function goToPage(n, frac = 0) {
   if (!V.doc) return;
   const i = clamp(Math.round(n) - 1, 0, V.pages.length - 1);
-  scrollBox().scrollTop = V.tops[i] - PAD + frac * natural(V.pages[i]).h * V.scale;
+  scrollBox().scrollTop =
+    V.tops[i] - PAD + frac * natural(V.pages[i]).h * V.scale;
 }
 function updateCurrent() {
   if (!V.doc || !V.tops.length) return;
@@ -255,7 +273,10 @@ function pump() {
   while (V.active < RENDER_CONCURRENCY && V.queue.length) {
     // The page nearest the viewport goes first.
     const mid = scrollBox().scrollTop + scrollBox().clientHeight / 2;
-    V.queue.sort((a, b) => Math.abs(V.tops[a.num - 1] - mid) - Math.abs(V.tops[b.num - 1] - mid));
+    V.queue.sort(
+      (a, b) =>
+        Math.abs(V.tops[a.num - 1] - mid) - Math.abs(V.tops[b.num - 1] - mid),
+    );
     const p = V.queue.shift();
     if (!p.want) continue;
     V.active++;
@@ -284,7 +305,10 @@ async function renderPage(p) {
     const canvas = document.createElement("canvas");
     canvas.width = Math.floor(hi.width);
     canvas.height = Math.floor(hi.height);
-    await page.render({ canvasContext: canvas.getContext("2d", { alpha: false }), viewport: hi }).promise;
+    await page.render({
+      canvasContext: canvas.getContext("2d", { alpha: false }),
+      viewport: hi,
+    }).promise;
     if (V.doc !== doc || token !== V.token) return;
 
     const content = await page.getTextContent();
@@ -302,7 +326,9 @@ async function renderPage(p) {
     const links = await buildLinks(page, viewport);
     if (V.doc !== doc || token !== V.token) return;
 
-    p.el.querySelectorAll("canvas,.textLayer,.links").forEach((n) => n.remove());
+    p.el
+      .querySelectorAll("canvas,.textLayer,.links")
+      .forEach((n) => n.remove());
     p.el.prepend(canvas, layer, links);
     Object.assign(p, { textDivs, textStr, rendered: true, stale: false });
     V.emit("rendered", p);
@@ -325,7 +351,8 @@ async function buildLinks(page, viewport) {
   for (const a of annots) {
     if (a.subtype !== "Link") continue;
     const url = a.url || a.unsafeUrl;
-    if (!(a.dest || a.action || /^(https?:|mailto:)/i.test(url || ""))) continue;
+    if (!(a.dest || a.action || /^(https?:|mailto:)/i.test(url || "")))
+      continue;
     const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(a.rect);
     const link = document.createElement("a");
     link.style.cssText = `left:${Math.min(x1, x2)}px;top:${Math.min(y1, y2)}px;width:${Math.abs(x2 - x1)}px;height:${Math.abs(y2 - y1)}px`;
@@ -350,16 +377,23 @@ async function buildLinks(page, viewport) {
 async function goToDestination(dest) {
   if (!V.doc || !dest) return;
   try {
-    const explicit = typeof dest === "string" ? await V.doc.pdf.getDestination(dest) : dest;
+    const explicit =
+      typeof dest === "string" ? await V.doc.pdf.getDestination(dest) : dest;
     if (!explicit) return;
     const ref = explicit[0];
-    const index = typeof ref === "object" ? await V.doc.pdf.getPageIndex(ref) : ref;
+    const index =
+      typeof ref === "object" ? await V.doc.pdf.getPageIndex(ref) : ref;
     const p = V.pages[index];
     if (!p) return;
     const page = await V.doc.pdf.getPage(index + 1);
     const view = page.getViewport({ scale: 1 });
-    const y = /^(XYZ|FitH|FitBH)$/.test(explicit[1]?.name) ? explicit[3] ?? explicit[2] : null;
-    const frac = y == null ? 0 : clamp((page.view[3] - y) / (page.view[3] - page.view[1]), 0, 1);
+    const y = /^(XYZ|FitH|FitBH)$/.test(explicit[1]?.name)
+      ? (explicit[3] ?? explicit[2])
+      : null;
+    const frac =
+      y == null
+        ? 0
+        : clamp((page.view[3] - y) / (page.view[3] - page.view[1]), 0, 1);
     goToPage(index + 1, V.rotation === 0 && view.rotation === 0 ? frac : 0);
   } catch (e) {
     console.warn("bad destination", e);

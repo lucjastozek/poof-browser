@@ -28,8 +28,10 @@ const STYLES: &[&str] = &[
 ];
 
 const SCRIPTS: &[&str] = &[
-    include_str!("../../ui/icons.js"),
+    // Generated from the `@mingcute/svg` npm package by `tools/icons.rs`.
+    include_str!(concat!(env!("OUT_DIR"), "/icons.js")),
     include_str!("../../ui/scripts/core/dom.js"),
+    include_str!("../../ui/scripts/core/icon-aliases.js"),
     include_str!("../../ui/scripts/core/space-icons.js"),
     include_str!("../../ui/scripts/core/widgets.js"),
     include_str!("../../ui/scripts/core/toast.js"),

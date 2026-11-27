@@ -17,7 +17,7 @@ function siteTile(s) {
 /* Opens the built-in PDF viewer and tools. */
 function pdfTile() {
   const d = el("div", "site");
-  d.append(ic("external", 18), el("span", "n", "PDF tools"));
+  d.append(ic("external-link", 18), el("span", "n", "PDF tools"));
   d.title = "Open or edit PDF files";
   d.onclick = () => go({ cmd: "new_tab", input: "poof://pdf" });
   return d;
@@ -59,7 +59,7 @@ function buildNewTab(v) {
     const ql = txt.toLowerCase();
     items = [];
     items.push({
-      ic: looksUrl(txt) ? "external" : "search",
+      ic: looksUrl(txt) ? "external-link" : "search",
       t: looksUrl(txt) ? "Go to " + txt : "Search for “" + txt + "”",
       sub: "",
       run: () => go({ cmd: "new_tab", input: txt }),

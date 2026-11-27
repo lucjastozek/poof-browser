@@ -2,7 +2,14 @@
 "use strict";
 
 const PDF_TOOLS = [];
-const TOOL_GROUPS = ["Organize", "Optimize", "Convert to PDF", "Convert from PDF", "Edit", "Security"];
+const TOOL_GROUPS = [
+  "Organize",
+  "Optimize",
+  "Convert to PDF",
+  "Convert from PDF",
+  "Edit",
+  "Security",
+];
 const defineTool = (t) => PDF_TOOLS.push(t);
 let activeBench = null;
 
@@ -12,9 +19,17 @@ function buildHome() {
   const wrap = el("div", "home-wrap");
   const hero = el("div", "hero");
   hero.append(el("h1", "", "PDF viewer & tools"));
-  hero.append(el("p", "muted", "Open a file to read it, or pick a tool. Everything happens on this computer; your files are never uploaded."));
+  hero.append(
+    el(
+      "p",
+      "muted",
+      "Open a file to read it, or pick a tool. Everything happens on this computer; your files are never uploaded.",
+    ),
+  );
   const row = el("div", "hero-actions");
-  row.append(btn("Open PDF", "open", () => openFromDisk(), "primary big"));
+  row.append(
+    btn("Open PDF", "folder-open", () => openFromDisk(), "primary big"),
+  );
   hero.append(row, el("p", "hint", "or drop files anywhere in this window"));
   wrap.append(hero);
   for (const group of TOOL_GROUPS) {
@@ -50,25 +65,42 @@ function openTool(tool, files = []) {
   const root = $("tool");
   const wb = { tool, files: [], root, opt: {}, grid: null, busy: false };
   activeBench = wb;
-  const accepts = (f) => (tool.accept === "image" ? isImageFile(f) : isPdfFile(f));
+  const accepts = (f) =>
+    tool.accept === "image" ? isImageFile(f) : isPdfFile(f);
 
   wb.addFiles = async (list) => {
     const fresh = [...list].filter(accepts);
-    if (!fresh.length) return toast(tool.accept === "image" ? "Please choose image files." : "Please choose PDF files.");
+    if (!fresh.length)
+      return toast(
+        tool.accept === "image"
+          ? "Please choose image files."
+          : "Please choose PDF files.",
+      );
     const picked = tool.multi ? fresh : fresh.slice(0, 1);
     const added = [];
     for (const f of picked) {
       try {
-        added.push(tool.accept === "image" ? { name: f.name, file: f, size: f.size, pages: 1 } : await describeFile(f));
+        added.push(
+          tool.accept === "image"
+            ? { name: f.name, file: f, size: f.size, pages: 1 }
+            : await describeFile(f),
+        );
       } catch (e) {
-        if (e.message !== "cancelled") toast(`Couldn’t read ${f.name}. It may be damaged.`, 5000);
+        if (e.message !== "cancelled")
+          toast(`Couldn’t read ${f.name}. It may be damaged.`, 5000);
       }
     }
     if (!added.length) return;
     wb.files = tool.multi ? [...wb.files, ...added] : added;
     wb.render();
   };
-  wb.chooseFiles = async () => wb.addFiles(await pickFiles(tool.accept === "image" ? "image/*" : "application/pdf,.pdf", tool.multi));
+  wb.chooseFiles = async () =>
+    wb.addFiles(
+      await pickFiles(
+        tool.accept === "image" ? "image/*" : "application/pdf,.pdf",
+        tool.multi,
+      ),
+    );
   wb.updateAction = () => {
     if (wb.action) wb.action.disabled = tool.ready ? !tool.ready(wb) : false;
   };
@@ -92,8 +124,26 @@ function renderBench(wb) {
   wb.root.replaceChildren(benchHeader(wb), body);
   if (!wb.files.length) {
     const drop = el("div", "dropzone");
-    drop.append(ic(tool.icon, 40), btn(tool.multi ? "Select files" : "Select file", "open", wb.chooseFiles, "primary big"));
-    drop.append(el("p", "muted", tool.accept === "image" ? "or drop images here" : tool.multi ? "or drop PDF files here" : "or drop a PDF file here"));
+    drop.append(
+      ic(tool.icon, 40),
+      btn(
+        tool.multi ? "Select files" : "Select file",
+        "folder-open",
+        wb.chooseFiles,
+        "primary big",
+      ),
+    );
+    drop.append(
+      el(
+        "p",
+        "muted",
+        tool.accept === "image"
+          ? "or drop images here"
+          : tool.multi
+            ? "or drop PDF files here"
+            : "or drop a PDF file here",
+      ),
+    );
     body.append(drop);
     return;
   }
@@ -108,7 +158,12 @@ function renderBench(wb) {
     side.append(el("h2", "", "Options"));
     tool.options(wb, side);
   }
-  wb.action = btn(tool.action || tool.name, tool.icon, () => runBench(wb), "primary big wide");
+  wb.action = btn(
+    tool.action || tool.name,
+    tool.icon,
+    () => runBench(wb),
+    "primary big wide",
+  );
   side.append(wb.action);
   wb.updateAction();
 }
@@ -117,23 +172,46 @@ function fileList(wb) {
   const box = el("div", "files");
   wb.files.forEach((f, i) => {
     const row = el("div", "file");
-    row.append(ic(f.file ? "image" : "file", 20));
+    row.append(ic(f.file ? "pic" : "file", 20));
     const info = el("div", "file-info");
-    info.append(el("strong", "", f.name), el("span", "muted", (f.file ? "" : f.pages + (f.pages === 1 ? " page · " : " pages · ")) + fmtBytes(f.size ?? f.bytes.length)));
+    info.append(
+      el("strong", "", f.name),
+      el(
+        "span",
+        "muted",
+        (f.file ? "" : f.pages + (f.pages === 1 ? " page · " : " pages · ")) +
+          fmtBytes(f.size ?? f.bytes.length),
+      ),
+    );
     row.append(info);
     if (wb.tool.multi) {
       row.append(
-        Object.assign(iconBtn("up", "Move up", () => moveFile(wb, i, -1)), { disabled: i === 0 }),
-        Object.assign(iconBtn("down", "Move down", () => moveFile(wb, i, 1)), { disabled: i === wb.files.length - 1 }),
+        Object.assign(
+          iconBtn("up", "Move up", () => moveFile(wb, i, -1)),
+          { disabled: i === 0 },
+        ),
+        Object.assign(
+          iconBtn("down", "Move down", () => moveFile(wb, i, 1)),
+          { disabled: i === wb.files.length - 1 },
+        ),
       );
     }
-    row.append(iconBtn("close", "Remove", () => {
-      wb.files.splice(i, 1);
-      wb.render();
-    }));
+    row.append(
+      iconBtn("close", "Remove", () => {
+        wb.files.splice(i, 1);
+        wb.render();
+      }),
+    );
     box.append(row);
   });
-  box.append(btn(wb.tool.multi ? "Add more files" : "Choose another file", "plus", wb.chooseFiles, "ghost"));
+  box.append(
+    btn(
+      wb.tool.multi ? "Add more files" : "Choose another file",
+      "add",
+      wb.chooseFiles,
+      "ghost",
+    ),
+  );
   return box;
 }
 function moveFile(wb, i, d) {
@@ -146,7 +224,9 @@ function moveFile(wb, i, d) {
 async function runBench(wb) {
   if (wb.busy) return;
   wb.busy = true;
-  const results = await withBusy(wb.tool.working || "Working…", (b) => wb.tool.run(wb, b));
+  const results = await withBusy(wb.tool.working || "Working…", (b) =>
+    wb.tool.run(wb, b),
+  );
   wb.busy = false;
   if (results && results.length && activeBench === wb) showResults(wb, results);
 }
@@ -156,26 +236,83 @@ function showResults(wb, results) {
   const card = el("div", "result");
   const badge = el("div", "result-badge");
   badge.append(ic("check", 28));
-  card.append(badge, el("h2", "", results.length === 1 ? "Your file is ready" : `${results.length} files are ready`));
+  card.append(
+    badge,
+    el(
+      "h2",
+      "",
+      results.length === 1
+        ? "Your file is ready"
+        : `${results.length} files are ready`,
+    ),
+  );
   if (wb.summary) card.append(el("p", "muted", wb.summary));
   const list = el("div", "files");
   for (const r of results) {
     const row = el("div", "file");
-    row.append(ic(/pdf/i.test(r.type || "application/pdf") ? "file" : "image", 20));
+    row.append(
+      ic(/pdf/i.test(r.type || "application/pdf") ? "file" : "pic", 20),
+    );
     const info = el("div", "file-info");
-    info.append(el("strong", "", r.name), el("span", "muted", fmtBytes(r.bytes.length)));
-    row.append(info, btn("Download", "download", () => saveBytes(r.bytes, r.name, r.type), "small"));
-    if (!r.type || r.type === "application/pdf") row.append(btn("Open", "open", () => openInViewer(r.bytes, r.name), "small ghost"));
+    info.append(
+      el("strong", "", r.name),
+      el("span", "muted", fmtBytes(r.bytes.length)),
+    );
+    row.append(
+      info,
+      btn(
+        "Download",
+        "download-2",
+        () => saveBytes(r.bytes, r.name, r.type),
+        "small",
+      ),
+    );
+    if (!r.type || r.type === "application/pdf")
+      row.append(
+        btn(
+          "Open",
+          "folder-open",
+          () => openInViewer(r.bytes, r.name),
+          "small ghost",
+        ),
+      );
     list.append(row);
   }
   card.append(list);
   const actions = el("div", "result-actions");
   if (results.length > 1) {
-    actions.append(btn("Download all (.zip)", "download", () => saveBytes(makeZip(results.map((r) => ({ name: r.name, bytes: r.bytes }))), baseName(results[0].name) + ".zip", "application/zip"), "primary"));
+    actions.append(
+      btn(
+        "Download all (.zip)",
+        "download-2",
+        () =>
+          saveBytes(
+            makeZip(results.map((r) => ({ name: r.name, bytes: r.bytes }))),
+            baseName(results[0].name) + ".zip",
+            "application/zip",
+          ),
+        "primary",
+      ),
+    );
   } else if (!results[0].type || results[0].type === "application/pdf") {
-    actions.append(btn("Download", "download", () => saveBytes(results[0].bytes, results[0].name), "primary"));
+    actions.append(
+      btn(
+        "Download",
+        "download-2",
+        () => saveBytes(results[0].bytes, results[0].name),
+        "primary",
+      ),
+    );
   }
-  actions.append(btn("Change options", "left", () => ((wb.summary = ""), wb.render()), "ghost"), btn("Start over", null, () => openTool(wb.tool), "ghost"));
+  actions.append(
+    btn(
+      "Change options",
+      "left",
+      () => ((wb.summary = ""), wb.render()),
+      "ghost",
+    ),
+    btn("Start over", null, () => openTool(wb.tool), "ghost"),
+  );
   card.append(actions);
   body.replaceChildren(card);
 }
@@ -212,7 +349,9 @@ function segControl(items, value, onChange) {
   const seg = el("div", "seg");
   const set = (v, notify = true) => {
     seg.value = v;
-    seg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+    seg
+      .querySelectorAll("button")
+      .forEach((b) => b.classList.toggle("on", b.dataset.v === v));
     if (notify) onChange?.(v);
   };
   items.forEach(([v, label]) => {

@@ -7,7 +7,12 @@ let view = "home";
 function showView(name) {
   view = name;
   for (const id of ["home", "viewer", "tool"]) $(id).hidden = id !== name;
-  document.title = name === "viewer" && V.doc ? V.doc.name : name === "tool" ? "PDF tools" : "PDF viewer & tools";
+  document.title =
+    name === "viewer" && V.doc
+      ? V.doc.name
+      : name === "tool"
+        ? "PDF tools"
+        : "PDF viewer & tools";
   renderBar();
   if (name === "viewer") {
     relayout(true);
@@ -36,10 +41,18 @@ async function openFromDisk() {
   routeDroppedFiles(files);
 }
 async function openFromAddress(address) {
-  const name = decodeURIComponent((address.split(/[?#]/)[0].split("/").pop() || "document.pdf")).replace(/^\s+|\s+$/g, "") || "document.pdf";
+  const name =
+    decodeURIComponent(
+      address.split(/[?#]/)[0].split("/").pop() || "document.pdf",
+    ).replace(/^\s+|\s+$/g, "") || "document.pdf";
   const bytes = await withBusy("Opening " + name, async () => {
-    const res = await fetch("/fetch?u=" + encodeURIComponent(address), { headers: { "x-poof-pdf": "1" } });
-    if (!res.ok) throw new UserError("Couldn’t open this PDF: " + (await res.text()).slice(0, 140));
+    const res = await fetch("/fetch?u=" + encodeURIComponent(address), {
+      headers: { "x-poof-pdf": "1" },
+    });
+    if (!res.ok)
+      throw new UserError(
+        "Couldn’t open this PDF: " + (await res.text()).slice(0, 140),
+      );
     return new Uint8Array(await res.arrayBuffer());
   });
   if (!bytes) return showView("home");
@@ -53,16 +66,32 @@ function routeDroppedFiles(files) {
   const pdfs = files.filter(isPdfFile);
   const images = files.filter(isImageFile);
   if (pdfs.length === 1) openFile(pdfs[0]);
-  else if (pdfs.length > 1) openTool(PDF_TOOLS.find((t) => t.id === "merge"), pdfs);
-  else if (images.length) openTool(PDF_TOOLS.find((t) => t.id === "img2pdf"), images);
+  else if (pdfs.length > 1)
+    openTool(
+      PDF_TOOLS.find((t) => t.id === "merge"),
+      pdfs,
+    );
+  else if (images.length)
+    openTool(
+      PDF_TOOLS.find((t) => t.id === "img2pdf"),
+      images,
+    );
   else toast("Drop PDF or image files.");
 }
 
 /* Pending edits are never lost silently. Returns whether to go on. */
 async function settleEdits() {
   if (!V.doc || !Ann.items.length) return true;
-  const body = el("p", "", "You have edits that are not saved into the file yet.");
-  const choice = await dialog("Save your edits?", body, [{ label: "Cancel" }, { label: "Discard edits" }, { label: "Save and continue", primary: true }]);
+  const body = el(
+    "p",
+    "",
+    "You have edits that are not saved into the file yet.",
+  );
+  const choice = await dialog("Save your edits?", body, [
+    { label: "Cancel" },
+    { label: "Discard edits" },
+    { label: "Save and continue", primary: true },
+  ]);
   if (choice === 2) {
     await saveEdited();
     return !Ann.items.length;
@@ -78,7 +107,12 @@ async function finishEditing() {
   if (Ann.items.length && !(await settleEdits())) return;
   setAnnotating(false);
 }
-const currentFile = () => ({ name: V.doc.name.replace(/\.pdf$/i, "") + ".pdf", type: "application/pdf", bytes: V.doc.bytes, password: V.doc.password });
+const currentFile = () => ({
+  name: V.doc.name.replace(/\.pdf$/i, "") + ".pdf",
+  type: "application/pdf",
+  bytes: V.doc.bytes,
+  password: V.doc.password,
+});
 
 async function useToolOnDocument(tool) {
   if (!(await settleEdits())) return;
@@ -128,7 +162,17 @@ function openMenu(anchor, items) {
   menu.querySelector("button")?.focus();
 }
 const toolsMenu = (anchor) =>
-  openMenu(anchor, PDF_TOOLS.map((t) => ({ label: t.name, icon: t.icon, run: () => useToolOnDocument(t) })).concat(["sep", { label: "All tools", icon: "grid", run: () => showView("home") }]));
+  openMenu(
+    anchor,
+    PDF_TOOLS.map((t) => ({
+      label: t.name,
+      icon: t.icon,
+      run: () => useToolOnDocument(t),
+    })).concat([
+      "sep",
+      { label: "All tools", icon: "grid", run: () => showView("home") },
+    ]),
+  );
 
 function renderBar() {
   const bar = $("bar");
@@ -138,9 +182,12 @@ function renderBar() {
   const brand = el("div", "brand");
   brand.append(ic("file", 18), el("span", "", "PDF"));
   left.append(brand);
-  if (V.doc) left.append(btn(V.doc.name, "left", () => showView("viewer"), "ghost back-doc"));
+  if (V.doc)
+    left.append(
+      btn(V.doc.name, "left", () => showView("viewer"), "ghost back-doc"),
+    );
   const right = el("div", "bar-right");
-  right.append(btn("Open PDF", "open", openFromDisk, "small"));
+  right.append(btn("Open PDF", "folder-open", openFromDisk, "small"));
   bar.append(left, el("div", "bar-mid"), right);
 }
 
@@ -148,7 +195,12 @@ let pageInput;
 let zoomSelect;
 function viewerBar(bar) {
   const left = el("div", "bar-left");
-  const side = iconBtn("sidebar", "Pages and outline", () => toggleSidePanel(), "toggle");
+  const side = iconBtn(
+    "sidebar-left",
+    "Pages and outline",
+    () => toggleSidePanel(),
+    "toggle",
+  );
   const name = el("button", "doc-name", V.doc.name);
   name.type = "button";
   name.title = V.doc.name + " — properties";
@@ -167,7 +219,11 @@ function viewerBar(bar) {
   pageInput.onblur = () => (pageInput.value = V.current);
   zoomSelect = el("select", "field zoom-select");
   zoomSelect.setAttribute("aria-label", "Zoom");
-  [["width", "Fit width"], ["page", "Fit page"], ...ZOOM_STEPS.map((z) => [String(z), Math.round(z * 100) + "%"])].forEach(([v, l]) => zoomSelect.append(new Option(l, v)));
+  [
+    ["width", "Fit width"],
+    ["page", "Fit page"],
+    ...ZOOM_STEPS.map((z) => [String(z), Math.round(z * 100) + "%"]),
+  ].forEach(([v, l]) => zoomSelect.append(new Option(l, v)));
   zoomSelect.onchange = () => {
     const v = zoomSelect.value;
     setZoom(v === "width" || v === "page" ? v : +v);
@@ -179,26 +235,60 @@ function viewerBar(bar) {
     el("span", "muted of", "/ " + V.doc.n),
     iconBtn("down", "Next page", () => goToPage(V.current + 1)),
     el("span", "sep"),
-    iconBtn("minus", "Zoom out", () => zoomBy(1 / 1.2)),
+    iconBtn("minimize", "Zoom out", () => zoomBy(1 / 1.2)),
     zoomSelect,
-    iconBtn("plus", "Zoom in", () => zoomBy(1.2)),
-    iconBtn(V.zoomMode === "width" ? "fitP" : "fitW", "Toggle fit width / fit page", () => setZoom(V.zoomMode === "width" ? "page" : "width")),
+    iconBtn("add", "Zoom in", () => zoomBy(1.2)),
+    iconBtn(
+      V.zoomMode === "width" ? "fullscreen" : "unfold-horizontal",
+      "Toggle fit width / fit page",
+      () => setZoom(V.zoomMode === "width" ? "page" : "width"),
+    ),
   );
 
   const right = el("div", "bar-right");
-  const edit = btn("Edit", "edit", () => setAnnotating(!Ann.active), "small" + (Ann.active ? " on" : ""));
+  const edit = btn(
+    "Edit",
+    "edit-2",
+    () => setAnnotating(!Ann.active),
+    "small" + (Ann.active ? " on" : ""),
+  );
   edit.id = "editBtn";
   const tools = btn("Tools", "grid", () => toolsMenu(tools), "small");
-  const more = iconBtn("more", "More", () => openMenu(more, [
-    { label: "Rotate view left", icon: "rotateL", run: () => rotateView(-90) },
-    { label: "Rotate view right", icon: "rotate", run: () => rotateView(90) },
-    { label: "Dark pages", icon: "moon", on: $("scroll").classList.contains("dark-pages"), run: () => $("scroll").classList.toggle("dark-pages") },
-    "sep",
-    { label: "Print…", icon: "print", run: printDocument },
-    { label: "Document properties", icon: "info", run: showProperties },
-    { label: "Open another PDF…", icon: "open", run: openFromDisk },
-  ]));
-  right.append(iconBtn("search", "Find (Ctrl+F)", openFind), edit, tools, iconBtn("download", "Download (Ctrl+S)", downloadDocument), more);
+  const more = iconBtn("more-1", "More", () =>
+    openMenu(more, [
+      {
+        label: "Rotate view left",
+        icon: "anticlockwise",
+        run: () => rotateView(-90),
+      },
+      {
+        label: "Rotate view right",
+        icon: "clockwise",
+        run: () => rotateView(90),
+      },
+      {
+        label: "Dark pages",
+        icon: "moon",
+        on: $("scroll").classList.contains("dark-pages"),
+        run: () => $("scroll").classList.toggle("dark-pages"),
+      },
+      "sep",
+      { label: "Print…", icon: "print", run: printDocument },
+      {
+        label: "Document properties",
+        icon: "information",
+        run: showProperties,
+      },
+      { label: "Open another PDF…", icon: "folder-open", run: openFromDisk },
+    ]),
+  );
+  right.append(
+    iconBtn("search", "Find (Ctrl+F)", openFind),
+    edit,
+    tools,
+    iconBtn("download-2", "Download (Ctrl+S)", downloadDocument),
+    more,
+  );
   bar.append(left, mid, right);
   syncZoomSelect();
 }
@@ -252,17 +342,19 @@ function initKeys() {
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
-    if (mod && key === "o") (e.preventDefault(), openFromDisk());
+    if (mod && key === "o") e.preventDefault(), openFromDisk();
     else if (view !== "viewer") return;
-    else if (mod && key === "f") (e.preventDefault(), openFind());
-    else if (mod && key === "s") (e.preventDefault(), downloadDocument());
-    else if (mod && key === "p") (e.preventDefault(), printDocument());
-    else if (mod && (key === "=" || key === "+")) (e.preventDefault(), zoomBy(1.2));
-    else if (mod && key === "-") (e.preventDefault(), zoomBy(1 / 1.2));
-    else if (mod && key === "0") (e.preventDefault(), setZoom("width"));
-    else if ((key === "f3" || (mod && key === "g")) && Find.q) (e.preventDefault(), stepFind(e.shiftKey ? -1 : 1));
-    else if (!typing && key === "home") (e.preventDefault(), goToPage(1));
-    else if (!typing && key === "end") (e.preventDefault(), goToPage(V.doc.n));
+    else if (mod && key === "f") e.preventDefault(), openFind();
+    else if (mod && key === "s") e.preventDefault(), downloadDocument();
+    else if (mod && key === "p") e.preventDefault(), printDocument();
+    else if (mod && (key === "=" || key === "+"))
+      e.preventDefault(), zoomBy(1.2);
+    else if (mod && key === "-") e.preventDefault(), zoomBy(1 / 1.2);
+    else if (mod && key === "0") e.preventDefault(), setZoom("width");
+    else if ((key === "f3" || (mod && key === "g")) && Find.q)
+      e.preventDefault(), stepFind(e.shiftKey ? -1 : 1);
+    else if (!typing && key === "home") e.preventDefault(), goToPage(1);
+    else if (!typing && key === "end") e.preventDefault(), goToPage(V.doc.n);
     else if (!typing && !mod && key === "n") goToPage(V.current + 1);
     else if (!typing && !mod && key === "p") goToPage(V.current - 1);
   });

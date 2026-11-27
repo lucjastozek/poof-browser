@@ -116,12 +116,13 @@ impl Browser {
                 return;
             }
         };
-        let script = format!(
-            "({FILL_JS})({},{},{})",
+        let args = format!(
+            "{},{},{}",
             json!(origin),
             json!(login.username),
             json!(login.password)
         );
+        let script = call_script(FILL_JS, args);
         if let Some(wv) = self
             .tabs
             .iter()

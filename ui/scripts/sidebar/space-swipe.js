@@ -44,7 +44,9 @@ const swipeIndex = () => S.spaces.findIndex((x) => x.id === S.current);
 function mixHex(a, b, t) {
   const n = (h, i) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
   const c = (i) => Math.round(n(a, i) + (n(b, i) - n(a, i)) * t);
-  return "#" + [0, 1, 2].map((i) => c(i).toString(16).padStart(2, "0")).join("");
+  return (
+    "#" + [0, 1, 2].map((i) => c(i).toString(16).padStart(2, "0")).join("")
+  );
 }
 
 // The lists of a space: live state for the current one, the fetched copy for the others.
@@ -82,7 +84,13 @@ function swipeSlide(sp) {
   tabs.replaceChildren(...folderArea(v, false));
   const pane = $("pane").cloneNode(false);
   pane.className = ""; // not the real pane's slide-in animation class
-  pane.append(hdr, pinned, $("line").cloneNode(true), $("newtab").cloneNode(true), tabs);
+  pane.append(
+    hdr,
+    pinned,
+    $("line").cloneNode(true),
+    $("newtab").cloneNode(true),
+    tabs,
+  );
 
   const slide = el("div", "gs");
   slide.append(favs, pane);
@@ -151,11 +159,15 @@ function swipeRender() {
   });
   const a = swipeClamp(Math.floor(pos), 0, n - 1),
     b = Math.min(n - 1, a + 1);
-  applyColor(mixHex(S.spaces[a].color, S.spaces[b].color, swipeClamp(pos - a, 0, 1)));
+  applyColor(
+    mixHex(S.spaces[a].color, S.spaces[b].color, swipeClamp(pos - a, 0, 1)),
+  );
   const dot = swipeClamp(Math.round(pos), 0, n - 1);
   if (dot !== sw.dot) {
     sw.dot = dot;
-    [...$("dots").children].forEach((d, i) => d.classList.toggle("on", i === dot));
+    [...$("dots").children].forEach((d, i) =>
+      d.classList.toggle("on", i === dot),
+    );
   }
 }
 
@@ -173,7 +185,11 @@ function swipeTick(t) {
   if (t - sw.last > SWIPE_IDLE_MS) {
     if (!sw.settling) {
       sw.settling = true;
-      const ahead = swipeClamp(sw.vel * SWIPE_FLICK_MS, -SWIPE_FLICK_MAX, SWIPE_FLICK_MAX);
+      const ahead = swipeClamp(
+        sw.vel * SWIPE_FLICK_MS,
+        -SWIPE_FLICK_MAX,
+        SWIPE_FLICK_MAX,
+      );
       sw.target = swipeClamp(Math.round(sw.pos + ahead), 0, sw.n - 1);
       swipeCommit(); // runs alongside the settle animation
     }
@@ -203,7 +219,8 @@ function swipeOnState() {
   sw.dot = -1;
   // Parked on the target and native code now shows it: hand over. Otherwise the real sidebar
   // just re-applied its own colour and dots, so draw them again.
-  if (sw.settling && !sw.raf && S.spaces[sw.target].id === S.current) swipeEnd();
+  if (sw.settling && !sw.raf && S.spaces[sw.target].id === S.current)
+    swipeEnd();
   else swipeRender();
 }
 
@@ -215,7 +232,9 @@ function swipeEnd() {
   if (S.current !== sw.startId) $("pane").scrollTop = 0; // a new space starts at its top
   const idx = swipeIndex();
   applyColor(S.spaces[idx].color);
-  [...$("dots").children].forEach((d, i) => d.classList.toggle("on", i === idx));
+  [...$("dots").children].forEach((d, i) =>
+    d.classList.toggle("on", i === idx),
+  );
   sw = null;
 }
 
@@ -225,9 +244,14 @@ $("side").addEventListener(
     // Pinch-zoom arrives as ctrl+wheel; mouse wheels report lines; vertical belongs to the lists.
     // The start page is what an empty space shows, so it must not block swiping; other full-area
     // views (settings, space editor, ...) do. `go` closes the start page when the switch is sent.
-    if (e.ctrlKey || e.deltaMode !== 0 || !S || drag || S.spaces.length < 2) return;
+    if (e.ctrlKey || e.deltaMode !== 0 || !S || drag || S.spaces.length < 2)
+      return;
     if (ov && ov !== "newtab") return;
-    if (document.body.classList.contains("compact") || document.body.classList.contains("collapsed")) return;
+    if (
+      document.body.classList.contains("compact") ||
+      document.body.classList.contains("collapsed")
+    )
+      return;
     const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
     if (!sw && !horizontal) return;
     e.preventDefault(); // no horizontal overscroll in the sidebar
@@ -236,10 +260,15 @@ $("side").addEventListener(
     if (!sw) swipeBegin();
     clearTimeout(sw.giveUp);
     let d = e.deltaX / (sw.W * SWIPE_STEP);
-    if ((sw.pos <= 0 && d < 0) || (sw.pos >= sw.n - 1 && d > 0)) d *= SWIPE_RUBBER;
+    if ((sw.pos <= 0 && d < 0) || (sw.pos >= sw.n - 1 && d > 0))
+      d *= SWIPE_RUBBER;
     const dt = Math.max(1, e.timeStamp - sw.last);
     sw.vel = sw.vel * 0.6 + (d / dt) * 0.4;
-    sw.pos = swipeClamp(sw.pos + d, -SWIPE_FLICK_MAX, sw.n - 1 + SWIPE_FLICK_MAX);
+    sw.pos = swipeClamp(
+      sw.pos + d,
+      -SWIPE_FLICK_MAX,
+      sw.n - 1 + SWIPE_FLICK_MAX,
+    );
     sw.last = e.timeStamp;
     sw.settling = false;
     if (!sw.raf) sw.raf = requestAnimationFrame(swipeTick);

@@ -1,1 +1,3 @@
-if (document.pictureInPictureElement) { document.exitPictureInPicture().catch(()=>{}); }
+if (document.pictureInPictureElement) {
+  document.exitPictureInPicture().catch(() => {});
+}

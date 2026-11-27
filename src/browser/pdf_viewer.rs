@@ -57,6 +57,12 @@ const ASSETS: &[Asset] = &[
         "pdf/vendor/pdf.worker.min.js"
     ),
     asset!("/vendor/pdf-lib.min.js", JS, "pdf/vendor/pdf-lib.min.js"),
+    // Generated from the `@mingcute/svg` npm package by `tools/icons.rs`.
+    Asset {
+        path: "/js/icons.js",
+        mime: JS,
+        body: include_bytes!(concat!(env!("OUT_DIR"), "/pdf-icons.js")),
+    },
     asset!("/js/core.js", JS, "pdf/js/core.js"),
     asset!("/js/zip.js", JS, "pdf/js/zip.js"),
     asset!("/js/geom.js", JS, "pdf/js/geom.js"),

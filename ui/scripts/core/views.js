@@ -28,7 +28,8 @@ function openView(name) {
 }
 /* The browser captured the page: show it, then let the browser hide the real page. */
 window.__pageBackdrop = (url) => {
-  const done = () => requestAnimationFrame(() => send({ cmd: "backdrop_ready" }));
+  const done = () =>
+    requestAnimationFrame(() => send({ cmd: "backdrop_ready" }));
   const img = new Image();
   img.src = url;
   img

@@ -27,7 +27,8 @@
 
   function show({ origin, username, update }) {
     const host = hostOf(origin);
-    const title = (update ? "Update password for " : "Save password for ") + host + "?";
+    const title =
+      (update ? "Update password for " : "Save password for ") + host + "?";
     const who = username || "No username";
 
     card = el("div");

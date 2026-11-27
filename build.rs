@@ -1,6 +1,10 @@
 use std::{env, fs::File, path::PathBuf};
 
+#[path = "tools/icons.rs"]
+mod icons;
+
 fn main() {
+    icons::generate();
     println!("cargo:rerun-if-changed=poof-icon.svg");
     if env::var("CARGO_CFG_TARGET_OS").unwrap_or_default() != "windows" {
         return;

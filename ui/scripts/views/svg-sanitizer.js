@@ -56,10 +56,7 @@ function sanitizeSvg(source) {
   root.setAttribute("viewBox", root.getAttribute("viewBox") || "0 0 24 24");
   root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   const clean = new XMLSerializer().serializeToString(root);
-  if (
-    clean.length > 6144 ||
-    /<script|javascript:|url\(|on[a-z]+=/i.test(clean)
-  )
+  if (clean.length > 6144 || /<script|javascript:|url\(|on[a-z]+=/i.test(clean))
     throw Error("Unsafe or oversized SVG");
   return clean;
 }

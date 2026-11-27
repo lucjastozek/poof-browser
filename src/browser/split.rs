@@ -257,6 +257,6 @@ impl Browser {
         let arg = cfg.map(|c| c.to_string()).unwrap_or_else(|| "null".into());
         let _ = self
             .sidebar
-            .evaluate_script(&format!("({SPLIT_CHROME_JS})({arg})"));
+            .evaluate_script(&call_script(SPLIT_CHROME_JS, arg));
     }
 }

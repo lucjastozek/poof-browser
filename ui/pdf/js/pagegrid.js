@@ -10,7 +10,11 @@ const GRID_THUMB = 150;
 /* One pdf.js document per loaded file, shared by everything that draws its pages. */
 function pdfjsFor(file) {
   if (!file._pdf) {
-    file._pdf = pdfjsLib.getDocument({ data: file.bytes.slice(), password: file.password || undefined, isEvalSupported: false }).promise;
+    file._pdf = pdfjsLib.getDocument({
+      data: file.bytes.slice(),
+      password: file.password || undefined,
+      isEvalSupported: false,
+    }).promise;
   }
   return file._pdf;
 }
@@ -21,11 +25,17 @@ async function renderThumb(file, index, rotation, width) {
   const page = await pdf.getPage(index + 1);
   const turn = (page.rotate + rotation) % 360;
   const base = page.getViewport({ scale: 1, rotation: turn });
-  const viewport = page.getViewport({ scale: (width * Math.min(devicePixelRatio || 1, 2)) / base.width, rotation: turn });
+  const viewport = page.getViewport({
+    scale: (width * Math.min(devicePixelRatio || 1, 2)) / base.width,
+    rotation: turn,
+  });
   const canvas = document.createElement("canvas");
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
-  await page.render({ canvasContext: canvas.getContext("2d", { alpha: false }), viewport }).promise;
+  await page.render({
+    canvasContext: canvas.getContext("2d", { alpha: false }),
+    viewport,
+  }).promise;
   return { canvas, ratio: base.width / base.height };
 }
 
@@ -45,7 +55,8 @@ function indicesToText(set) {
 function pageGrid(wb, host, { mode, tone = "keep", onChange }) {
   const file = wb.files[0];
   const grid = { mode, items: [], selected: new Set(), tiles: [] };
-  for (let i = 0; i < file.pages; i++) grid.items.push({ src: i, rot: 0, del: false });
+  for (let i = 0; i < file.pages; i++)
+    grid.items.push({ src: i, rot: 0, del: false });
   const box = el("div", "pgrid " + mode + " " + tone);
   host.append(box);
   const queue = [];
@@ -53,7 +64,8 @@ function pageGrid(wb, host, { mode, tone = "keep", onChange }) {
 
   const io = new IntersectionObserver(
     (entries) => {
-      for (const e of entries) if (e.isIntersecting && !e.target.__painted) queue.push(e.target);
+      for (const e of entries)
+        if (e.isIntersecting && !e.target.__painted) queue.push(e.target);
       paintNext();
     },
     { rootMargin: "400px 0px" },
@@ -79,7 +91,12 @@ function pageGrid(wb, host, { mode, tone = "keep", onChange }) {
     tile.label = label;
     tile.paint = async () => {
       if (item.src < 0) return (tile.__painted = true);
-      const { canvas, ratio } = await renderThumb(file, item.src, item.rot, GRID_THUMB);
+      const { canvas, ratio } = await renderThumb(
+        file,
+        item.src,
+        item.rot,
+        GRID_THUMB,
+      );
       img.style.aspectRatio = String(ratio);
       img.replaceChildren(canvas);
       tile.__painted = true;
@@ -99,15 +116,20 @@ function pageGrid(wb, host, { mode, tone = "keep", onChange }) {
         onChange?.(grid);
       };
       tile.onclick = toggle;
-      tile.onkeydown = (e) => (e.key === " " || e.key === "Enter") && (e.preventDefault(), toggle());
+      tile.onkeydown = (e) =>
+        (e.key === " " || e.key === "Enter") && (e.preventDefault(), toggle());
     } else {
       tile.draggable = true;
       const tools = el("div", "ptile-tools");
       tools.append(
-        iconBtn("rotateL", "Rotate left", () => rotate(item, -90)),
-        iconBtn("rotate", "Rotate right", () => rotate(item, 90)),
-        iconBtn("dup", "Duplicate page", () => duplicate(item)),
-        iconBtn("trash", "Delete page", () => ((item.del = !item.del), refresh())),
+        iconBtn("anticlockwise", "Rotate left", () => rotate(item, -90)),
+        iconBtn("clockwise", "Rotate right", () => rotate(item, 90)),
+        iconBtn("copy-2", "Duplicate page", () => duplicate(item)),
+        iconBtn(
+          "delete-2",
+          "Delete page",
+          () => ((item.del = !item.del), refresh()),
+        ),
       );
       tile.append(tools);
       tile.ondragstart = (e) => {
@@ -118,7 +140,9 @@ function pageGrid(wb, host, { mode, tone = "keep", onChange }) {
       };
       tile.ondragend = () => {
         tile.classList.remove("dragging");
-        box.querySelectorAll(".over").forEach((n) => n.classList.remove("over"));
+        box
+          .querySelectorAll(".over")
+          .forEach((n) => n.classList.remove("over"));
         grid.dragging = null;
       };
       tile.ondragover = (e) => {

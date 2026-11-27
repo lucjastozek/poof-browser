@@ -8,7 +8,7 @@ function paintExts() {
   if (!box) return;
   if (!EXTS.length) {
     const e = el("div", "empty-st");
-    e.append(ic("puzzle", 26), el("span", null, "No extensions yet"));
+    e.append(ic("plugin-2", 26), el("span", null, "No extensions yet"));
     box.replaceChildren(e);
     return;
   }
@@ -49,7 +49,7 @@ function buildExt(v) {
   const browse = btn("sm ghost", "Browse the Chrome Web Store", () =>
     go({ cmd: "new_tab", input: "https://chromewebstore.google.com/" }),
   );
-  browse.prepend(ic("external", 14));
+  browse.prepend(ic("external-link", 14));
   const bw = el("div", "row2");
   bw.append(browse);
   const list = el("div");

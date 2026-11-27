@@ -21,6 +21,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # The MingCute icons: the build script reads them from node_modules.
+      - name: Install icon package
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Read package name and version

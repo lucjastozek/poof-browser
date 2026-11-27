@@ -6,7 +6,11 @@ createFolderItem.onclick = () => {
   folderContextMenu.remove();
   send({ cmd: "create_folder", name: "New folder" });
 };
-const createLiveFolderItem = el("button", "folder-context-item", "New live folder");
+const createLiveFolderItem = el(
+  "button",
+  "folder-context-item",
+  "New live folder",
+);
 createLiveFolderItem.type = "button";
 createLiveFolderItem.onclick = () => {
   folderContextMenu.remove();

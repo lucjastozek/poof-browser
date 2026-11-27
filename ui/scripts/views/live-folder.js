@@ -18,7 +18,9 @@ const withScheme = (s) => (/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : "https://" + s);
 
 function buildLiveFolder(v, target) {
   const add = target === "add";
-  const folder = add ? null : (S.folders || []).find((f) => f.id === target && f.live);
+  const folder = add
+    ? null
+    : (S.folders || []).find((f) => f.id === target && f.live);
   if (!add && !folder) {
     closeView();
     return;
@@ -55,7 +57,11 @@ function buildLiveFolder(v, target) {
   const feedBox = field(
     "Feed address",
     address,
-    el("div", "note", "An RSS or Atom feed. The newest entries appear as links in the folder."),
+    el(
+      "div",
+      "note",
+      "An RSS or Atom feed. The newest entries appear as links in the folder.",
+    ),
   );
   const githubBox = field(
     "GitHub search",
@@ -104,13 +110,18 @@ function buildLiveFolder(v, target) {
   const save = () => {
     const text = kind === "feed" ? address.value.trim() : query.value.trim();
     if (!text) {
-      window.__toast(kind === "feed" ? "Enter the feed address" : "Enter a GitHub search");
+      window.__toast(
+        kind === "feed" ? "Enter the feed address" : "Enter a GitHub search",
+      );
       (kind === "feed" ? address : query).focus();
       return;
     }
     const body = {
       name: name.value.trim(),
-      source: kind === "feed" ? { kind, url: withScheme(text) } : { kind, query: text },
+      source:
+        kind === "feed"
+          ? { kind, url: withScheme(text) }
+          : { kind, query: text },
       interval_minutes: Number(interval.value),
     };
     go(
@@ -123,7 +134,13 @@ function buildLiveFolder(v, target) {
   dialog(
     v,
     add ? "New live folder" : "Edit live folder",
-    [field("Name", name), field("Source", source), feedBox, githubBox, field("Refresh every", interval)],
+    [
+      field("Name", name),
+      field("Source", source),
+      feedBox,
+      githubBox,
+      field("Refresh every", interval),
+    ],
     [
       el("span", "grow"),
       btn("ghost", "Cancel", closeView),

@@ -1,3 +1,82 @@
+/* Shown first in the icon picker, and embedded so they are there before the pack unpacks. */
+const FEATURED_ICONS = [
+  "house",
+  "home-1",
+  "home-2",
+  "home-3",
+  "home-4",
+  "home-5",
+  "home-6",
+  "home-7",
+  "building-1",
+  "building-2",
+  "store",
+  "briefcase",
+  "book-2",
+  "calendar-1",
+  "camera",
+  "video",
+  "film",
+  "music",
+  "headphone",
+  "game-1",
+  "palette",
+  "brush",
+  "pen",
+  "pencil",
+  "code",
+  "terminal",
+  "server",
+  "laptop",
+  "computer",
+  "phone",
+  "cloud",
+  "sun",
+  "moon",
+  "star",
+  "heart",
+  "gift",
+  "trophy",
+  "rocket",
+  "flag-1",
+  "compass",
+  "map",
+  "earth",
+  "globe",
+  "flask",
+  "bug",
+  "leaf",
+  "tree",
+  "sparkles",
+  "magic-1",
+  "fire",
+  "mail",
+  "chat-1",
+  "bell",
+  "user-1",
+  "group",
+  "shopping-cart-1",
+  "wallet",
+  "bike",
+  "car",
+  "walk",
+  "shield",
+  "lock",
+  "tool",
+  "settings-3",
+  "layers",
+  "box",
+  "folder",
+  "file",
+  "link",
+  "clock-1",
+  "eye",
+  "bird",
+  "cat",
+  "dog",
+  "fish",
+  "rabbit",
+];
 /* ---------- space editor ---------- */
 function buildSpace(v, mode) {
   const sp = curSpace(),
@@ -26,7 +105,7 @@ function buildSpace(v, mode) {
 
   const grid = el("div", "icons");
   const iconSearch = el("input", "inp");
-  iconSearch.placeholder = "Search Lucide icons";
+  iconSearch.placeholder = "Search icons";
   iconSearch.setAttribute("aria-label", "Search icons");
   const upload = el("input");
   upload.type = "file";
@@ -37,9 +116,17 @@ function buildSpace(v, mode) {
   const ICON_GRID_MAX = 300;
   const paintIcons = () => {
     const q = iconSearch.value.trim().toLowerCase();
-    const all = Object.keys(SPACE_ICONS).filter((n) => n.includes(q));
+    const all = [
+      ...new Set([...FEATURED_ICONS, ...Object.keys(ICONS).sort()]),
+    ].filter((n) => ICONS[n] && !n.endsWith("-fill") && n.includes(q));
     const names = all.slice(0, ICON_GRID_MAX);
-    if (icn && !icn.startsWith("svg:") && SPACE_ICONS[icn] && !names.includes(icn) && !q)
+    if (
+      icn &&
+      !icn.startsWith("svg:") &&
+      ICONS[icn] &&
+      !names.includes(icn) &&
+      !q
+    )
       names.unshift(icn);
     grid.replaceChildren(
       ...names.map((n) => {
@@ -55,7 +142,13 @@ function buildSpace(v, mode) {
         return b;
       }),
       ...(all.length > names.length
-        ? [el("div", "note", `Showing ${names.length} of ${all.length}. Search to find more.`)]
+        ? [
+            el(
+              "div",
+              "note",
+              `Showing ${names.length} of ${all.length}. Search to find more.`,
+            ),
+          ]
         : []),
     );
   };
@@ -293,7 +386,7 @@ function buildSpace(v, mode) {
   // The full icon set is fetched from the native side only while this editor is open.
   window.__loadSpaceIcons().then(() => {
     if (ov && ov.startsWith("space")) {
-      if (!add && !icn.startsWith("svg:") && SPACE_ICONS[spaceIconName(sp.icon)])
+      if (!add && !icn.startsWith("svg:") && ICONS[spaceIconName(sp.icon)])
         icn = spaceIconName(sp.icon);
       paintIcons();
       sync();

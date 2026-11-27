@@ -1,11 +1,11 @@
 /* ---------- static sidebar chrome ---------- */
-const collapseBtn = ib("panelLeftClose", "Collapse sidebar", () => {
+const collapseBtn = ib("sidebar-left-close", "Collapse sidebar", () => {
   const collapsed = !document.body.classList.contains("collapsed");
   document.body.classList.toggle("collapsed", collapsed);
   collapseBtn.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
   collapseBtn.setAttribute("aria-label", collapseBtn.title);
   collapseBtn.replaceChildren(
-    ic(collapsed ? "panelLeftOpen" : "panelLeftClose"),
+    ic(collapsed ? "sidebar-left-open" : "sidebar-left-close"),
   );
   send({ cmd: "sidebar_collapsed", collapsed });
 });
@@ -73,9 +73,9 @@ resizeHandle.addEventListener("keydown", (e) => {
 });
 
 $("pageNav").append(
-  ib("back", "Back", () => send({ cmd: "back" })),
-  ib("fwd", "Forward", () => send({ cmd: "forward" })),
-  ib("reload", "Reload", () => send({ cmd: "reload" })),
+  ib("arrow-left", "Back", () => send({ cmd: "back" })),
+  ib("arrow-right", "Forward", () => send({ cmd: "forward" })),
+  ib("refresh-1", "Reload", () => send({ cmd: "reload" })),
 );
 $("copyLink").append(ic("link", 15));
 // Copies text and says so. Shortcut copies come from native code (a page had focus), which
@@ -103,8 +103,7 @@ window.__copyLink = copyLink;
 $("copyLink").onclick = () => {
   if (S && S.url) copyLink(S.url, "Link copied");
 };
-$("pageToolbar").append(ib("puzzle", "Extensions", () => openView("ext")));
-ICONS.camera = SPACE_ICONS.camera; // the toolbar set has no camera; reuse the one of the space icons
+$("pageToolbar").append(ib("plugin-2", "Extensions", () => openView("ext")));
 $("pageToolbar").append(
   ib("camera", "Capture (Ctrl+Shift+S)", () => send({ cmd: "capture" })),
 );
@@ -134,7 +133,7 @@ $("titlebar").addEventListener("pointerdown", (e) => {
 });
 {
   const w = el("span", "ico");
-  w.append(ic("plus", 15));
+  w.append(ic("add", 15));
   $("newtab").append(w, el("span", "ttl", "New tab"));
 }
 $("newtab").onclick = () => openView("newtab");
