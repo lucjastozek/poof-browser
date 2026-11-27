@@ -261,6 +261,7 @@
   window.__toggleHistory = () => (isOpen ? closeHistory(true) : openHistory());
   window.__setHistory = (rows) => {
     entries = Array.isArray(rows) ? rows : [];
+    if (window.__paletteHistory) window.__paletteHistory(entries);
     if (isOpen) render();
   };
 
