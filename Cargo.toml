@@ -45,6 +45,10 @@ drag = "2"
 resvg = "0.45"
 ico = "0.3"
 winres = "0.1"
+# Used by tools/icons.rs to generate the icon files from node_modules.
+serde_json = "1"
+flate2 = "1"
+base64 = "0.22"
 
 # Smaller, faster-starting binary. Panics stay "unwind" (the default) on purpose so a
 # panic can't skip the state save and the process can still log what happened.

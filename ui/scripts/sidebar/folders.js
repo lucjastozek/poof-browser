@@ -26,13 +26,7 @@ function renameFolderInline(label, folder) {
       send({ cmd: "rename_folder", id: folder.id, name });
   };
 }
-/* Live folders: links that a feed or a GitHub search provides and the browser keeps fresh.
-   The shared icon set has no feed or pull-request glyph, so these two are drawn as strokes. */
-const LIVE_ICONS = {
-  feed: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></g>',
-  github:
-    '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/></g>',
-};
+/* Live folders: links that a feed or a GitHub search provides and the browser keeps fresh. */
 /* "5 min ago" for a Unix time in seconds. */
 function liveAgo(secs) {
   const minutes = Math.floor((Date.now() / 1000 - secs) / 60);
@@ -44,7 +38,10 @@ function liveAgo(secs) {
 function liveStatus(live) {
   const what = live.source.kind === "github" ? "GitHub search" : "Feed";
   if (live.error) return what + " · " + live.error;
-  return what + (live.checked_at ? " · updated " + liveAgo(live.checked_at) : " · loading");
+  return (
+    what +
+    (live.checked_at ? " · updated " + liveAgo(live.checked_at) : " · loading")
+  );
 }
 /* A link of a live folder. Its full address is in the tooltip so the destination is visible
    before it is opened; opening always makes a new tab. */
@@ -80,12 +77,13 @@ function liveRows(live) {
       : live.checked_at
         ? "Nothing here right now"
         : "Loading…";
-  if (note) rows.push(el("div", "live-note" + (live.error ? " error" : ""), note));
+  if (note)
+    rows.push(el("div", "live-note" + (live.error ? " error" : ""), note));
   return rows;
 }
 function liveActions(folder) {
   return [
-    ib("refresh-cw", "Refresh now", () => {
+    ib("refresh-2", "Refresh now", () => {
       window.__toast("Refreshing " + folder.name + "…");
       send({ cmd: "refresh_live_folder", id: folder.id });
     }),
@@ -105,14 +103,16 @@ function folderNode(s, folder, pinned) {
   head.dataset.folderId = folder.id;
   const toggle = el("span", "folder-chevron");
   toggle.setAttribute("aria-hidden", "true");
-  toggle.append(ic(folder.collapsed ? "chevron-right" : "chevron-down", 13));
+  toggle.append(ic(folder.collapsed ? "right" : "down", 13));
   const live = folder.live;
   const glyph = el("span", "folder-glyph");
   if (live) {
-    glyph.append(svg(LIVE_ICONS, live.source.kind === "github" ? "github" : "feed", 18));
+    glyph.append(
+      ic(live.source.kind === "github" ? "git-pull-request" : "rss", 18),
+    );
     glyph.title = liveStatus(live);
     head.dataset.live = "1";
-  } else glyph.append(ic(folder.collapsed ? "folder" : "folder-open", 18));
+  } else glyph.append(ic(folder.collapsed ? "folder-2" : "folder-open", 18));
   const label = el("span", "folder-name", folder.name);
   label.title = "Double-click to rename";
   label.ondblclick = (e) => {
@@ -123,8 +123,12 @@ function folderNode(s, folder, pinned) {
   actions.append(
     ...(live
       ? liveActions(folder)
-      : [ib("pencil", "Rename folder", () => renameFolderInline(label, folder))]),
-    ib("trash", "Delete folder", () =>
+      : [
+          ib("pencil", "Rename folder", () =>
+            renameFolderInline(label, folder),
+          ),
+        ]),
+    ib("delete-2", "Delete folder", () =>
       send({ cmd: "delete_folder", id: folder.id }),
     ),
   );
@@ -155,7 +159,9 @@ function folderNode(s, folder, pinned) {
   // A collapsed folder's rows are never visible, so they are not built at all.
   if (!folder.collapsed)
     contents.append(
-      ...(live ? liveRows(live) : members.map((t) => row(t, pinned ? "pin" : "tab"))),
+      ...(live
+        ? liveRows(live)
+        : members.map((t) => row(t, pinned ? "pin" : "tab"))),
     );
   group.append(contents);
   return group;

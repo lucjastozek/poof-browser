@@ -7,7 +7,7 @@ const el = (t, c, x) => {
   return e;
 };
 const NS = "http://www.w3.org/2000/svg";
-const svg = (set, n, s = 16) => {
+const ic = (n, s = 16) => {
   const e = document.createElementNS(NS, "svg");
   [
     ["viewBox", "0 0 24 24"],
@@ -17,10 +17,10 @@ const svg = (set, n, s = 16) => {
     ["fill", "currentColor"],
     ["aria-hidden", "true"],
   ].forEach(([k, v]) => e.setAttribute(k, v));
-  e.innerHTML = set[n] || "";
+  if (!ICONS[n]) console.warn("icon not embedded:", n);
+  e.innerHTML = ICONS[n] || "";
   return e;
 };
-const ic = (n, s) => svg(ICONS, n, s);
 const sic = (n, s) => {
   if (typeof n === "string" && n.startsWith("svg:")) {
     const i = el("img", "custom-space-icon");
@@ -30,5 +30,5 @@ const sic = (n, s) => {
     i.alt = "";
     return i;
   }
-  return svg(SPACE_ICONS, spaceIconName(n), s);
+  return ic(spaceIconName(n), s);
 };

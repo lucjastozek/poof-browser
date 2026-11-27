@@ -1,0 +1,7 @@
+{
+  "name": "poof-assets",
+  "private": true,
+  "dependencies": {
+    "@mingcute/svg": "3.1.0"
+  }
+}

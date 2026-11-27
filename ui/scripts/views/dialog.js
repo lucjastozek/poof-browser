@@ -5,7 +5,7 @@ function dialog(v, title, body, foot) {
   d.setAttribute("role", "dialog");
   d.setAttribute("aria-label", title);
   const h = el("header");
-  h.append(el("h2", null, title), ib("x", "Close", closeView));
+  h.append(el("h2", null, title), ib("close", "Close", closeView));
   const b = el("div", "body");
   b.append(...body);
   d.append(h, b);

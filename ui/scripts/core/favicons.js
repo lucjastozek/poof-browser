@@ -33,7 +33,7 @@ function icon(t, guess = true) {
     }
   } catch (e) {}
   const showFallback = () => {
-    w.replaceChildren(ic("globe", 16));
+    w.replaceChildren(ic("earth", 16));
     w.setAttribute("aria-label", "Website");
   };
   if (!candidates.length) {

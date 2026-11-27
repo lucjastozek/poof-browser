@@ -67,9 +67,17 @@ function watchFolderDrag(e, head, folder) {
   armDrag(e, head, (ox) => {
     const ghost = el("div", "dghost folder-ghost");
     ghost.style.width = head.offsetWidth + "px";
-    ghost.append(ic("folder", 16), el("span", "ttl", folder.name));
+    ghost.append(ic("folder-2", 16), el("span", "ttl", folder.name));
     document.body.append(ghost);
-    drag = { id: folder.id, kind: "folder", row: head, ghost, ox, zone: null, idx: 0 };
+    drag = {
+      id: folder.id,
+      kind: "folder",
+      row: head,
+      ghost,
+      ox,
+      zone: null,
+      idx: 0,
+    };
     head.classList.add("lift");
     document.body.classList.add("dragging");
   });

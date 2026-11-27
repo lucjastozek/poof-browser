@@ -12,53 +12,55 @@ if (!ui) {
     // them to the native side, which passes them on to the DevTools frontend.
     const sendIcons = () => {
         if (typeof ic !== "function") return;
-        // DevTools icon name -> candidate names in icons.js (first one that exists wins).
-        // Add or rename entries to match your icon set.
+        // DevTools icon name -> MingCute icon (embedded by tools/icons.rs).
         const MAP = {
-            cross: ["x"], "cross-circle": ["x-circle", "x"], "cross-circle-filled": ["x-circle", "x"],
-            close: ["x"], plus: ["plus"], minus: ["minus"], bin: ["trash"], clear: ["trash"],
-            gear: ["settings"], "gear-filled": ["settings"], search: ["search"],
-            refresh: ["reload"], copy: ["copy"], download: ["download"], upload: ["upload"],
-            filter: ["filter"], info: ["info"], warning: ["alert", "warning"],
-            "warning-filled": ["alert", "warning"], check: ["check"], checkmark: ["check"],
-            "arrow-up": ["arrow-up"], "arrow-down": ["arrow-down"],
-            "arrow-left": ["back", "arrow-left"], "arrow-right": ["fwd", "arrow-right"],
-            "chevron-up": ["chevron-up"], "chevron-down": ["chevron-down"],
-            "chevron-left": ["chevron-left"], "chevron-right": ["chevron-right"],
-            "triangle-right": ["chevron-right"], "triangle-down": ["chevron-down"],
-            "triangle-left": ["chevron-left"], "triangle-up": ["chevron-up"],
-            "dots-horizontal": ["more", "dots"], "dots-vertical": ["more-vertical", "more"],
-            play: ["play"], resume: ["play"], pause: ["pause"], stop: ["stop"],
-            eye: ["eye"], "eye-crossed": ["eye-off"], bookmark: ["bookmark"], star: ["star"],
-            code: ["code"], devices: ["devices", "smartphone"], inspect: ["cursor"],
-            undo: ["undo"], redo: ["redo"], document: ["file"], folder: ["folder"],
-            "folder-open": ["folder-open"], link: ["link"], edit: ["pencil"], pen: ["pencil"],
-            lock: ["lock"], bug: ["bug"], clock: ["clock"], history: ["history"],
-            "left-panel-open": ["panelLeftOpen"], "left-panel-close": ["panelLeftClose"],
-            puzzle: ["puzzle"],
-            // main toolbar and panel tabs
-            "select-element": ["cursor", "pointer", "inspect"],
-            devices: ["devices", "smartphone", "phone", "device"],
-            terminal: ["terminal", "terminal-box", "command", "code"],
-            console: ["terminal", "terminal-box"],
-            elements: ["code"], sources: ["bug", "file-code", "code"],
-            policy: ["shield", "safe-shield", "security", "lock"],
-            security: ["shield", "safe-shield", "lock"],
-            cpu: ["cpu", "chip"], memory: ["cpu", "chip"], performance: ["dashboard", "speed", "gauge"],
-            speed: ["dashboard", "speed", "gauge"], gauge: ["dashboard", "speed", "gauge"],
-            network: ["wifi", "network"], wifi: ["wifi", "network"],
-            lighthouse: ["lighthouse", "flashlight", "lamp", "light"],
-            application: ["layout", "app", "window"], storage: ["database", "storage"],
-            database: ["database"], cookie: ["cookie"], frame: ["layout", "window"],
-            "more-tabs": ["plus"], "plus-small": ["plus"], "layers": ["layers"],
-            "paint-bucket": ["paint", "palette"], "color-picker": ["color-picker", "eyedropper"],
-            "bracket-curly": ["code", "braces"], "braces": ["code"], "record": ["record", "circle"],
-            "lightbulb": ["lightbulb", "bulb", "lamp"], "tune": ["settings", "sliders"],
-            "help": ["help", "question"], "feedback": ["chat", "message"],
+            "cross": "close",
+            "cross-circle": "close",
+            "cross-circle-filled": "close",
+            "close": "close",
+            "plus": "add",
+            "bin": "delete-2",
+            "clear": "delete-2",
+            "gear": "settings-3",
+            "gear-filled": "settings-3",
+            "search": "search",
+            "refresh": "refresh-1",
+            "copy": "copy-2",
+            "download": "download-2",
+            "check": "check",
+            "checkmark": "check",
+            "arrow-left": "arrow-left",
+            "arrow-right": "arrow-right",
+            "chevron-down": "down",
+            "chevron-right": "right",
+            "triangle-right": "right",
+            "triangle-down": "down",
+            "star": "star",
+            "code": "code",
+            "folder": "folder-2",
+            "folder-open": "folder-open",
+            "link": "link",
+            "edit": "pencil",
+            "pen": "pencil",
+            "lock": "lock",
+            "left-panel-open": "sidebar-left-open",
+            "left-panel-close": "sidebar-left-close",
+            "puzzle": "plugin-2",
+            "terminal": "code",
+            "elements": "code",
+            "sources": "code",
+            "policy": "lock",
+            "security": "lock",
+            "more-tabs": "add",
+            "plus-small": "add",
+            "layers": "layers",
+            "bracket-curly": "code",
+            "braces": "code",
+            "tune": "settings-3",
         };
         const out = {};
-        for (const [name, candidates] of Object.entries(MAP)) {
-            for (const c of candidates.flatMap(x => [x, x + "-line"])) {
+        for (const [name, icon] of Object.entries(MAP)) {
+            for (const c of [icon]) {
                 let node = null;
                 try { node = ic(c, 24); } catch (_) {}
                 const svg = node && (node.localName === "svg" ? node : node.querySelector && node.querySelector("svg"));
@@ -149,7 +151,7 @@ if (!ui) {
     close.className = "poof-dt-close";
     close.title = "Close Developer Tools (F12)";
     close.setAttribute("aria-label", "Close Developer Tools");
-    const x = icon("x", 14);
+    const x = icon("close", 14);
     if (x) close.appendChild(x); else close.textContent = "×";
     close.addEventListener("click", () => post({ cmd: "dev_tools_toggle" }));
     const lead = icon("code", 14);

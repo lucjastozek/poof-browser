@@ -2630,6 +2630,7 @@ dependencies = [
  "dirs 5.0.1",
  "drag",
  "env_logger",
+ "flate2",
  "ico",
  "keyring",
  "log",

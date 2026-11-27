@@ -1,16 +1,13 @@
 /* ---------- settings: a tabbed panel over a picture of the page ---------- */
 const SETTINGS_TABS = [
-  ["general", "settings", "General"],
+  ["general", "settings-3", "General"],
   ["appearance", "sun", "Appearance"],
   ["privacy", "lock", "Privacy & data"],
-  ["import", "download", "Import"],
+  ["import", "download-2", "Import"],
   ["shortcuts", "key-2", "Shortcuts"],
   ["developer", "code", "Developer"],
 ];
 let settingsTab = "general";
-
-const tabIcon = (name) =>
-  name in ICONS ? ic(name, 16) : svg(SPACE_ICONS, name, 16);
 
 /* A labelled on/off row. `change(on)` runs after the switch flips. */
 function switchRow(label, hint, on, change) {
@@ -152,7 +149,7 @@ function generalPanel() {
 function appearancePanel() {
   const theme = segmented(
     [
-      ["system", "System", "monitor"],
+      ["system", "System", "computer"],
       ["light", "Light", "sun"],
       ["dark", "Dark", "moon"],
     ],
@@ -462,7 +459,7 @@ function shortcutsPanel() {
         "Reset to default" +
         (item.default ? " (" + item.default + ")" : " (none)");
       b.setAttribute("aria-label", "Reset " + item.label + " to default");
-      b.append(svg(SPACE_ICONS, "refresh-2", 15));
+      b.append(ic("refresh-2", 15));
       b.onclick = () => send({ cmd: "reset_shortcut", id: item.id });
       reset.append(b);
     }
@@ -531,7 +528,10 @@ function buildSettings(v) {
     });
     const title = SETTINGS_TABS.find((t) => t[0] === tab)[2];
     const head = el("header");
-    head.append(el("h2", null, title), ib("x", "Close settings", closeView));
+    head.append(
+      el("h2", null, title),
+      ib("close", "Close settings", closeView),
+    );
     const body = el("div", "settings-panel");
     body.setAttribute("role", "tabpanel");
     if (tab === "shortcuts") {
@@ -548,7 +548,7 @@ function buildSettings(v) {
     b.type = "button";
     b.dataset.tab = id;
     b.setAttribute("role", "tab");
-    b.append(tabIcon(icon), el("span", null, label));
+    b.append(ic(icon), el("span", null, label));
     b.onclick = () => show(id);
     b.onkeydown = (e) => {
       const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[

@@ -1,7 +1,17 @@
 /* Find in document: matches across all pages, highlighted on the rendered pages. */
 "use strict";
 
-const Find = { q: "", matchCase: false, flat: [], idx: -1, token: 0, scrollTo: 0, timer: 0, input: null, label: null };
+const Find = {
+  q: "",
+  matchCase: false,
+  flat: [],
+  idx: -1,
+  token: 0,
+  scrollTo: 0,
+  timer: 0,
+  input: null,
+  label: null,
+};
 
 function buildFindBar() {
   const bar = $("findbar");
@@ -30,7 +40,14 @@ function buildFindBar() {
       stepFind(e.shiftKey ? -1 : 1);
     } else if (e.key === "Escape") closeFind();
   };
-  bar.append(input, aa, label, iconBtn("up", "Previous match", () => stepFind(-1)), iconBtn("down", "Next match", () => stepFind(1)), iconBtn("close", "Close search", closeFind));
+  bar.append(
+    input,
+    aa,
+    label,
+    iconBtn("up", "Previous match", () => stepFind(-1)),
+    iconBtn("down", "Next match", () => stepFind(1)),
+    iconBtn("close", "Close search", closeFind),
+  );
   Find.input = input;
   Find.label = label;
 }
@@ -59,7 +76,9 @@ async function pageStrings(num) {
   if (V.textCache.has(num)) return V.textCache.get(num);
   const page = await V.doc.pdf.getPage(num);
   const content = await page.getTextContent();
-  const strs = content.items.filter((i) => typeof i.str === "string").map((i) => i.str);
+  const strs = content.items
+    .filter((i) => typeof i.str === "string")
+    .map((i) => i.str);
   V.textCache.set(num, strs);
   return strs;
 }

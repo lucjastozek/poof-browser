@@ -1,7 +1,11 @@
 /* Signature dialog: draw it, type it or use an image. The result is placed like any image. */
 "use strict";
 
-const SIGN_FONTS = ['"Segoe Script", "Brush Script MT", cursive', '"Lucida Handwriting", "Segoe Print", cursive', '"Ink Free", "Comic Sans MS", cursive'];
+const SIGN_FONTS = [
+  '"Segoe Script", "Brush Script MT", cursive',
+  '"Lucida Handwriting", "Segoe Print", cursive',
+  '"Ink Free", "Comic Sans MS", cursive',
+];
 const SIGN_W = 520;
 const SIGN_H = 180;
 const SIGN_INK = ["#111111", "#1c3faa", "#b3261e"];
@@ -10,12 +14,17 @@ const SIGN_INK = ["#111111", "#1c3faa", "#b3261e"];
 function trimCanvas(canvas) {
   const { width: w, height: h } = canvas;
   const data = canvas.getContext("2d").getImageData(0, 0, w, h).data;
-  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  let x0 = w,
+    y0 = h,
+    x1 = -1,
+    y1 = -1;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (data[(y * w + x) * 4 + 3] > 8) {
-        x0 = Math.min(x0, x); x1 = Math.max(x1, x);
-        y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+        x0 = Math.min(x0, x);
+        x1 = Math.max(x1, x);
+        y0 = Math.min(y0, y);
+        y1 = Math.max(y1, y);
       }
     }
   }
@@ -24,7 +33,19 @@ function trimCanvas(canvas) {
   const out = document.createElement("canvas");
   out.width = x1 - x0 + 1 + pad * 2;
   out.height = y1 - y0 + 1 + pad * 2;
-  out.getContext("2d").drawImage(canvas, x0, y0, x1 - x0 + 1, y1 - y0 + 1, pad, pad, x1 - x0 + 1, y1 - y0 + 1);
+  out
+    .getContext("2d")
+    .drawImage(
+      canvas,
+      x0,
+      y0,
+      x1 - x0 + 1,
+      y1 - y0 + 1,
+      pad,
+      pad,
+      x1 - x0 + 1,
+      y1 - y0 + 1,
+    );
   return out;
 }
 
@@ -38,7 +59,10 @@ function signaturePad(getInk) {
   let last = null;
   const pos = (e) => {
     const r = canvas.getBoundingClientRect();
-    return [((e.clientX - r.left) / r.width) * canvas.width, ((e.clientY - r.top) / r.height) * canvas.height];
+    return [
+      ((e.clientX - r.left) / r.width) * canvas.width,
+      ((e.clientY - r.top) / r.height) * canvas.height,
+    ];
   };
   canvas.onpointerdown = (e) => {
     canvas.setPointerCapture(e.pointerId);
@@ -91,12 +115,18 @@ async function openSignDialog() {
 
   const show = (m) => {
     mode = m;
-    tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.m === m));
+    tabs
+      .querySelectorAll("button")
+      .forEach((b) => b.classList.toggle("on", b.dataset.m === m));
     pane.replaceChildren();
-    if (m === "draw") pane.append(pad, btn("Clear", null, () => pad.clear(), "small"));
-    else if (m === "type") (renderTyped(), pane.append(typed, typedPreview));
+    if (m === "draw")
+      pane.append(
+        pad,
+        btn("Clear", null, () => pad.clear(), "small"),
+      );
+    else if (m === "type") renderTyped(), pane.append(typed, typedPreview);
     else {
-      const choose = btn("Choose image…", "image", async () => {
+      const choose = btn("Choose image…", "pic", async () => {
         const [f] = await pickFiles("image/*", false);
         if (!f) return;
         const bmp = await createImageBitmap(f);
@@ -104,14 +134,27 @@ async function openSignDialog() {
         imageCanvas = document.createElement("canvas");
         imageCanvas.width = Math.round(bmp.width * k);
         imageCanvas.height = Math.round(bmp.height * k);
-        imageCanvas.getContext("2d").drawImage(bmp, 0, 0, imageCanvas.width, imageCanvas.height);
+        imageCanvas
+          .getContext("2d")
+          .drawImage(bmp, 0, 0, imageCanvas.width, imageCanvas.height);
         imageCanvas.className = "sign-img";
         pane.replaceChildren(imageCanvas, choose);
       });
-      pane.append(el("p", "muted", "Use a photo or scan of your signature on a plain background."), choose);
+      pane.append(
+        el(
+          "p",
+          "muted",
+          "Use a photo or scan of your signature on a plain background.",
+        ),
+        choose,
+      );
     }
   };
-  [["draw", "Draw"], ["type", "Type"], ["image", "Image"]].forEach(([m, label]) => {
+  [
+    ["draw", "Draw"],
+    ["type", "Type"],
+    ["image", "Image"],
+  ].forEach(([m, label]) => {
     const b = el("button", "", label);
     b.type = "button";
     b.dataset.m = m;
@@ -129,7 +172,10 @@ async function openSignDialog() {
   body.append(tabs, pane, inkRow);
   show("draw");
 
-  const choice = await dialog("Add signature", body, [{ label: "Cancel" }, { label: "Place on page", primary: true }]);
+  const choice = await dialog("Add signature", body, [
+    { label: "Cancel" },
+    { label: "Place on page", primary: true },
+  ]);
   if (choice !== 1) return;
   let canvas = null;
   if (mode === "draw") canvas = pad;

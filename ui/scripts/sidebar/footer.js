@@ -1,7 +1,7 @@
-const settingsButton = ib("settings", "Settings", () => openView("settings"));
+const settingsButton = ib("settings-3", "Settings", () => openView("settings"));
 const spaces = el("div");
 spaces.id = "dots";
-const newSpaceButton = ib("plus", "New space", () => openView("space:add"));
+const newSpaceButton = ib("add", "New space", () => openView("space:add"));
 $("foot").append(settingsButton, spaces, newSpaceButton);
 const clearTabsBtn = el("button", "clear-tabs", "Clear");
 clearTabsBtn.type = "button";

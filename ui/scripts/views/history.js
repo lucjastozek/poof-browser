@@ -117,7 +117,7 @@
       const r = el("div", "h-row");
       r.tabIndex = 0;
       r.title = h.url;
-      const del = ib("x", "Remove from history", () =>
+      const del = ib("close", "Remove from history", () =>
         send({ cmd: "delete_history", id: h.id }),
       );
       del.addEventListener("click", (e) => e.stopPropagation());
@@ -220,7 +220,7 @@
     tools.append(
       select,
       clearBtn,
-      ib("x", "Close history (Esc)", () => closeHistory(true)),
+      ib("close", "Close history (Esc)", () => closeHistory(true)),
     );
     head.append(el("h1", null, "History"), tools);
 

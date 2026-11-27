@@ -1,7 +1,16 @@
 /* PDF page geometry, page-range parsing and loading documents with pdf-lib. */
 "use strict";
 
-const { PDFDocument, StandardFonts, rgb, degrees, PDFName, PDFNumber, PDFRawStream, BlendMode } = PDFLib;
+const {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  degrees,
+  PDFName,
+  PDFNumber,
+  PDFRawStream,
+  BlendMode,
+} = PDFLib;
 
 /*
  * Maps points of the page as displayed (x from the left, y from the bottom) to PDF user space,
@@ -15,10 +24,14 @@ function pageFrame(page) {
   const swap = rot === 90 || rot === 270;
   const pt = (dx, dy) => {
     switch (rot) {
-      case 90: return [b.x + (w - dy), b.y + dx];
-      case 180: return [b.x + (w - dx), b.y + (h - dy)];
-      case 270: return [b.x + dy, b.y + (h - dx)];
-      default: return [b.x + dx, b.y + dy];
+      case 90:
+        return [b.x + (w - dy), b.y + dx];
+      case 180:
+        return [b.x + (w - dx), b.y + (h - dy)];
+      case 270:
+        return [b.x + dy, b.y + (h - dx)];
+      default:
+        return [b.x + dx, b.y + dy];
     }
   };
   return { W: swap ? h : w, H: swap ? w : h, rot, pt };
@@ -33,10 +46,12 @@ function parseRanges(text, total) {
   if (!parts.length) return [[1, total]];
   return parts.map((part) => {
     const m = /^(\d*)(?:-(\d*))?$/.exec(part);
-    if (!m || (m[1] === "" && !m[2])) throw new UserError(`“${part}” is not a valid page range`);
+    if (!m || (m[1] === "" && !m[2]))
+      throw new UserError(`“${part}” is not a valid page range`);
     const a = m[1] === "" ? 1 : +m[1];
     const b = m[2] === undefined ? a : m[2] === "" ? total : +m[2];
-    if (a < 1 || b > total || a > b) throw new UserError(`“${part}” is outside this file’s ${total} pages`);
+    if (a < 1 || b > total || a > b)
+      throw new UserError(`“${part}” is outside this file’s ${total} pages`);
     return [a, b];
   });
 }
@@ -52,12 +67,16 @@ async function openLib(bytes, name, password) {
   let pw = password ?? "";
   for (let tries = 0; ; tries++) {
     try {
-      const lib = await PDFDocument.load(bytes, { password: pw, throwOnInvalidObject: false });
+      const lib = await PDFDocument.load(bytes, {
+        password: pw,
+        throwOnInvalidObject: false,
+      });
       return { lib, password: pw };
     } catch (e) {
       let encrypted = false;
       try {
-        encrypted = (await PDFDocument.load(bytes, { ignoreEncryption: true })).isEncrypted;
+        encrypted = (await PDFDocument.load(bytes, { ignoreEncryption: true }))
+          .isEncrypted;
       } catch (_) {}
       if (!encrypted) throw e;
       pw = await askPassword(name, tries > 0);

@@ -12,7 +12,8 @@
     const alive = () => {
       for (const t of tracks) if (t.readyState === "ended") tracks.delete(t);
       for (const p of peers) {
-        if (p.connectionState === "closed" || p.connectionState === "failed") peers.delete(p);
+        if (p.connectionState === "closed" || p.connectionState === "failed")
+          peers.delete(p);
       }
       for (const w of sockets) if (w.readyState > 1) sockets.delete(w);
       return tracks.size > 0 || peers.size > 0 || sockets.size > 0;

@@ -13,7 +13,11 @@
 
   function visible(el) {
     var r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden";
+    return (
+      r.width > 0 &&
+      r.height > 0 &&
+      getComputedStyle(el).visibility !== "hidden"
+    );
   }
 
   function passwordFields(root) {
@@ -31,7 +35,9 @@
     );
     var found = "";
     Array.prototype.forEach.call(candidates, function (input) {
-      var before = input.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING;
+      var before =
+        input.compareDocumentPosition(password) &
+        Node.DOCUMENT_POSITION_FOLLOWING;
       if (before && visible(input) && input.value) found = input.value;
     });
     return found;

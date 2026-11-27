@@ -84,15 +84,15 @@ const fontShorthand = (i, px) =>
   `${i.italic ? "italic " : ""}${i.bold ? 700 : 400} ${px}px ${cssFont(i)}`;
 const TEXT_KINDS = ["text", "replace"];
 const ADD_TOOLS = [
-  ["text", "addText", "Text", "Add text: click the page and type"],
-  ["highlight", "highlight", "Highlight", "Highlight an area"],
+  ["text", "textbox", "Text", "Add text: click the page and type"],
+  ["highlight", "mark-pen", "Highlight", "Highlight an area"],
   ["draw", "pen", "Draw", "Draw freehand"],
 ];
 const SHAPE_TOOLS = [
-  ["rect", "rect", "Rectangle"],
+  ["rect", "square", "Rectangle"],
   ["ellipse", "ellipse", "Ellipse"],
   ["line", "line", "Line"],
-  ["arrow", "arrow", "Arrow"],
+  ["arrow", "arrow-right-up", "Arrow"],
 ];
 const HINTS = {
   select: "Click an item you added to move, resize or restyle it.",
@@ -1193,8 +1193,8 @@ function buildAnnBar() {
     group(
       "Add",
       text,
-      actionBtn("image", "Image", "Add image", addImageFromFile),
-      actionBtn("sign", "Signature", "Add signature", openSignDialog),
+      actionBtn("pic", "Image", "Add image", addImageFromFile),
+      actionBtn("signature", "Signature", "Add signature", openSignDialog),
       ...drawTools,
       el("span", "sep"),
       ...SHAPE_TOOLS.map(([id, icon, label]) => toolBtn(id, icon, "", label)),
@@ -1203,24 +1203,24 @@ function buildAnnBar() {
     group(
       "Edit",
       toolBtn("select", "cursor", "Select", "Select, move and resize"),
-      toolBtn("edittext", "editText", "Edit text", "Edit text in the page"),
+      toolBtn("edittext", "edit-3", "Edit text", "Edit text in the page"),
       toolBtn(
         "editimage",
-        "editImage",
+        "image-edit",
         "Edit images",
         "Replace or remove images in the page",
       ),
     ),
     el("span", "grow"),
-    tip(iconBtn("undo", "Undo", undo, "tl"), "Undo (Ctrl+Z)"),
-    tip(iconBtn("redo", "Redo", redo, "tl"), "Redo (Ctrl+Y)"),
+    tip(iconBtn("back-2", "Undo", undo, "tl"), "Undo (Ctrl+Z)"),
+    tip(iconBtn("forward-2", "Redo", redo, "tl"), "Redo (Ctrl+Y)"),
     tip(
-      iconBtn("trash", "Delete", removeSelected, "tl del"),
+      iconBtn("delete-2", "Delete", removeSelected, "tl del"),
       "Delete selected (Del)",
     ),
     el("span", "sep"),
     btn("Done", null, finishEditing, "small ghost"),
-    btn("Save", "download", saveEdited, "primary small"),
+    btn("Save", "download-2", saveEdited, "primary small"),
   );
 
   const props = el("div", "ann-row props-row");
@@ -1283,8 +1283,13 @@ function buildAnnBar() {
 
   const imageBox = el("div", "pgrp");
   imageBox.dataset.for = "image";
-  const replace = btn("Replace image", "swap", replacePicked, "small");
-  const remove = btn("Remove image", "trash", removePicked, "small");
+  const replace = btn(
+    "Replace image",
+    "transfer-horizontal",
+    replacePicked,
+    "small",
+  );
+  const remove = btn("Remove image", "delete-2", removePicked, "small");
   replace.id = "annReplace";
   remove.id = "annRemove";
   imageBox.append(replace, remove);

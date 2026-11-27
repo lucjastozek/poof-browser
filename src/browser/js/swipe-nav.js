@@ -27,10 +27,15 @@
   // True when something under the pointer can still scroll sideways in that direction.
   function scrollsSideways(node, dir) {
     for (var n = node; n && n.nodeType === 1; n = n.parentElement) {
-      var room = dir < 0 ? n.scrollLeft : n.scrollWidth - n.clientWidth - n.scrollLeft;
+      var room =
+        dir < 0 ? n.scrollLeft : n.scrollWidth - n.clientWidth - n.scrollLeft;
       if (room <= 1) continue;
       var overflow = getComputedStyle(n).overflowX;
-      if (overflow === "auto" || overflow === "scroll" || n === document.scrollingElement)
+      if (
+        overflow === "auto" ||
+        overflow === "scroll" ||
+        n === document.scrollingElement
+      )
         return true;
     }
     return false;
@@ -46,8 +51,13 @@
     var root = host.attachShadow({ mode: "closed" });
     chip = document.createElement("div");
     chip.style.cssText =
-      "position:absolute;top:50%;width:" + CHIP + "px;height:" + CHIP + "px;margin-top:-" +
-      CHIP / 2 + "px;border-radius:50%;background:rgba(32,32,32,.88);color:#fff;" +
+      "position:absolute;top:50%;width:" +
+      CHIP +
+      "px;height:" +
+      CHIP +
+      "px;margin-top:-" +
+      CHIP / 2 +
+      "px;border-radius:50%;background:rgba(32,32,32,.88);color:#fff;" +
       "box-shadow:0 2px 10px rgba(0,0,0,.35);display:flex;align-items:center;" +
       "justify-content:center;opacity:0;transition:opacity .12s,transform .1s";
     var ns = "http://www.w3.org/2000/svg";
@@ -74,10 +84,15 @@
     chip.style.right = dir < 0 ? "auto" : "0";
     var slide = (progress - 1) * (CHIP + 6) + 14; // from off-screen to 14px in
     chip.style.transform =
-      "translateX(" + (dir < 0 ? slide : -slide) + "px) scale(" + (0.8 + 0.2 * progress) + ")";
+      "translateX(" +
+      (dir < 0 ? slide : -slide) +
+      "px) scale(" +
+      (0.8 + 0.2 * progress) +
+      ")";
     arrow.style.transform = dir < 0 ? "none" : "scaleX(-1)";
     chip.style.opacity = String(Math.min(1, progress * 1.4));
-    chip.style.background = progress >= 1 ? "rgba(32,32,32,.96)" : "rgba(32,32,32,.88)";
+    chip.style.background =
+      progress >= 1 ? "rgba(32,32,32,.96)" : "rgba(32,32,32,.88)";
   }
 
   function hide() {
@@ -126,7 +141,15 @@
       try {
         if (e.ctrlKey || e.deltaMode !== 0) return;
         if (!g || e.timeStamp - g.last > GAP_MS) {
-          g = { dx: 0, dy: 0, last: 0, ok: null, done: false, dir: 0, target: e.target };
+          g = {
+            dx: 0,
+            dy: 0,
+            last: 0,
+            ok: null,
+            done: false,
+            dir: 0,
+            target: e.target,
+          };
         }
         g.last = e.timeStamp;
         g.dx += e.deltaX;

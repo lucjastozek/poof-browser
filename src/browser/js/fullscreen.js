@@ -23,11 +23,20 @@
   function visible(el) {
     var r = el.getBoundingClientRect();
     var cs = getComputedStyle(el);
-    return r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none";
+    return (
+      r.width > 0 &&
+      r.height > 0 &&
+      cs.visibility !== "hidden" &&
+      cs.display !== "none"
+    );
   }
 
   function isExitControl(el) {
-    var label = ((el.getAttribute("aria-label") || "") + " " + (el.title || "")).toLowerCase();
+    var label = (
+      (el.getAttribute("aria-label") || "") +
+      " " +
+      (el.title || "")
+    ).toLowerCase();
     return /exit|leave|close/.test(label);
   }
 
@@ -71,17 +80,22 @@
   function wakeControls(video) {
     var target = video || document.body;
     var r = target.getBoundingClientRect();
-    ["pointerover", "pointerenter", "mouseover", "mouseenter", "pointermove", "mousemove"].forEach(
-      function (type) {
-        target.dispatchEvent(
-          new MouseEvent(type, {
-            bubbles: true,
-            clientX: r.left + r.width / 2,
-            clientY: r.top + r.height / 2,
-          }),
-        );
-      },
-    );
+    [
+      "pointerover",
+      "pointerenter",
+      "mouseover",
+      "mouseenter",
+      "pointermove",
+      "mousemove",
+    ].forEach(function (type) {
+      target.dispatchEvent(
+        new MouseEvent(type, {
+          bubbles: true,
+          clientX: r.left + r.width / 2,
+          clientY: r.top + r.height / 2,
+        }),
+      );
+    });
   }
 
   // The player's own container: the highest ancestor that is still about the video's size.
@@ -89,7 +103,11 @@
   function playerContainer(video) {
     var vr = video.getBoundingClientRect();
     var best = video;
-    for (var el = video.parentElement; el && el !== document.body; el = el.parentElement) {
+    for (
+      var el = video.parentElement;
+      el && el !== document.body;
+      el = el.parentElement
+    ) {
       var r = el.getBoundingClientRect();
       if (r.width * r.height > vr.width * vr.height * 1.25) break;
       best = el;
@@ -98,16 +116,25 @@
   }
 
   function visibleEmbed() {
-    return Array.prototype.find.call(document.querySelectorAll("iframe[allowfullscreen]"), function (f) {
-      var r = f.getBoundingClientRect();
-      return visible(f) && r.width > 200 && r.height > 120;
-    });
+    return Array.prototype.find.call(
+      document.querySelectorAll("iframe[allowfullscreen]"),
+      function (f) {
+        var r = f.getBoundingClientRect();
+        return visible(f) && r.width > 200 && r.height > 120;
+      },
+    );
   }
 
   function pressFullscreenKey(video) {
     var target = video || document.body;
     ["keydown", "keyup"].forEach(function (type) {
-      var e = new KeyboardEvent(type, { key: "f", code: "KeyF", keyCode: 70, which: 70, bubbles: true });
+      var e = new KeyboardEvent(type, {
+        key: "f",
+        code: "KeyF",
+        keyCode: 70,
+        which: 70,
+        bubbles: true,
+      });
       target.dispatchEvent(e);
     });
   }
@@ -137,7 +164,8 @@
       setTimeout(function () {
         if (document.fullscreenElement) return;
         var target = video ? playerContainer(video) : visibleEmbed();
-        if (target && target.requestFullscreen) target.requestFullscreen().catch(function () {});
+        if (target && target.requestFullscreen)
+          target.requestFullscreen().catch(function () {});
       }, 250);
     }, 200);
   };
@@ -145,14 +173,27 @@
   // F with the page focused: the site's own handler goes first. If nothing happened
   // shortly after, do what the player's button would do.
   function typing(el) {
-    return !!(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)));
+    return !!(
+      el &&
+      (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))
+    );
   }
   addEventListener("keydown", function (e) {
-    if (!e.isTrusted || e.repeat || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-    if (e.key.toLowerCase() !== "f" || typing(e.target) || e.defaultPrevented) return;
+    if (
+      !e.isTrusted ||
+      e.repeat ||
+      e.ctrlKey ||
+      e.altKey ||
+      e.metaKey ||
+      e.shiftKey
+    )
+      return;
+    if (e.key.toLowerCase() !== "f" || typing(e.target) || e.defaultPrevented)
+      return;
     var before = !!document.fullscreenElement;
     setTimeout(function () {
-      if (before === !!document.fullscreenElement && biggestVideo()) window.__poofToggleFullscreen();
+      if (before === !!document.fullscreenElement && biggestVideo())
+        window.__poofToggleFullscreen();
     }, 150);
   });
 })();

@@ -62,7 +62,11 @@
     list.replaceChildren();
     if (!visible.length) {
       list.append(
-        el("div", "pw-empty", rows.length ? "No matching passwords." : "No saved passwords yet."),
+        el(
+          "div",
+          "pw-empty",
+          rows.length ? "No matching passwords." : "No saved passwords yet.",
+        ),
       );
       return;
     }
@@ -77,10 +81,13 @@
     secret.dataset.id = r.id;
 
     const site = el("div", "pw-site");
-    site.append(el("div", "pw-host", host), el("div", "pw-user", r.username || "No username"));
+    site.append(
+      el("div", "pw-host", host),
+      el("div", "pw-user", r.username || "No username"),
+    );
 
     // "eye" lives in the larger space-icon set, not the toolbar set that ib() draws from.
-    const toggle = ib("x", "Show password", () => {
+    const toggle = ib("close", "Show password", () => {
       if (shown.has(r.id)) {
         forget(r.id);
         hide();
@@ -95,11 +102,11 @@
       toggle.title = "Show password";
     };
     hide();
-    const copy = ib("copy", "Copy password", () => {
+    const copy = ib("copy-2", "Copy password", () => {
       wanted.set(r.id, "copy");
       send({ cmd: "reveal_password", id: r.id });
     });
-    const del = ib("trash", "Delete password", () => {
+    const del = ib("delete-2", "Delete password", () => {
       // Two clicks to delete, because confirm() dialogs are not available in this WebView.
       if (del.classList.contains("sure")) {
         forget(r.id);
@@ -173,7 +180,10 @@
     searchField.append(ic("search", 16), search);
 
     const head = el("div", "pw-headline");
-    head.append(el("h1", null, "Passwords"), ib("x", "Close (Esc)", closePasswords));
+    head.append(
+      el("h1", null, "Passwords"),
+      ib("close", "Close (Esc)", closePasswords),
+    );
     const top = el("div", "pw-top");
     const topWrap = el("div", "pw-wrap");
     topWrap.append(
@@ -220,7 +230,12 @@
   document.addEventListener(
     "pointerdown",
     (e) => {
-      if (isOpen && e.target.closest && e.target.closest("#side") && !e.target.closest("#side-resize"))
+      if (
+        isOpen &&
+        e.target.closest &&
+        e.target.closest("#side") &&
+        !e.target.closest("#side-resize")
+      )
         closePasswords();
     },
     true,
@@ -243,7 +258,11 @@ function passwordSettingsField() {
   const text = el("span", "t");
   text.append(
     el("span", null, "Save and fill passwords"),
-    el("small", null, "Offer to save logins, and fill them in on the same site"),
+    el(
+      "small",
+      null,
+      "Offer to save logins, and fill them in on the same site",
+    ),
   );
   toggle.append(text, el("span", "track"));
   toggle.onclick = () => {
