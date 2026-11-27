@@ -92,6 +92,24 @@ impl Browser {
             .evaluate_script(&format!("window.__setSnaps&&window.__setSnaps({payload})"));
     }
 
+    /// Media in tabs that are not showing, for the sidebar's mini player.
+    fn media_rows(&self) -> Vec<Value> {
+        let mut rows: Vec<_> = self
+            .tabs
+            .iter()
+            .filter(|t| t.webview.is_some() && self.visible.as_deref() != Some(t.id.as_str()))
+            .filter_map(|t| {
+                let (playing, title, artist) = self.media.get(&t.id)?;
+                Some(json!({
+                    "id": t.id, "url": t.url, "favicon": t.favicon,
+                    "playing": playing, "title": title, "artist": artist
+                }))
+            })
+            .collect();
+        rows.truncate(3);
+        rows
+    }
+
     pub(super) fn push_state(&self) {
         let sp = self.cur_space();
         let view = self.space_view(sp);
@@ -121,6 +139,7 @@ impl Browser {
             "restore_tabs": self.p.restore_tabs,
             "link_rules": self.p.link_rules,
             "boosts": self.p.boosts,
+            "media": self.media_rows(),
             "link_fallback": self.p.link_fallback,
             "save_passwords": self.p.save_passwords,
             "sidebar_collapsed": self.p.sidebar_collapsed,

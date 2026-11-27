@@ -246,6 +246,10 @@ pub(super) enum Cmd {
     },
     /// Starts the "click an element to hide it" picker on the visible page.
     StartZap,
+    /// Play or pause the media of a tab (the mini player).
+    MediaToggle {
+        id: String,
+    },
     ListExt,
     InstallExt {
         input: String,
@@ -416,6 +420,16 @@ pub(super) enum PageMsg {
     },
     /// The page loaded and wants the JavaScript of its site's boosts run.
     BoostRun,
+    /// The page's current media element started, paused or ended. UNTRUSTED: text is clipped.
+    Media {
+        on: bool,
+        #[serde(default)]
+        playing: bool,
+        #[serde(default)]
+        title: String,
+        #[serde(default)]
+        artist: String,
+    },
     /// The page started / stopped live capture or a call (see `js/live.js`).
     Live {
         on: bool,

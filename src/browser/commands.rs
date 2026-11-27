@@ -190,6 +190,7 @@ impl Browser {
             } => self.save_boost(domain, enabled, css, js, zap),
             Cmd::DeleteBoost { domain } => self.delete_boost(&domain),
             Cmd::StartZap => self.start_zap(),
+            Cmd::MediaToggle { id } => self.media_toggle(&id),
             Cmd::DeleteLinkRule { id } => self.delete_link_rule(&id),
             Cmd::MoveLinkRule { id, delta } => self.move_link_rule(&id, delta),
             Cmd::SetLinkFallback { target } => self.set_link_fallback(target),

@@ -13,6 +13,7 @@ pub(super) fn call_script(function: &str, args: impl std::fmt::Display) -> Strin
 /// Reports live capture / calls so such tabs are never put to sleep.
 pub(super) const LIVE_JS: &str = include_str!("js/live.js");
 pub(super) const BOOST_JS: &str = include_str!("js/boost.js");
+pub(super) const MEDIA_JS: &str = include_str!("js/media.js");
 pub(super) const INIT_JS: &str = include_str!("js/init.js");
 
 /// Two-finger swipe over the page goes back / forward (main frame only).

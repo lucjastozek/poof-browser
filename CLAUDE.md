@@ -123,6 +123,7 @@ These are requirements, not nice-to-haves.
 ## 6. How to write the code
 
 ### Structure
+
 - **One job per file, small files.** If a file grows past roughly 300 lines or starts to cover two
   topics, split it. Name files after the topic (`folders.rs`, `address-bar.js`), not the kind
   (`utils`, `helpers`, `misc`).
@@ -134,13 +135,14 @@ These are requirements, not nice-to-haves.
 - Don't name a module `url`: it would shadow the `url` crate.
 
 ### Clean code
+
 - Functions do one thing and fit on a screen (aim for under 40 lines). Extract named helpers
   instead of writing comments that explain blocks. Early-return instead of nesting.
 - Names say what and why (`toggle_page_fullscreen`, not `do_fs2`). No abbreviations except the
   established ones in this codebase (`wv`, `tab`).
 - Magic numbers become named constants (`browser/constants.rs`, `ui/scripts/core/`) with a unit or
   a reason in the doc comment.
-- Comments explain *why*, never what. Doc comments (`///`, `//!`) on every module and every
+- Comments explain _why_, never what. Doc comments (`///`, `//!`) on every module and every
   non-trivial item. Delete dead code; don't comment it out.
 - No duplicate logic. If two places need it, extract it (see `write_json_atomically`,
   `eval_with_gesture`).
@@ -154,6 +156,7 @@ These are requirements, not nice-to-haves.
   gets unit tests next to it. Bug fix means a regression test when the logic is testable.
 
 ### Rust patterns used here
+
 - **Messages are typed.** Sidebar to browser: `Cmd` (`#[serde(tag = "cmd")]`). Page to browser:
   `PageMsg` (`#[serde(tag = "t")]`). Both in `browser/messages.rs`. To add a command: add the
   variant, handle it in `commands.rs` / `page_messages.rs`, send it from the UI with
@@ -168,6 +171,7 @@ These are requirements, not nice-to-haves.
   small named function (`watch_focus`, `watch_fullscreen`) with logging on failure.
 
 ### Frontend (sidebar)
+
 - Plain JS, no framework, no build step. Each script is its own `<script>` tag sharing one global
   scope, so **load order matters** and file-level names are global: avoid collisions. Styles are
   concatenated into one `<style>` tag. Register new files in `STYLES` / `SCRIPTS` in
@@ -194,7 +198,7 @@ These are requirements, not nice-to-haves.
 - For UI changes, load the sidebar page and check light and dark theme, collapsed and expanded
   sidebar, narrow and wide widths, and keyboard-only use.
 - For anything touching tabs, layout, fullscreen, focus or startup, test by hand: open, switch,
-  close, reopen, split, collapse, fullscreen (from page focus *and* sidebar focus), restart.
+  close, reopen, split, collapse, fullscreen (from page focus _and_ sidebar focus), restart.
   **The app must always start into a working window.** If startup is touched, test a cold start
   with an empty profile and with an existing state file.
 - For performance work, compare memory with the same tabs open before and after, and confirm that

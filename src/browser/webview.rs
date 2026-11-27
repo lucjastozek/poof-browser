@@ -35,6 +35,7 @@ impl Browser {
             .with_url(&url)
             .with_initialization_script_for_main_only(INIT_JS, false)
             .with_initialization_script_for_main_only(boost_js, false)
+            .with_initialization_script_for_main_only(MEDIA_JS, false)
             .with_initialization_script_for_main_only(scrollbar_script(&accent, sb_on), false)
             .with_initialization_script_for_main_only(pdf_theme_script(&accent), false)
             .with_initialization_script_for_main_only(pip::TRACK_JS, false)

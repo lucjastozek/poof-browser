@@ -187,6 +187,8 @@ pub struct Browser {
     saved_splits: Vec<Split>,
     /// Tabs where the user started a video (only those are worth waking for auto-PIP).
     vid_tabs: HashSet<String>,
+    /// Media a page reported, by tab: (playing, title, artist). Shown as the mini player.
+    media: HashMap<String, (bool, String, String)>,
     /// Open popup windows (sign-in, `window.open`), by window id.
     popups: HashMap<tao::window::WindowId, popup::Popup>,
     /// Tabs currently showing a Picture-in-Picture window: never slept or memory-trimmed.
@@ -302,6 +304,7 @@ impl Browser {
             tab_drag: false,
             saved_splits: Vec::new(),
             vid_tabs: HashSet::new(),
+            media: HashMap::new(),
             popups: HashMap::new(),
             pip_tabs: HashSet::new(),
             live_tabs: HashSet::new(),

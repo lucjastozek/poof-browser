@@ -24,7 +24,10 @@
   height: 110px;
   padding: 8px 10px;
   resize: vertical;
-  font: 12px/1.45 ui-monospace, Consolas, monospace;
+  font:
+    12px/1.45 ui-monospace,
+    Consolas,
+    monospace;
   white-space: pre;
   overflow: auto;
 }

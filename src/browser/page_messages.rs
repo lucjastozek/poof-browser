@@ -105,6 +105,14 @@ impl Browser {
                 }
                 return;
             }
+            PageMsg::Media {
+                on,
+                playing,
+                title,
+                artist,
+            } => {
+                self.on_page_media(tab, on, playing, title, artist);
+            }
             PageMsg::Focus => self.on_page_focus(tab),
         }
         // The sidebar is a separate WebView and only sees tab changes through pushed state.
@@ -292,6 +300,40 @@ impl Browser {
     }
 
     /// The user started a video on this page, so it may be popped out when they leave it.
+    /// The page's media started, paused or stopped: feeds the sidebar's mini player.
+    pub(super) fn on_page_media(
+        &mut self,
+        tab: &str,
+        on: bool,
+        playing: bool,
+        title: String,
+        artist: String,
+    ) {
+        if tab.is_empty() || !self.tabs.iter().any(|t| t.id == tab) {
+            return;
+        }
+        if on {
+            self.media.insert(
+                tab.to_string(),
+                (playing, clip(&title, 200), clip(&artist, 200)),
+            );
+        } else {
+            self.media.remove(tab);
+        }
+    }
+
+    /// Mini player button: plays or pauses the media of a tab.
+    pub(super) fn media_toggle(&self, id: &str) {
+        if let Some(wv) = self
+            .tabs
+            .iter()
+            .find(|t| t.id == id)
+            .and_then(|t| t.webview.as_ref())
+        {
+            let _ = wv.evaluate_script("window.__poofMediaToggle&&window.__poofMediaToggle()");
+        }
+    }
+
     pub(super) fn on_page_video(&mut self, tab: &str) {
         if !tab.is_empty() && self.tabs.iter().any(|t| t.id == tab) {
             self.vid_tabs.insert(tab.to_string());

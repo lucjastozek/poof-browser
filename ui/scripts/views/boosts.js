@@ -46,11 +46,17 @@ function boostCard(b) {
   const card = el("div", "boost-card");
   card.append(
     head,
-    switchRow("On", "Apply this boost on " + b.domain + " and its subdomains", b.enabled, (on) =>
-      save({ enabled: on }),
+    switchRow(
+      "On",
+      "Apply this boost on " + b.domain + " and its subdomains",
+      b.enabled,
+      (on) => save({ enabled: on }),
     ),
-    boostCode("Custom CSS", b.css, "/* custom CSS */\nbody { font-size: 110%; }", (css) =>
-      save({ css }),
+    boostCode(
+      "Custom CSS",
+      b.css,
+      "/* custom CSS */\nbody { font-size: 110%; }",
+      (css) => save({ css }),
     ),
     boostCode("Custom JavaScript", b.js, "// runs after the page loads", (js) =>
       save({ js }),

@@ -91,14 +91,12 @@ defineTool({
       const k = Math.min((pw - 2 * m) / img.w, (ph - 2 * m) / img.h);
       const w = img.w * k;
       const h = img.h * k;
-      out
-        .addPage([pw, ph])
-        .drawImage(embedded, {
-          x: (pw - w) / 2,
-          y: (ph - h) / 2,
-          width: w,
-          height: h,
-        });
+      out.addPage([pw, ph]).drawImage(embedded, {
+        x: (pw - w) / 2,
+        y: (ph - h) / 2,
+        width: w,
+        height: h,
+      });
       await frame();
     }
     return [await pdfResult(out, "images.pdf")];
