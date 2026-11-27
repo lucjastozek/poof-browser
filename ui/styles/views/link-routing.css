@@ -1,0 +1,74 @@
+/* Air Traffic Control rows: match type, text, arrow, destination, row tools. */
+.link-list {
+  display: flex;
+  flex-direction: column;
+}
+.link-rule {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto minmax(0, 190px) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.link-list .link-rule:last-child,
+.link-add {
+  border-bottom: 0;
+}
+.link-rule .engine-select {
+  min-width: 0;
+  width: 100%;
+}
+.link-pattern {
+  height: 30px;
+  min-width: 0;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.link-arrow {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.link-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.link-tools .ib:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.link-empty {
+  margin: 0;
+}
+.link-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.link-fallback .engine-select {
+  min-width: 0;
+  max-width: 220px;
+}
+@media (max-width: 700px) {
+  .link-rule {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .link-rule .link-pattern,
+  .link-rule .link-target,
+  .link-rule .link-kind {
+    grid-column: 1 / -1;
+  }
+  .link-arrow {
+    display: none;
+  }
+  .link-tools {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .link-add .btn {
+    grid-column: 1 / -1;
+  }
+}

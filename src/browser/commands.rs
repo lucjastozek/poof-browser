@@ -175,6 +175,15 @@ impl Browser {
                 color,
             } => self.edit_space(&id, &name, &icon, color),
             Cmd::DeleteSpace { id } => self.delete_space(&id)?,
+            Cmd::SaveLinkRule {
+                id,
+                matches,
+                pattern,
+                target,
+            } => self.save_link_rule(id, matches, &pattern, target),
+            Cmd::DeleteLinkRule { id } => self.delete_link_rule(&id),
+            Cmd::MoveLinkRule { id, delta } => self.move_link_rule(&id, delta),
+            Cmd::SetLinkFallback { target } => self.set_link_fallback(target),
             Cmd::MoveTab { id, to, index } => self.move_tab(&id, &to, index),
             Cmd::CreateFolder { name } => self.create_folder(&name),
             Cmd::CreateLiveFolder {

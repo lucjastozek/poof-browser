@@ -24,6 +24,7 @@ const STYLES: &[&str] = &[
     include_str!("../../ui/styles/views/dialogs.css"),
     include_str!("../../ui/styles/views/settings.css"),
     include_str!("../../ui/styles/views/passwords.css"),
+    include_str!("../../ui/styles/views/link-routing.css"),
     include_str!("../../ui/styles/views/downloads.css"),
 ];
 
@@ -62,6 +63,7 @@ const SCRIPTS: &[&str] = &[
     include_str!("../../ui/scripts/views/svg-sanitizer.js"),
     include_str!("../../ui/scripts/views/space-editor.js"),
     include_str!("../../ui/scripts/views/extensions.js"),
+    include_str!("../../ui/scripts/views/link-routing.js"),
     include_str!("../../ui/scripts/views/settings.js"),
     include_str!("../../ui/scripts/views/live-folder.js"),
     include_str!("../../ui/scripts/views/router.js"),

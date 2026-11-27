@@ -15,7 +15,7 @@ impl Browser {
             self.startup_urls.push(url.trim().to_string());
             return;
         }
-        if let Err(error) = self.new_tab(url.trim()) {
+        if let Err(error) = self.open_routed(url.trim()) {
             log::error!("{error:#}");
         }
     }
@@ -23,7 +23,7 @@ impl Browser {
     /// Opens what was queued by `open_external`.
     pub(super) fn open_startup_urls(&mut self) {
         for url in std::mem::take(&mut self.startup_urls) {
-            if let Err(error) = self.new_tab(&url) {
+            if let Err(error) = self.open_routed(&url) {
                 log::error!("{error:#}");
             }
         }

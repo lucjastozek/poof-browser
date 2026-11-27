@@ -209,6 +209,26 @@ pub(super) enum Cmd {
     DeleteSpace {
         id: String,
     },
+    /// Adds a link-routing rule, or replaces the one with `id`.
+    SaveLinkRule {
+        #[serde(default)]
+        id: Option<String>,
+        matches: RuleMatch,
+        pattern: String,
+        target: RuleTarget,
+    },
+    DeleteLinkRule {
+        id: String,
+    },
+    /// `delta` is -1 (earlier) or 1 (later).
+    MoveLinkRule {
+        id: String,
+        delta: i32,
+    },
+    SetLinkFallback {
+        #[serde(default)]
+        target: Option<RuleTarget>,
+    },
     ListExt,
     InstallExt {
         input: String,
@@ -431,6 +451,16 @@ mod tests {
             }
             _ => panic!("expected AddSpace"),
         }
+        let rule: Cmd = serde_json::from_str(
+            r#"{"cmd":"save_link_rule","matches":"domain","pattern":"github.com","target":{"kind":"profile","id":"p1"}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            rule,
+            Cmd::SaveLinkRule { id: None, matches: RuleMatch::Domain, target: RuleTarget::Profile(p), .. } if p == "p1"
+        ));
+        let fallback: Cmd = serde_json::from_str(r#"{"cmd":"set_link_fallback"}"#).unwrap();
+        assert!(matches!(fallback, Cmd::SetLinkFallback { target: None }));
         let clean: Cmd = serde_json::from_str(
             r#"{"cmd":"update_profile_cleanup","tab_retention_hours":48,"cookie_retention_hours":0,"cache_retention_hours":24,"history_retention_hours":72}"#,
         )

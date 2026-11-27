@@ -119,6 +119,8 @@ impl Browser {
             "search_engines": search::ENGINES.iter().map(|(id, name, _)| json!({"id": id, "name": name})).collect::<Vec<_>>(),
             "shortcuts": shortcuts::describe(&self.p.shortcuts),
             "restore_tabs": self.p.restore_tabs,
+            "link_rules": self.p.link_rules,
+            "link_fallback": self.p.link_fallback,
             "save_passwords": self.p.save_passwords,
             "sidebar_collapsed": self.p.sidebar_collapsed,
             "sidebar_width": self.p.sidebar_width,

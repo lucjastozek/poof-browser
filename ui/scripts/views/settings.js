@@ -3,6 +3,7 @@ const SETTINGS_TABS = [
   ["general", "settings-3", "General"],
   ["appearance", "sun", "Appearance"],
   ["privacy", "lock", "Privacy & data"],
+  ["links", "airplane", "Air Traffic Control"],
   ["import", "download-2", "Import"],
   ["shortcuts", "key-2", "Shortcuts"],
   ["developer", "code", "Developer"],
@@ -511,6 +512,7 @@ function buildSettings(v) {
     general: generalPanel,
     appearance: appearancePanel,
     privacy: privacyPanel,
+    links: linkRoutingPanel,
     import: importPanel,
     developer: developerPanel,
   };
@@ -579,8 +581,9 @@ function buildSettings(v) {
   if (!base._settingsWrapped) {
     const wrapped = (s) => {
       base(s);
-      if (ov === "settings" && window.__repaintShortcuts)
-        window.__repaintShortcuts();
+      if (ov !== "settings") return;
+      if (window.__repaintShortcuts) window.__repaintShortcuts();
+      if (window.__repaintLinkRules) window.__repaintLinkRules();
     };
     wrapped._settingsWrapped = true;
     window.__setState = wrapped;

@@ -23,7 +23,13 @@ type Icons = BTreeMap<String, String>;
 pub fn generate() {
     let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
-    for path in ["build.rs", "tools", "ui", "src/browser/js/devtools-chrome.js", PACKAGE] {
+    for path in [
+        "build.rs",
+        "tools",
+        "ui",
+        "src/browser/js/devtools-chrome.js",
+        PACKAGE,
+    ] {
         println!("cargo:rerun-if-changed={path}");
     }
 
@@ -81,7 +87,10 @@ fn load(dir: &Path, suffix: &str) -> Icons {
         let start = svg.find("<svg").expect("not an SVG");
         let open = start + svg[start..].find('>').expect("not an SVG") + 1;
         let close = svg.rfind("</svg>").expect("not an SVG");
-        icons.insert(format!("{name}{suffix}"), svg[open..close].trim().to_string());
+        icons.insert(
+            format!("{name}{suffix}"),
+            svg[open..close].trim().to_string(),
+        );
     }
     icons
 }

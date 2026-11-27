@@ -149,6 +149,7 @@ impl Browser {
             self.restore_space_tab()?;
         }
         self.prune_ext_done();
+        self.prune_link_rules();
         self.save();
         Ok(())
     }

@@ -1,6 +1,10 @@
 //! Everything that lives in state.json: preferences plus the user's spaces, folders and tabs.
 
-use super::{model::*, storage::write_json_atomically};
+use super::{
+    link_rules::{target_exists, LinkRule, RuleTarget, LINK_RULES_MAX},
+    model::*,
+    storage::write_json_atomically,
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::Path};
 
@@ -85,6 +89,12 @@ pub struct Persisted {
     /// Tabs playing audio are never unloaded. The tab stays in the sidebar and reloads on click.
     #[serde(default = "default_tab_sleep_minutes")]
     pub tab_sleep_minutes: u64,
+    /// Air Traffic Control: where links from other apps open. First matching rule wins.
+    #[serde(default)]
+    pub link_rules: Vec<LinkRule>,
+    /// Where links that match no rule open; `None` keeps the space that is showing.
+    #[serde(default)]
+    pub link_fallback: Option<RuleTarget>,
 }
 
 impl Default for Persisted {
@@ -120,6 +130,8 @@ impl Default for Persisted {
             sites: HashMap::new(),
             preinstalled: vec![],
             tab_sleep_minutes: default_tab_sleep_minutes(),
+            link_rules: vec![],
+            link_fallback: None,
         }
     }
 }
@@ -136,6 +148,21 @@ impl Persisted {
             self.devtools_size = default_devtools_size();
         }
         self.devtools_size = self.devtools_size.clamp(240.0, 800.0);
+    }
+
+    /// Drops rules that point at a space or profile that no longer exists, and caps the list.
+    pub fn prune_link_rules(&mut self) {
+        let (spaces, profiles) = (&self.spaces, &self.profiles);
+        self.link_rules
+            .retain(|rule| target_exists(&rule.target, spaces, profiles));
+        self.link_rules.truncate(LINK_RULES_MAX);
+        if self
+            .link_fallback
+            .as_ref()
+            .is_some_and(|target| !target_exists(target, spaces, profiles))
+        {
+            self.link_fallback = None;
+        }
     }
 
     /// Keeps the 400 most-visited sites (single sort instead of repeated scans).
@@ -192,6 +219,7 @@ impl Persisted {
         }
         p.sidebar_width = p.sidebar_width.clamp(180.0, 480.0);
         p.sanitize_devtools_preferences();
+        p.prune_link_rules();
         p.tab_sleep_minutes = p.tab_sleep_minutes.min(10_080);
         if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
             p.theme = system();
