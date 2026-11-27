@@ -260,6 +260,8 @@ pub(super) enum Cmd {
     },
     /// The Downloads view opened: send the list.
     ListDownloads,
+    /// Capture button of the toolbar: area, element or full page of the visible page.
+    Capture,
     PauseDownload {
         id: String,
     },
@@ -383,6 +385,24 @@ pub(super) enum PageMsg {
     /// Internal (empty tab id only): re-run the layout once the window has settled.
     #[serde(rename = "relayout")]
     Relayout,
+    /// The capture overlay's choice. UNTRUSTED: only counts with the capture's one-time token `n`.
+    /// A width of 0 means it was cancelled.
+    Capture {
+        n: String,
+        #[serde(default)]
+        x: f64,
+        #[serde(default)]
+        y: f64,
+        #[serde(default)]
+        w: f64,
+        #[serde(default)]
+        h: f64,
+        #[serde(default)]
+        d: f64,
+        /// Local time for the file name, e.g. "2026-11-27 at 14.03.22".
+        #[serde(default)]
+        s: String,
+    },
     /// Internal (empty tab id only): periodic DevTools poll trigger.
     #[serde(rename = "devtools_tick")]
     DevToolsTick,

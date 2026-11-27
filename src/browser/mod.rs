@@ -49,6 +49,7 @@ use wry::{
 use wry::WebViewExtWindows;
 
 mod arc_import;
+mod capture;
 mod clean_link;
 mod commands;
 mod constants;
@@ -227,6 +228,7 @@ pub struct Browser {
 impl Browser {
     pub fn new(window: Window, proxy: EventLoopProxy<UserEvent>, root: PathBuf) -> Result<Self> {
         updater::spawn_check(proxy.clone(), root.clone());
+        capture::spawn_screenshot_watch(proxy.clone());
         let data_dir = root.clone();
         let p = load_state(&root);
 

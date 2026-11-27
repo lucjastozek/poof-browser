@@ -81,6 +81,7 @@ impl Browser {
             Cmd::PasswordOfferAccept => self.accept_password_offer(),
             Cmd::PasswordOfferDismiss { never } => self.dismiss_password_offer(never),
             Cmd::ListDownloads => self.list_downloads(),
+            Cmd::Capture => self.start_capture("area"),
             Cmd::PauseDownload { id } => self.pause_download(&id),
             Cmd::ResumeDownload { id } => self.resume_download(&id),
             Cmd::CancelDownload { id } => self.cancel_download(&id),

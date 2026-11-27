@@ -42,6 +42,26 @@ impl Browser {
                     }
                 }
             }
+            PageMsg::Capture {
+                n,
+                x,
+                y,
+                w,
+                h,
+                d,
+                s,
+            } => {
+                if let Ok(mut stamp) = capture::STAMP.lock() {
+                    *stamp = s
+                        .chars()
+                        .filter(|c| c.is_ascii_alphanumeric() || " .-".contains(*c))
+                        .take(24)
+                        .collect();
+                }
+                let region = (w > 0.0 && h > 0.0).then_some(capture::Region { x, y, w, h, dpr: d });
+                self.on_page_capture(tab, &n, region);
+                return;
+            }
             PageMsg::Meta { u } => self.on_page_meta(tab, u),
             PageMsg::Favicon { f } => self.on_page_favicon(tab, f),
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
@@ -226,6 +246,10 @@ impl Browser {
                     k[4..].parse::<usize>().unwrap_or(1).saturating_sub(1)
                 };
                 self.activate_tab_index(index)
+            }
+            "capture" => {
+                self.start_capture("area");
+                Ok(())
             }
             "print" => {
                 self.eval_visible("window.print()");

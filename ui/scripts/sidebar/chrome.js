@@ -104,6 +104,10 @@ $("copyLink").onclick = () => {
   if (S && S.url) copyLink(S.url, "Link copied");
 };
 $("pageToolbar").append(ib("puzzle", "Extensions", () => openView("ext")));
+ICONS.camera = SPACE_ICONS.camera; // the toolbar set has no camera; reuse the one of the space icons
+$("pageToolbar").append(
+  ib("camera", "Capture (Ctrl+Shift+S)", () => send({ cmd: "capture" })),
+);
 $("pageToolbar").append(
   ib("code", "Developer tools (F12)", () => send({ cmd: "devtools_toggle" })),
 );

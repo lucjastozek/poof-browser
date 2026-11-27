@@ -112,7 +112,7 @@ impl Browser {
     }
 
     /// Keeps the list bounded: the oldest finished downloads go first.
-    fn trim_downloads(&mut self) {
+    pub(super) fn trim_downloads(&mut self) {
         while self.downloads.len() > DOWNLOADS_MAX {
             let Some(oldest) = self.downloads.iter().rposition(|d| !d.status.is_live()) else {
                 return;
@@ -121,7 +121,7 @@ impl Browser {
         }
     }
 
-    fn persist_downloads(&self) {
+    pub(super) fn persist_downloads(&self) {
         if !save_downloads(&self.downloads, &self.root.join("downloads.json")) {
             log::warn!("saving downloads.json failed");
         }

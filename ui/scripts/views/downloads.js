@@ -319,7 +319,11 @@
     if (isLive(d)) return progressText(d);
     if (d.status === "completed") {
       if (d.missing) return "File moved or deleted";
-      const from = /^https?:/i.test(d.url) ? hostOf(d.url) : "";
+      const from = /^https?:/i.test(d.url)
+        ? hostOf(d.url)
+        : d.url === "screenshot:"
+          ? "Screenshot"
+          : "";
       return [formatBytes(d.total || d.received), from]
         .filter(Boolean)
         .join(" · ");

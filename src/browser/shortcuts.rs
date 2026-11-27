@@ -83,6 +83,7 @@ const ACTIONS: &[Action] = &[
         NAV,
         "Ctrl+Shift+C",
     ),
+    action("capture", "capture", "Capture page", VIEWS, "Ctrl+Shift+S"),
     action("history", "history", "History", VIEWS, "Ctrl+H"),
     action("downloads", "downloads", "Downloads", VIEWS, "Ctrl+J"),
     action(

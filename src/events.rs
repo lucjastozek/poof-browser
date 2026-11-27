@@ -66,6 +66,10 @@ pub enum UserEvent {
     UpdateFailed,
     /// PNG of the page behind a full-area view (`None` when capturing failed).
     PageSnapshot(Option<Vec<u8>>),
+    /// PNG of a captured area, element or page (`None` when capturing failed).
+    CaptureDone(Option<Vec<u8>>),
+    /// The system's screenshot tool made a new file.
+    SystemScreenshot(std::path::PathBuf),
     /// A file download reported by WebView2.
     Download(DownloadEvent),
     /// Another launch handed over a link or file (the address is UNTRUSTED), or just asked

@@ -33,6 +33,11 @@ impl Browser {
             }
             UserEvent::UpdateReady(installer) => self.on_update_ready(installer),
             UserEvent::PageSnapshot(png) => self.on_page_snapshot(png),
+            UserEvent::CaptureDone(png) => self.on_capture_done(png),
+            UserEvent::SystemScreenshot(path) => {
+                self.add_screenshot(&path);
+                self.toast("Screenshot added to Downloads");
+            }
             UserEvent::UpdateFailed => {
                 self.update_now = false;
                 self.toast("Couldn’t download the update. It will be offered again next time.");
