@@ -14,10 +14,10 @@ use crate::{
     passwords::PasswordStore,
     pip,
     state::{
-        boosts_for, file_name, load_downloads, load_history, new_id, save_downloads, save_history, unique_path,
-        valid_icon, Boost, DownloadEntry, DownloadStatus, HistoryEntry, Kind, LiveFolder, LiveItem,
-        LiveSource, Persisted, Profile, RuleMatch, RuleTarget, Saved, Space, TabFolder,
-        LIVE_INTERVAL_MAX, LIVE_INTERVAL_MIN, BOOSTS_MAX, BOOST_ZAP_MAX, ok_selector,
+        boosts_for, file_name, load_downloads, load_history, new_id, ok_selector, save_downloads,
+        save_history, unique_path, valid_icon, Boost, DownloadEntry, DownloadStatus, HistoryEntry,
+        Kind, LiveFolder, LiveItem, LiveSource, Persisted, Profile, RuleMatch, RuleTarget, Saved,
+        Space, TabFolder, BOOSTS_MAX, BOOST_ZAP_MAX, LIVE_INTERVAL_MAX, LIVE_INTERVAL_MIN,
     },
     updater, UserEvent,
 };
@@ -71,8 +71,8 @@ mod layout;
 mod link_routing;
 mod live_folders;
 mod maintenance;
-mod mini;
 mod messages;
+mod mini;
 mod page_messages;
 mod passwords;
 mod pdf_viewer;

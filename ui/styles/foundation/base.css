@@ -56,8 +56,51 @@ svg {
   height: 0 !important;
 }
 :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--space) 70%, var(--ink));
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
+}
+button:disabled {
+  cursor: default;
+}
+img {
+  -webkit-user-drag: none;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 input:focus-visible {
   outline: 0;

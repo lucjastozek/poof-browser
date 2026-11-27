@@ -17,12 +17,6 @@
       </div>
       <div class="toolbar-content" id="pageToolbar">
         <div id="pageNav"></div>
-        <button
-          id="copyLink"
-          class="ib"
-          title="Copy link"
-          aria-label="Copy link"
-        ></button>
         <div class="urlwrap">
           <input
             id="url"
@@ -30,6 +24,12 @@
             spellcheck="false"
             autocomplete="off"
           />
+          <button
+            id="copyLink"
+            class="ib"
+            title="Copy link"
+            aria-label="Copy link"
+          ></button>
           <button id="addExt" hidden>Add to poof</button>
         </div>
       </div>
@@ -83,7 +83,7 @@
         <div id="tabs" class="list"></div>
       </div>
       <div class="foot" id="foot"></div>
-      <div id="toast"></div>
+      <div id="toast" role="status" aria-live="polite"></div>
     </div>
     <div id="stage" hidden></div>
     <div id="ind" hidden></div>

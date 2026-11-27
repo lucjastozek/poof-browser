@@ -17,9 +17,9 @@
   height: 1px;
   background: var(--line-2);
   transition:
-    background 0.12s,
-    height 0.12s,
-    top 0.12s;
+    background var(--t-base),
+    height var(--t-base),
+    top var(--t-base);
 }
 .line span {
   position: relative;
@@ -30,7 +30,7 @@
   background: var(--chrome);
   color: var(--ink-2);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--t-base);
 }
 .dragging .line::before {
   height: 2px;
@@ -100,7 +100,8 @@
     var(--shadow-lg),
     0 0 0 1px var(--line-2);
   opacity: 0.97;
-  transform: scale(1.02);
+  transform: scale(1.025);
+  will-change: left, top;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -142,8 +143,12 @@
   color: var(--ink-2);
   position: relative;
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--t-fast),
+    color var(--t-fast),
+    transform var(--t-fast) var(--ease);
+}
+.sp:active {
+  transform: scale(0.9);
 }
 .sp svg {
   width: 100%;
@@ -178,11 +183,12 @@
   margin: 0 5px;
   flex: none;
 }
+/* Switching space: the new list slides in from the direction of the space it came from. */
 .l {
-  animation: inL 0.22s var(--ease);
+  animation: inL var(--t-slow) var(--ease-out);
 }
 .r {
-  animation: inR 0.22s var(--ease);
+  animation: inR var(--t-slow) var(--ease-out);
 }
 @keyframes inL {
   from {
@@ -217,9 +223,19 @@
   box-shadow: var(--shadow-lg);
   opacity: 0;
   transform: translateY(6px);
-  transition: 0.2s var(--ease);
+  transition:
+    opacity var(--t-base),
+    transform var(--t-base) var(--ease-out);
   pointer-events: none;
   z-index: 60;
+}
+body.compact #toast {
+  left: 4px;
+  right: 4px;
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 :root[data-theme="dark"] #toast {
   color: var(--black);

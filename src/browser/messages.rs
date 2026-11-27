@@ -453,6 +453,21 @@ pub(super) enum PageMsg {
     OpenBackground {
         u: String,
     },
+    /// Internal (empty tab id only): native code listed a right-click menu for `tab`; show it.
+    #[serde(rename = "ctx_open")]
+    CtxOpen {
+        tab: String,
+        items: Value,
+        x: f64,
+        y: f64,
+    },
+    /// The right-click menu's choice (`id` 0 = dismissed). UNTRUSTED: only counts with the menu's
+    /// one-time token `n`, and only from the tab it belongs to.
+    #[serde(rename = "ctx_pick")]
+    CtxPick {
+        n: String,
+        id: i32,
+    },
     /// Internal (empty tab id only): re-run the layout once the window has settled.
     #[serde(rename = "relayout")]
     Relayout,

@@ -42,6 +42,23 @@ impl Browser {
                     }
                 }
             }
+            PageMsg::CtxOpen {
+                tab: menu_tab,
+                items,
+                x,
+                y,
+            } => {
+                if tab.is_empty() {
+                    self.on_context_menu_open(&menu_tab, &items, x, y);
+                }
+                return;
+            }
+            PageMsg::CtxPick { n, id } => {
+                if !tab.is_empty() {
+                    self.on_context_menu_pick(tab, &n, id);
+                }
+                return;
+            }
             PageMsg::Capture {
                 n,
                 x,
@@ -329,8 +346,10 @@ impl Browser {
             return;
         }
         if on {
-            self.media
-                .insert(tab.to_string(), (playing, clip(&title, 200), clip(&artist, 200)));
+            self.media.insert(
+                tab.to_string(),
+                (playing, clip(&title, 200), clip(&artist, 200)),
+            );
         } else {
             self.media.remove(tab);
         }

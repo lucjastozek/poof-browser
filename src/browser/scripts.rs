@@ -16,6 +16,8 @@ pub(super) const BOOST_JS: &str = include_str!("js/boost.js");
 pub(super) const MEDIA_JS: &str = include_str!("js/media.js");
 pub(super) const PEEK_JS: &str = include_str!("js/peek.js");
 pub(super) const INIT_JS: &str = include_str!("js/init.js");
+/// The page right-click menu, filled in by `context_menu.rs`.
+pub(super) const CONTEXT_MENU_JS: &str = include_str!("js/context-menu.js");
 
 /// Two-finger swipe over the page goes back / forward (main frame only).
 pub(super) const SWIPE_NAV_JS: &str = include_str!("js/swipe-nav.js");

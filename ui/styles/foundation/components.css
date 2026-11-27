@@ -8,8 +8,9 @@
   justify-content: center;
   color: var(--ink-2);
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--t-fast),
+    color var(--t-fast),
+    transform var(--t-fast) var(--ease);
 }
 .ib:hover {
   background: var(--hover);
@@ -17,6 +18,11 @@
 }
 .ib:active {
   background: var(--pressed);
+  transform: scale(0.92);
+}
+.ib:disabled {
+  opacity: 0.35;
+  pointer-events: none;
 }
 .btn {
   height: 34px;
@@ -29,14 +35,16 @@
   justify-content: center;
   gap: 6px;
   transition:
-    background 0.12s,
-    border-color 0.12s;
+    background var(--t-fast),
+    border-color var(--t-fast),
+    transform var(--t-fast) var(--ease);
 }
 .btn:hover {
   background: var(--hover);
 }
 .btn:active {
   background: var(--pressed);
+  transform: scale(0.97);
 }
 .btn.primary {
   background: var(--accent);
@@ -157,6 +165,12 @@ kbd {
   color: var(--ink-2);
   font-weight: 500;
 }
+.seg button {
+  transition:
+    background var(--t-base),
+    color var(--t-base),
+    box-shadow var(--t-base);
+}
 .seg button:hover {
   color: var(--ink);
 }
@@ -177,6 +191,15 @@ kbd {
   border: 1px solid var(--line-2);
   color: var(--ink-2);
   font-weight: 500;
+}
+.chip {
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    transform var(--t-fast) var(--ease);
+}
+.chip:active {
+  transform: scale(0.96);
 }
 .chip:hover {
   color: var(--ink);
@@ -211,7 +234,14 @@ kbd {
   background: var(--line-2);
   position: relative;
   flex: none;
-  transition: background 0.15s;
+  transition: background var(--t-base);
+}
+.switch:hover .track {
+  background: color-mix(in srgb, var(--ink) 28%, transparent);
+}
+.switch[aria-checked="true"]:hover .track {
+  background: var(--accent);
+  filter: brightness(1.12);
 }
 .track::after {
   content: "";
@@ -223,7 +253,7 @@ kbd {
   border-radius: 50%;
   background: var(--bg);
   box-shadow: var(--shadow-sm);
-  transition: transform 0.18s var(--ease);
+  transition: transform var(--t-base) var(--ease-spring);
 }
 .switch[aria-checked="true"] .track {
   background: var(--accent);

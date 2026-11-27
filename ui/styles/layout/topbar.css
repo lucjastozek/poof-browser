@@ -26,8 +26,8 @@
   height: var(--topbar-row-height);
   padding-left: 8px;
   transition:
-    width 0.18s var(--ease),
-    flex-basis 0.18s var(--ease);
+    width var(--t-slow) var(--ease-out),
+    flex-basis var(--t-slow) var(--ease-out);
 }
 .toolbar-sidebar .ib,
 #titlebar .ib {
@@ -75,23 +75,54 @@ body.collapsed .toolbar-sidebar {
   width: 100%;
   min-width: 0;
   height: var(--topbar-row-height);
-  padding: 0 14px 0 14px;
-  padding-right: 112px;
+  padding: 0 38px;
   border: 1px solid transparent;
   border-radius: var(--r-md);
   background: color-mix(in srgb, var(--surface) 60%, transparent);
-  font-size: 15px;
-  text-align: left;
+  font-size: 13.5px;
+  text-align: center;
+  text-overflow: ellipsis;
   transition:
-    background 0.12s,
-    border-color 0.12s,
-    box-shadow 0.12s;
+    background var(--t-fast),
+    border-color var(--t-base),
+    box-shadow var(--t-base);
+}
+#url::placeholder {
+  color: var(--ink-3);
+}
+/* The Add button needs room on the right while it is showing. */
+.urlwrap:has(#addExt:not([hidden])) #url {
+  padding-right: 112px;
+}
+/* Copy link lives inside the field, at its right edge. */
+#titlebar #copyLink {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin-top: -13px;
+  z-index: 1;
+  opacity: 0;
+  transition:
+    opacity var(--t-base),
+    background var(--t-fast),
+    color var(--t-fast);
+}
+.urlwrap:hover #copyLink,
+.urlwrap:focus-within #copyLink,
+#copyLink:focus-visible {
+  opacity: 1;
+}
+.urlwrap:has(#addExt:not([hidden])) #copyLink {
+  display: none;
 }
 #url:hover {
   background: var(--surface);
 }
 #url:focus {
   text-align: left;
+  padding-left: 14px;
   background: var(--surface);
   border-color: color-mix(in srgb, var(--space) 65%, var(--ink));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--space) 30%, transparent);
@@ -120,16 +151,20 @@ body.collapsed .toolbar-sidebar {
   height: 100%;
   color: var(--ink-2);
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--t-fast),
+    color var(--t-fast);
+}
+.window-control:active {
+  background: var(--pressed);
 }
 .window-control:hover {
   background: var(--hover);
   color: var(--ink);
 }
-.window-control.close:hover {
+.window-control.close:hover,
+.window-control.close:active {
   background: #c42b1c;
-  color: white;
+  color: #fff;
 }
 .min-glyph {
   width: 10px;

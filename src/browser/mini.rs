@@ -214,7 +214,12 @@ impl Browser {
         let [x, y, w, h] = self.content_box();
         let mx = (w * 0.08).clamp(16.0, w / 4.0);
         let my = (h * 0.03).clamp(10.0, h / 4.0);
-        [x + mx, y + my, (w - 2.0 * mx).max(1.0), (h - 2.0 * my).max(1.0)]
+        [
+            x + mx,
+            y + my,
+            (w - 2.0 * mx).max(1.0),
+            (h - 2.0 * my).max(1.0),
+        ]
     }
 
     pub(super) fn layout_peek(&self) {
@@ -276,7 +281,10 @@ impl Browser {
 
         let host = url::Url::parse(url)
             .ok()
-            .and_then(|u| u.host_str().map(|h| h.trim_start_matches("www.").to_string()))
+            .and_then(|u| {
+                u.host_str()
+                    .map(|h| h.trim_start_matches("www.").to_string())
+            })
             .unwrap_or_default();
         let html = popup_bar_html(&self.p.theme, &self.cur_space().color, &host, "peek");
         let ipc = bar_ipc(self.proxy.clone(), |cmd| UserEvent::PeekCmd { cmd });
@@ -293,11 +301,8 @@ impl Browser {
         let bar = bar_builder.build_as_child(&self.window)?;
 
         let dir = self.root.join("profiles").join(&profile_id);
-        let (title_proxy, link_proxy, esc_proxy) = (
-            self.proxy.clone(),
-            self.proxy.clone(),
-            self.proxy.clone(),
-        );
+        let (title_proxy, link_proxy, esc_proxy) =
+            (self.proxy.clone(), self.proxy.clone(), self.proxy.clone());
         let scrollbar = scrollbar_script(&self.cur_space().color, true);
         let ctx = self
             .contexts

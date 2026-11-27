@@ -47,25 +47,69 @@ function showRowMenu(e, t) {
       );
   } else if (S.active && S.active !== t.id) {
     items.push(
-      item("Open in split view (side by side)", {
+      item("Split side by side", {
         cmd: "split_tab",
         id: t.id,
         stacked: false,
       }),
-      item("Open in split view (top and bottom)", {
+      item("Split top and bottom", {
         cmd: "split_tab",
         id: t.id,
         stacked: true,
       }),
     );
   }
-  if (!items.length) return;
-  rowMenu.replaceChildren(...items);
-  $("side").append(rowMenu);
-  const bounds = $("side").getBoundingClientRect();
-  rowMenu.style.left =
-    Math.max(8, Math.min(e.clientX - bounds.left, bounds.width - 220)) + "px";
-  rowMenu.style.top = Math.max(8, e.clientY - bounds.top) + "px";
+  const tail = [];
+  if (t.url && /^https?:/i.test(t.url))
+    tail.push(
+      Object.assign(item("Copy link", { cmd: "noop" }), {
+        onclick: () => {
+          rowMenu.remove();
+          window.__copyLink(t.url, "Link copied");
+        },
+      }),
+    );
+  if (t.kind !== "favorite" && !S.favorites.some((f) => f.id === t.id))
+    tail.push(item("Add to favorites", { cmd: "fav_tab", id: t.id }));
+  if (t.loaded)
+    tail.push(item("Put to sleep", { cmd: "unload_tab", id: t.id }));
+  const close = item("Close tab", { cmd: "close_tab", id: t.id });
+  close.classList.add("danger");
+  tail.push(close);
+  if (items.length) items.push(el("div", "folder-context-sep"));
+  items.push(...tail);
+  placeMenu(rowMenu, items, e);
+}
+// Measures the menu after it is in the DOM so it never spills past the sidebar or window.
+function placeMenu(menu, items, e) {
+  menu.setAttribute("role", "menu");
+  items.forEach(
+    (i) => i.matches?.("button") && i.setAttribute("role", "menuitem"),
+  );
+  menu.replaceChildren(...items);
+  menu.style.visibility = "hidden";
+  $("side").append(menu);
+  const b = $("side").getBoundingClientRect();
+  const w = menu.offsetWidth,
+    h = menu.offsetHeight;
+  const x = Math.max(6, Math.min(e.clientX - b.left, b.width - w - 6));
+  let y = e.clientY - b.top;
+  if (y + h > b.height - 6) y = Math.max(6, y - h);
+  menu.style.left = x + "px";
+  menu.style.top = y + "px";
+  menu.style.visibility = "";
+  const first = menu.querySelector("button");
+  if (first) first.focus({ preventScroll: true });
+}
+function menuKeys(menu, e) {
+  if (!menu.isConnected) return;
+  const btns = [...menu.querySelectorAll("button")];
+  const i = btns.indexOf(document.activeElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const d = e.key === "ArrowDown" ? 1 : -1;
+    btns[(i + d + btns.length) % btns.length]?.focus();
+  }
 }
 
 $("side").addEventListener("contextmenu", (e) => {
@@ -78,11 +122,15 @@ $("side").addEventListener("contextmenu", (e) => {
   e.preventDefault();
   rowMenu.remove();
   folderContextMenu.remove();
-  $("side").append(folderContextMenu);
-  const bounds = $("side").getBoundingClientRect();
-  folderContextMenu.style.left =
-    Math.max(8, Math.min(e.clientX - bounds.left, bounds.width - 168)) + "px";
-  folderContextMenu.style.top = Math.max(8, e.clientY - bounds.top) + "px";
+  placeMenu(folderContextMenu, [createFolderItem, createLiveFolderItem], e);
+});
+document.addEventListener("keydown", (e) => {
+  menuKeys(rowMenu, e);
+  menuKeys(folderContextMenu, e);
+});
+window.addEventListener("blur", () => {
+  rowMenu.remove();
+  folderContextMenu.remove();
 });
 document.addEventListener("pointerdown", (e) => {
   if (!folderContextMenu.contains(e.target)) folderContextMenu.remove();

@@ -90,6 +90,15 @@ function liveActions(folder) {
     ib("pencil", "Edit live folder", () => openView("livefolder:" + folder.id)),
   ];
 }
+// Flip the folder's look immediately; the native state that follows rebuilds it identically.
+function toggleFolderNow(group, head, toggle, glyph, folder) {
+  const collapsed = !group.classList.contains("collapsed");
+  group.classList.toggle("collapsed", collapsed);
+  head.setAttribute("aria-expanded", String(!collapsed));
+  if (!folder.live)
+    glyph.replaceChildren(ic(collapsed ? "folder-2" : "folder-open", 18));
+  send({ cmd: "toggle_folder_collapsed", id: folder.id });
+}
 function folderNode(s, folder, pinned) {
   const members = (pinned ? s.pinned : s.tabs).filter(
     (t) => t.folder_id === folder.id,
@@ -142,7 +151,7 @@ function folderNode(s, folder, pinned) {
   );
   head.onclick = (e) => {
     if (e.target.closest(".folder-actions,.folder-rename") || noClick) return;
-    send({ cmd: "toggle_folder_collapsed", id: folder.id });
+    toggleFolderNow(group, head, toggle, glyph, folder);
   };
   head.onkeydown = (e) => {
     if (
@@ -150,7 +159,7 @@ function folderNode(s, folder, pinned) {
       !e.target.closest(".folder-actions,.folder-rename")
     ) {
       e.preventDefault();
-      send({ cmd: "toggle_folder_collapsed", id: folder.id });
+      toggleFolderNow(group, head, toggle, glyph, folder);
     }
   };
   head.onpointerdown = (e) => watchFolderDrag(e, head, folder);

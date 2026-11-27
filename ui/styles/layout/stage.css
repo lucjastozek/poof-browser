@@ -26,7 +26,7 @@ body.collapsed #web-surface {
   background: var(--stage);
   border: 1px solid var(--line);
   overflow: auto;
-  animation: fade 0.18s ease;
+  animation: fade var(--t-base) ease;
 }
 body.compact #stage {
   left: 64px;
@@ -36,14 +36,6 @@ body.collapsed #stage {
 }
 #stage[hidden] {
   display: none;
-}
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 /* Do not paint an empty accent-tinted page well before the first tab is ready. */

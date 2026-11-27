@@ -140,6 +140,7 @@
   display: grid;
   place-items: center;
   padding: 24px;
+  animation: fade var(--t-base) ease;
   background: color-mix(in srgb, #000 36%, transparent);
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
@@ -154,7 +155,7 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg);
-  animation: pop 0.2s var(--ease);
+  animation: pop var(--t-slow) var(--ease-out);
 }
 .settings-nav {
   display: flex;

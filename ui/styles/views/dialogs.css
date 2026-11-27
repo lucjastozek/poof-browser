@@ -9,23 +9,13 @@
 .dlg {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 56px);
+  max-height: calc(100vh - 40px - 8px - 48px);
   width: min(440px, 100%);
   background: var(--raised);
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg);
-  animation: pop 0.2s var(--ease);
-}
-@keyframes pop {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  animation: pop var(--t-slow) var(--ease-out);
 }
 .dlg header {
   display: flex;
@@ -110,6 +100,11 @@
   justify-content: center;
   color: var(--ink-2);
 }
+.icons button {
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+}
 .icons button:hover {
   background: var(--hover);
   color: var(--ink);
@@ -187,7 +182,10 @@
   aspect-ratio: 1;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
-  transition: transform 0.12s var(--ease);
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+.swatches button:active {
+  transform: scale(0.92);
 }
 .swatches button:hover {
   transform: scale(1.1);

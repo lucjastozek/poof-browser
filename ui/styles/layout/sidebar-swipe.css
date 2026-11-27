@@ -12,7 +12,7 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px; /* same as #side, so a slide lines up with the content it replaces */
+  gap: 8px; /* same as #side, so a slide lines up with the content it replaces */
   will-change: transform;
 }
 #side.swiping > #favs,

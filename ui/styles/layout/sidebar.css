@@ -14,9 +14,8 @@
   display: flex;
   flex-direction: column;
   padding: 48px 6px 8px 10px;
-  gap: 10px;
-  position: relative;
-  transition: width 0.18s var(--ease);
+  gap: 8px;
+  transition: width var(--t-slow) var(--ease-out);
 }
 
 body.compact #side {
@@ -105,15 +104,20 @@ body.collapsed:not(.peek) #side #toast {
 }
 #addExt {
   position: absolute;
-  right: 9px;
-  top: 2px;
+  right: 4px;
+  top: 50%;
+  margin-top: -11px;
   height: 22px;
-  padding: 0 8px;
-  border-radius: 7px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  transition: transform var(--t-fast) var(--ease);
   background: var(--accent);
   color: var(--accent-ink);
   font-size: 12px;
   font-weight: 500;
+}
+#addExt:active {
+  transform: scale(0.95);
 }
 #addExt[hidden] {
   display: none;
@@ -139,10 +143,15 @@ body.collapsed:not(.peek) #side #toast {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.12s;
+  transition:
+    background var(--t-fast),
+    transform var(--t-fast) var(--ease);
 }
 .tile:hover {
   background: var(--surface);
+}
+.tile:active {
+  transform: scale(0.95);
 }
 .tile .ico {
   width: 24px;
@@ -189,6 +198,10 @@ body.collapsed:not(.peek) #side #toast {
   text-align: left;
   width: 100%;
   flex: none;
+  transition: background var(--t-fast);
+}
+.hdr:hover {
+  background: var(--hover);
 }
 .hdr .chipi {
   width: 22px;
@@ -218,9 +231,10 @@ body.collapsed:not(.peek) #side #toast {
 .hdr .pen {
   color: var(--ink-3);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--t-base);
 }
-.hdr:hover .pen {
+.hdr:hover .pen,
+.hdr:focus-visible .pen {
   opacity: 1;
 }
 .list {
@@ -241,10 +255,17 @@ body.collapsed:not(.peek) #side #toast {
   position: relative;
   width: 100%;
   text-align: left;
-  transition: background 0.1s;
+  --acts-w: 78px;
+  transition:
+    background var(--t-fast),
+    box-shadow var(--t-base),
+    transform var(--t-fast) var(--ease);
 }
 .row:hover {
   background: var(--hover);
+}
+.row:active:not(.on) {
+  background: var(--pressed);
 }
 .row.on {
   background: var(--raised);
@@ -265,16 +286,44 @@ body.collapsed:not(.peek) #side #toast {
 .row.lift {
   opacity: 0.35;
 }
+/* Row actions overlay the title's tail instead of pushing it, so hovering never shifts text. */
 .acts {
-  display: none;
-  gap: 0;
-}
-.row:hover .acts {
+  position: absolute;
+  right: 4px;
+  top: 0;
+  bottom: 0;
   display: flex;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast);
+}
+.row:hover .acts,
+.row:focus-within .acts {
+  opacity: 1;
+  pointer-events: auto;
+}
+.row:hover .ttl,
+.row:focus-within .ttl {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    #000 calc(100% - var(--acts-w) - 6px),
+    transparent calc(100% - var(--acts-w) + 8px)
+  );
+  mask-image: linear-gradient(
+    90deg,
+    #000 calc(100% - var(--acts-w) - 6px),
+    transparent calc(100% - var(--acts-w) + 8px)
+  );
 }
 .acts .ib {
   width: 24px;
   height: 24px;
+  border-radius: 7px;
+}
+.acts .ib:hover {
+  background: var(--pressed);
 }
 .acts .ib svg {
   width: 14px;
@@ -293,7 +342,20 @@ body.collapsed:not(.peek) #side #toast {
 /* Touch screens have no hover: keep the hover-only controls reachable, and make handles easier to hit. */
 @media (hover: none) {
   .row .acts {
-    display: flex;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .row .ttl {
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      #000 calc(100% - var(--acts-w) - 6px),
+      transparent calc(100% - var(--acts-w) + 8px)
+    );
+    mask-image: linear-gradient(
+      90deg,
+      #000 calc(100% - var(--acts-w) - 6px),
+      transparent calc(100% - var(--acts-w) + 8px)
+    );
   }
   .hdr .pen {
     opacity: 1;
@@ -315,6 +377,7 @@ body.collapsed:not(.peek) #side #toast {
   }
   .row {
     height: 40px;
+    --acts-w: 100px;
   }
   /* Rows scroll vertically; dragging starts after a long press (see drag-reorder.js). */
   .row,

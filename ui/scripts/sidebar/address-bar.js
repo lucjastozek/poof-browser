@@ -68,6 +68,9 @@ url.addEventListener("keydown", (e) => {
     url.blur();
   }
   if (e.key === "Escape") {
+    e.preventDefault();
+    urlDraft = null;
     url.blur();
+    if (S && S.active) send({ cmd: "focus_tab", id: S.active });
   }
 });

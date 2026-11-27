@@ -91,7 +91,8 @@
   box-shadow: var(--shadow-lg);
   color: var(--ink);
   font-family: var(--f-text);
-  animation: fade 0.18s ease;
+  transform-origin: top right;
+  animation: pop var(--t-base) var(--ease-out);
 }
 #downloads-panel[hidden] {
   display: none;

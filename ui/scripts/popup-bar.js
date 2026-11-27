@@ -38,9 +38,11 @@
   document.getElementById("winClose").onclick = () => send("close");
   const bar = document.getElementById("titlebar");
   bar.addEventListener("dblclick", (e) => {
-    if (!e.target.closest(".window-controls,input") && mode === "popup") send("max");
+    if (!e.target.closest(".window-controls,input") && mode === "popup")
+      send("max");
   });
   bar.addEventListener("pointerdown", (e) => {
-    if (e.button === 0 && !e.target.closest(".window-controls,input")) send("drag");
+    if (e.button === 0 && !e.target.closest(".window-controls,input"))
+      send("drag");
   });
 }

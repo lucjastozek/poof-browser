@@ -20,6 +20,13 @@ function dialog(v, title, body, foot) {
   });
   v.replaceChildren(wrap);
 }
+/* Escape closes any dialog-style view (the start page and shortcut capture handle their own). */
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.defaultPrevented || !ov || ov === "newtab")
+    return;
+  if (e.target.closest && e.target.closest(".folder-rename")) return;
+  closeView();
+});
 const field = (l, ...c) => {
   const d = el("div", "fl");
   if (l) d.append(el("span", "label", l));
