@@ -289,6 +289,21 @@ body.collapsed:not(.peek) #side #toast {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.row .dev-badge {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.row:hover .dev-badge,
+.row:focus-within .dev-badge {
+  display: none;
+}
 .row.lift {
   opacity: 0.35;
 }

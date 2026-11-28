@@ -203,6 +203,10 @@ pub struct Browser {
     pip_tabs: HashSet<String>,
     /// Tabs whose page reported live capture or a call: never slept, never memory-trimmed.
     live_tabs: HashSet<String>,
+    /// Tabs holding unsent form input or a long scroll position: never auto-slept.
+    sleep_hold: HashSet<String>,
+    /// Scroll / form state of tabs, restored when they wake.
+    sleep_snaps: HashMap<String, SleepSnap>,
     /// Hidden tabs whose WebView2 memory target is currently LOW.
     low_mem: HashSet<String>,
     /// When the sidebar last received a state snapshot, and whether a newer one is waiting.
@@ -319,6 +323,8 @@ impl Browser {
             popups: HashMap::new(),
             pip_tabs: HashSet::new(),
             live_tabs: HashSet::new(),
+            sleep_hold: HashSet::new(),
+            sleep_snaps: HashMap::new(),
             low_mem: HashSet::new(),
             last_push: Cell::new(Instant::now() - STATE_MIN_INTERVAL),
             switching_space: Cell::new(false),

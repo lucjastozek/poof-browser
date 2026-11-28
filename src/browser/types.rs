@@ -30,6 +30,13 @@ pub(super) struct Layout {
     pub(super) split_handle: Option<[f64; 4]>,
 }
 
+/// Scroll position and form values of a page, restored when its tab wakes.
+pub(super) struct SleepSnap {
+    pub(super) url: String,
+    pub(super) y: f64,
+    pub(super) fields: Value,
+}
+
 pub(super) struct Switcher {
     pub(super) ids: Vec<String>,
     pub(super) index: usize,

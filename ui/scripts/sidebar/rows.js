@@ -14,6 +14,11 @@ function row(t, kind) {
   );
   r.dataset.id = t.id;
   r.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab"));
+  if (t.dev) {
+    const d = el("span", "dev-badge", "dev");
+    d.title = "Local dev server: never auto-slept";
+    r.append(d);
+  }
   const a = el("span", "acts");
   a.append(
     ib("star", "Add to favorites", () => send({ cmd: "fav_tab", id: t.id })),

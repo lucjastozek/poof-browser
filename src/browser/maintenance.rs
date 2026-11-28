@@ -27,6 +27,9 @@ impl Browser {
         self.media.retain(|id, _| loaded.contains(id.as_str()));
         self.live_tabs.retain(|id| loaded.contains(id.as_str()));
         self.low_mem.retain(|id| loaded.contains(id.as_str()));
+        self.sleep_hold.retain(|id| loaded.contains(id.as_str()));
+        let known: HashSet<&str> = self.tabs.iter().map(|t| t.id.as_str()).collect();
+        self.sleep_snaps.retain(|id, _| known.contains(id.as_str()));
     }
 
     /// Keeps hidden pages as small as possible: pages that are neither playing audio nor
@@ -64,7 +67,7 @@ impl Browser {
     /// Releases the WebView (and with it the renderer process) of background tabs that have been
     /// idle for `tab_sleep_minutes`. The tab stays in the sidebar at its current URL and reloads
     /// when selected. The visible tab, the DevTools target, tabs playing audio, tabs in a call or
-    /// capturing media, and tabs with a running download are kept.
+    /// capturing media, and tabs with a running download, unsent form input or a long scroll position, and localhost tabs are kept.
     pub(super) fn sleep_idle_tabs(&mut self) {
         let minutes = self.p.tab_sleep_minutes;
         if minutes == 0 {
@@ -82,6 +85,7 @@ impl Browser {
             .collect();
         let pip_tabs = &self.pip_tabs;
         let live_tabs = &self.live_tabs;
+        let sleep_hold = &self.sleep_hold;
         let downloading = self.tabs_with_live_downloads();
         for t in self.tabs.iter_mut() {
             let Some(wv) = t.webview.as_ref() else {
@@ -92,6 +96,8 @@ impl Browser {
                 || split_ids.contains(&t.id)
                 || pip_tabs.contains(&t.id)
                 || live_tabs.contains(&t.id)
+                || sleep_hold.contains(&t.id)
+                || is_dev_url(&t.url)
                 || downloading.contains(&t.id)
             {
                 continue;

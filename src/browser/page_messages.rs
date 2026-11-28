@@ -114,6 +114,10 @@ impl Browser {
                 self.on_page_live(tab, on);
                 return;
             }
+            PageMsg::Snap { hold, u, y, f } => {
+                self.on_page_snap(tab, hold, u, y, f);
+                return;
+            }
             PageMsg::Pip { active } => {
                 self.on_page_pip(tab, active);
                 return;
@@ -381,6 +385,34 @@ impl Browser {
     }
 
     /// The page opened or closed a Picture-in-Picture window.
+    /// The page reported unsent input / a long scroll, plus its scroll and form snapshot.
+    pub(super) fn on_page_snap(&mut self, tab: &str, hold: bool, u: String, y: f64, f: Value) {
+        if tab.is_empty() || !self.tabs.iter().any(|t| t.id == tab) {
+            return;
+        }
+        if hold {
+            self.sleep_hold.insert(tab.to_string());
+        } else {
+            self.sleep_hold.remove(tab);
+        }
+        let fields = match f {
+            Value::Array(a) if a.len() <= 200 => Value::Array(a),
+            _ => Value::Array(Vec::new()),
+        };
+        let empty = matches!(&fields, Value::Array(a) if a.is_empty());
+        let y = if y.is_finite() {
+            y.clamp(0.0, 1e7)
+        } else {
+            0.0
+        };
+        if u.len() > 2048 || (empty && y < 1.0) {
+            self.sleep_snaps.remove(tab);
+        } else {
+            self.sleep_snaps
+                .insert(tab.to_string(), SleepSnap { url: u, y, fields });
+        }
+    }
+
     /// The page started or stopped live capture / a call; such a tab keeps its WebView.
     pub(super) fn on_page_live(&mut self, tab: &str, on: bool) {
         if tab.is_empty() || !self.tabs.iter().any(|t| t.id == tab) {

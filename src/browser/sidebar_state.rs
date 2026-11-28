@@ -47,7 +47,8 @@ impl Browser {
         let row = |t: &Tab| {
             json!({
                 "id": t.id, "title": t.title, "url": t.url,
-                "favicon": t.favicon, "loaded": t.webview.is_some(), "folder_id": t.folder_id
+                "favicon": t.favicon, "loaded": t.webview.is_some(), "folder_id": t.folder_id,
+                "dev": is_dev_url(&t.url)
             })
         };
         let in_space = |k: Kind| -> Vec<_> {

@@ -12,6 +12,29 @@ pub(super) fn call_script(function: &str, args: impl std::fmt::Display) -> Strin
 /// Runs in every page (main frame) before the page scripts.
 /// Reports live capture / calls so such tabs are never put to sleep.
 pub(super) const LIVE_JS: &str = include_str!("js/live.js");
+pub(super) const SLEEP_GUARD_JS: &str = include_str!("js/sleep-guard.js");
+
+/// The sleep guard, with the snapshot to restore (if any) filled in.
+pub(super) fn sleep_guard_script(snap: Option<&SleepSnap>) -> String {
+    let json = snap
+        .map(|s| json!({ "u": s.url, "y": s.y, "f": s.fields }).to_string())
+        .unwrap_or_else(|| "null".into());
+    SLEEP_GUARD_JS.replace("__SNAP__", &json)
+}
+
+/// Tabs on the local machine (dev servers) are never auto-slept.
+pub(super) fn is_dev_url(url: &str) -> bool {
+    let rest = url.split("://").nth(1).unwrap_or("");
+    let auth = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let auth = auth.rsplit('@').next().unwrap_or("");
+    let host = if let Some(v6) = auth.strip_prefix('[') {
+        v6.split(']').next().unwrap_or("")
+    } else {
+        auth.split(':').next().unwrap_or("")
+    }
+    .to_ascii_lowercase();
+    host == "localhost" || host.ends_with(".localhost") || host == "127.0.0.1" || host == "::1"
+}
 pub(super) const BOOST_JS: &str = include_str!("js/boost.js");
 pub(super) const MEDIA_JS: &str = include_str!("js/media.js");
 pub(super) const PEEK_JS: &str = include_str!("js/peek.js");

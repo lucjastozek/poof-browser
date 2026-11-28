@@ -452,6 +452,16 @@ pub(super) enum PageMsg {
     Live {
         on: bool,
     },
+    /// Sleep guard report (see `js/sleep-guard.js`). UNTRUSTED: sizes are clipped.
+    Snap {
+        hold: bool,
+        #[serde(default)]
+        u: String,
+        #[serde(default)]
+        y: f64,
+        #[serde(default)]
+        f: Value,
+    },
     /// Internal (empty tab id only): open a link in a background tab (Ctrl/middle click).
     #[serde(rename = "open_background")]
     OpenBackground {

@@ -17,6 +17,7 @@ impl Browser {
         let sb_on = self.scrollbar_visible;
         let peek_js = mini::peek_script(self.p.peek_links);
         let boost_js = boosts::boost_script(&self.p.boosts);
+        let guard_js = sleep_guard_script(self.sleep_snaps.get(&id));
         let ctx = self
             .contexts
             .entry(profile_id.clone())
@@ -42,6 +43,7 @@ impl Browser {
             .with_initialization_script_for_main_only(pdf_theme_script(&accent), false)
             .with_initialization_script_for_main_only(pip::TRACK_JS, false)
             .with_initialization_script_for_main_only(LIVE_JS, false)
+            .with_initialization_script_for_main_only(guard_js, false)
             .with_initialization_script_for_main_only(SWIPE_NAV_JS, false)
             .with_initialization_script_for_main_only(FULLSCREEN_JS, false)
             .with_initialization_script_for_main_only(PASSWORDS_JS, true)
