@@ -86,6 +86,10 @@ impl Browser {
                 _ => self.close_split(),
             },
             Cmd::SplitOrientation => self.toggle_split_orientation(),
+            Cmd::DeviceToggle => self.toggle_device_mode(),
+            Cmd::DeviceSize { w, h, persist } => self.set_device_size(w, h, persist),
+            Cmd::DeviceLayout { kind } => self.dev_layout(&kind),
+            Cmd::CaptureSave { png, copied } => self.on_capture_save(&png, copied),
             Cmd::SplitRatio { ratio } => {
                 if ratio.is_finite() {
                     if let Some(sp) = self.split.as_mut() {

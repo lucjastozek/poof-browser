@@ -57,6 +57,7 @@ mod commands;
 mod constants;
 mod context_menu;
 mod default_app;
+mod device;
 mod devtools;
 mod devtools_icons;
 mod download_hooks;
@@ -156,6 +157,9 @@ pub struct Browser {
     /// DevTools device mode is on: the frontend covers the whole content area and the page
     /// WebView is placed over the emulated screen.
     responsive_mode: bool,
+    /// Device mode: the emulated page size in CSS pixels (`device.rs`); `None` = off.
+    device: Option<[f64; 2]>,
+    device_chrome_shown: Cell<bool>,
     responsive_bounds: Option<[f64; 4]>,
     /// The poll thread only ticks while this is set (and is parked otherwise).
     devtools_polling: Arc<AtomicBool>,
@@ -297,6 +301,8 @@ impl Browser {
             devtools_icons_applied: false,
             devtools_icon_misses: HashSet::new(),
             responsive_mode: false,
+            device: None,
+            device_chrome_shown: Cell::new(false),
             responsive_bounds: None,
             devtools_polling,
             poll_thread,

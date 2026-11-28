@@ -63,6 +63,7 @@ impl Browser {
             handle: None,
             other: None,
             split_handle: None,
+            device: None,
         };
 
         if !self.fullscreen && !self.devtools_open {
@@ -85,7 +86,7 @@ impl Browser {
         }
 
         if !self.devtools_open || self.fullscreen {
-            return out;
+            return self.with_device(out, self.content_box());
         }
         let [x, y, w, h] = self.content_box();
 
@@ -140,7 +141,7 @@ impl Browser {
             panel[3] - HEADER_H,
         ));
         out.handle = Some(handle);
-        out
+        self.with_device(out, page)
     }
 
     pub fn relayout(&self) {
@@ -238,5 +239,6 @@ impl Browser {
         }
         self.sync_devtools_chrome(&layout);
         self.sync_split_chrome(&layout);
+        self.sync_device_chrome(&layout);
     }
 }

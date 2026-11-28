@@ -86,4 +86,6 @@ pub(super) const DEVTOOLS_CHROME_JS: &str = include_str!("js/devtools-chrome.js"
 /// would evaluate them out of order and break the frontend.
 pub(super) const DEVTOOLS_SYNC_JS: &str = include_str!("js/devtools-sync.js");
 
+/// Toolbar and drag handles around the page in device mode (runs in the sidebar).
+pub(super) const DEVICE_CHROME_JS: &str = include_str!("js/device-chrome.js");
 pub(super) const SPLIT_CHROME_JS: &str = include_str!("js/split-chrome.js");

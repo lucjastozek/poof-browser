@@ -317,6 +317,25 @@ pub(super) enum Cmd {
         id: Option<String>,
     },
     SplitOrientation,
+    /// Device mode on or off (toolbar button).
+    DeviceToggle,
+    /// New emulated page size from the drag handles or a preset; `persist` ends a gesture.
+    DeviceSize {
+        w: f64,
+        h: f64,
+        #[serde(default)]
+        persist: bool,
+    },
+    /// One-click developer layout: "tools" or "widths".
+    DeviceLayout {
+        kind: String,
+    },
+    /// A framed capture composed by the sidebar, to be saved (base64 PNG).
+    CaptureSave {
+        png: String,
+        #[serde(default)]
+        copied: bool,
+    },
     SplitRatio {
         ratio: f64,
     },
@@ -522,6 +541,14 @@ pub(super) enum PageMsg {
         /// Local time for the file name, e.g. "2026-11-27 at 14.03.22".
         #[serde(default)]
         s: String,
+        /// Device frame ("none", "phone", "browser"), destination ("save", "copy", "both") and
+        /// padding around an element, as picked in the overlay.
+        #[serde(default)]
+        f: String,
+        #[serde(default)]
+        dst: String,
+        #[serde(default)]
+        pad: f64,
     },
     /// Internal (empty tab id only): periodic DevTools poll trigger.
     #[serde(rename = "devtools_tick")]

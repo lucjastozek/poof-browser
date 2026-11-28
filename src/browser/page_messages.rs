@@ -67,6 +67,9 @@ impl Browser {
                 h,
                 d,
                 s,
+                f,
+                dst,
+                pad,
             } => {
                 if let Ok(mut stamp) = capture::STAMP.lock() {
                     *stamp = s
@@ -76,7 +79,7 @@ impl Browser {
                         .collect();
                 }
                 let region = (w > 0.0 && h > 0.0).then_some(capture::Region { x, y, w, h, dpr: d });
-                self.on_page_capture(tab, &n, region);
+                self.on_page_capture(tab, &n, region, capture::Options::from_page(&f, &dst, pad));
                 return;
             }
             PageMsg::Meta { u } => self.on_page_meta(tab, u),
@@ -169,6 +172,7 @@ impl Browser {
         let mut persist = false;
         let mut sites_dirty = false;
         let mut visit: Option<(String, String)> = None;
+        let mut host_changed = false;
         let restore = self.p.restore_tabs;
         if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
             let mut url_changed = false;
@@ -183,6 +187,7 @@ impl Browser {
                     if let Some(h) = parsed.host_str() {
                         let host = h.trim_start_matches("www.").to_string();
                         if t.host != host {
+                            host_changed = true;
                             t.favicon = None;
                             t.host = host.clone();
                             let s = self.p.sites.entry(host).or_default();
@@ -205,6 +210,10 @@ impl Browser {
             persist = url_changed && (t.kind != Kind::Normal || restore);
         }
         self.p.prune_sites();
+        if host_changed && self.visible.as_deref() == Some(tab) && self.device.is_some() {
+            self.apply_site_device_size();
+            self.relayout();
+        }
         if let Some((profile_id, url)) = visit {
             self.record_visit(tab, profile_id, url);
         }
@@ -327,6 +336,18 @@ impl Browser {
                 Ok(())
             }
             "devtools_toggle" => self.toggle_devtools(),
+            "device_mode" => {
+                self.toggle_device_mode();
+                Ok(())
+            }
+            "dev_layout_tools" => {
+                self.dev_layout("tools");
+                Ok(())
+            }
+            "dev_layout_widths" => {
+                self.dev_layout("widths");
+                Ok(())
+            }
             "split_toggle" => self.toggle_split(),
             "split_orient" => {
                 self.toggle_split_orientation();

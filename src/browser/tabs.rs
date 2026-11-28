@@ -244,6 +244,7 @@ impl Browser {
         self.ensure_webview(idx)?;
         self.overlay = false;
         self.visible = Some(id.to_string());
+        self.apply_site_device_size();
         self.active
             .insert(self.p.current_space.clone(), id.to_string());
         if self.low_mem.remove(id) {

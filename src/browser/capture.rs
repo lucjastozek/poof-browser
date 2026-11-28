@@ -17,6 +17,70 @@ const MAX_PIXELS: f64 = 120_000_000.0;
 /// File-name time of the capture in progress, from the page (sanitized).
 pub(super) static STAMP: Mutex<String> = Mutex::new(String::new());
 static PENDING: Mutex<Option<(String, String)>> = Mutex::new(None);
+/// Options of the last capture (the overlay starts with them) and of the one being delivered.
+static LAST: Mutex<Option<Options>> = Mutex::new(None);
+static DELIVER: Mutex<Option<(Options, String, String)>> = Mutex::new(None);
+/// Largest framed picture accepted back from the sidebar (base64 text), in bytes.
+const SAVE_MAX_B64: usize = 280_000_000;
+
+/// How a finished capture is delivered, as picked in the overlay.
+#[derive(Clone)]
+pub(super) struct Options {
+    /// "none", "phone" or "browser": the device frame drawn around the picture.
+    frame: &'static str,
+    save: bool,
+    copy: bool,
+    /// Space around a captured element, in CSS pixels (applied by the overlay).
+    pad: f64,
+}
+
+impl Options {
+    /// From the overlay's words. UNTRUSTED: anything unknown falls back to the plain default.
+    pub(super) fn from_page(frame: &str, dest: &str, pad: f64) -> Self {
+        let frame = match frame {
+            "phone" => "phone",
+            "browser" => "browser",
+            _ => "none",
+        };
+        let (save, copy) = match dest {
+            "copy" => (false, true),
+            "both" => (true, true),
+            _ => (true, false),
+        };
+        let pad = if pad.is_finite() {
+            pad.clamp(0.0, 64.0).round()
+        } else {
+            0.0
+        };
+        Self {
+            frame,
+            save,
+            copy,
+            pad,
+        }
+    }
+
+    /// Screen size (CSS pixels) a framed capture is rendered at, whatever the window size is.
+    fn preset(&self) -> Option<(f64, f64)> {
+        match self.frame {
+            "phone" => Some((390.0, 844.0)),
+            "browser" => Some((1280.0, 800.0)),
+            _ => None,
+        }
+    }
+
+    fn defaults() -> Self {
+        Self::from_page("none", "save", 0.0)
+    }
+
+    fn dest(&self) -> &'static str {
+        match (self.save, self.copy) {
+            (true, true) => "both",
+            (false, true) => "copy",
+            _ => "save",
+        }
+    }
+}
 
 /// A rectangle in page coordinates (CSS pixels, document origin) and the display scale.
 #[derive(Clone, Copy)]
@@ -64,7 +128,14 @@ impl Browser {
         } else {
             "#6dc5e2".into()
         };
+        let opts = LAST
+            .lock()
+            .ok()
+            .and_then(|o| o.clone())
+            .unwrap_or_else(Options::defaults);
+        let opts_json = json!({ "frame": opts.frame, "dest": opts.dest(), "pad": opts.pad });
         let script = CAPTURE_JS
+            .replace("__OPTS__", &opts_json.to_string())
             .replace("__NONCE__", &token)
             .replace("__ACCENT__", &accent)
             .replace("__MODE__", mode);
@@ -72,7 +143,13 @@ impl Browser {
     }
 
     /// The overlay reported a rectangle (`None` for cancel). UNTRUSTED: needs the pending token.
-    pub(super) fn on_page_capture(&mut self, tab: &str, token: &str, region: Option<Region>) {
+    pub(super) fn on_page_capture(
+        &mut self,
+        tab: &str,
+        token: &str,
+        region: Option<Region>,
+        opts: Options,
+    ) {
         let taken = match PENDING.lock() {
             Ok(mut pending) => match pending.as_ref() {
                 Some((t, n)) if t == tab && n == token => pending.take(),
@@ -97,17 +174,92 @@ impl Browser {
         let Some(wv) = self.visible_webview() else {
             return;
         };
-        if !capture_region(wv, region, &self.proxy) {
+        let preset = opts.preset();
+        if let Some((w, h)) = preset {
+            (region.x, region.w, region.h) = (0.0, w, h);
+        }
+        let host = self
+            .tabs
+            .iter()
+            .find(|t| t.id == tab)
+            .map(|t| t.host.clone())
+            .unwrap_or_default();
+        if let Ok(mut last) = LAST.lock() {
+            *last = Some(opts.clone());
+        }
+        if let Ok(mut deliver) = DELIVER.lock() {
+            *deliver = Some((opts, host, tab.to_string()));
+        }
+        if !capture_region(wv, region, preset, &self.proxy) {
             self.toast("Couldn’t capture this page.");
         }
     }
 
-    /// A finished picture: saved next to the system's screenshots and added to Downloads.
+    /// A finished picture: saved, copied and/or framed, as the overlay asked.
     pub(super) fn on_capture_done(&mut self, png: Option<Vec<u8>>) {
         let Some(png) = png.filter(|p| !p.is_empty()) else {
             self.toast("Couldn’t capture this page.");
             return;
         };
+        let delivery = DELIVER.lock().ok().and_then(|mut d| d.take());
+        let Some((opts, host, tab)) = delivery else {
+            self.save_capture(&png, false);
+            return;
+        };
+        let framed = opts.frame != "none";
+        if opts.save && !framed {
+            self.save_capture(&png, opts.copy);
+        }
+        if opts.copy || framed {
+            self.finish_in_sidebar(&png, &opts, &host, &tab);
+        }
+    }
+
+    /// The sidebar draws the device frame and writes the clipboard (it has the canvas and the
+    /// clipboard API); a framed picture to save comes back as `Cmd::CaptureSave`.
+    fn finish_in_sidebar(&self, png: &[u8], opts: &Options, host: &str, tab: &str) {
+        let framed = opts.frame != "none";
+        let flags = json!({
+            "frame": opts.frame,
+            "copy": opts.copy,
+            "save": opts.save && framed,
+            "saved": opts.save && !framed,
+            "host": host,
+            "tab": tab,
+        });
+        let b64 = base64::engine::general_purpose::STANDARD.encode(png);
+        let js = format!(
+            "window.__captureFinish&&window.__captureFinish({},{})",
+            json!(b64),
+            flags
+        );
+        if opts.copy {
+            // Writing an image to the clipboard needs focus and a user gesture.
+            let _ = self.sidebar.focus();
+            crate::gesture::eval_with_gesture(&self.sidebar, &js);
+        } else {
+            let _ = self.sidebar.evaluate_script(&js);
+        }
+    }
+
+    /// A framed picture composed by the sidebar (base64 PNG), saved like any capture.
+    pub(super) fn on_capture_save(&mut self, b64: &str, copied: bool) {
+        if b64.len() > SAVE_MAX_B64 {
+            self.toast("Couldn’t save the screenshot.");
+            return;
+        }
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .ok()
+            .filter(|p| p.starts_with(b"\x89PNG"));
+        match png {
+            Some(png) => self.save_capture(&png, copied),
+            None => self.toast("Couldn’t save the screenshot."),
+        }
+    }
+
+    /// Saves next to the system's screenshots and adds the file to Downloads.
+    fn save_capture(&mut self, png: &[u8], copied: bool) {
         let dir = shots_dir().join("Poof");
         let stamp = STAMP
             .lock()
@@ -116,11 +268,15 @@ impl Browser {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| now_secs().to_string());
         let path = unique_path(&dir, &format!("Poof Capture {stamp}"), "png");
-        let saved = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, &png));
+        let saved = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, png));
         match saved {
             Ok(()) => {
                 self.add_screenshot(&path);
-                self.toast("Screenshot saved to Downloads");
+                if copied {
+                    self.toast("Screenshot saved to Downloads and copied");
+                } else {
+                    self.toast("Screenshot saved to Downloads");
+                }
             }
             Err(e) => {
                 log::warn!("saving the capture failed: {e}");
@@ -170,49 +326,112 @@ fn unique_path(dir: &Path, stem: &str, ext: &str) -> PathBuf {
     path
 }
 
+/// One DevTools protocol call; `then` gets the reply, or `None` when the call failed.
 #[cfg(windows)]
-fn capture_region(wv: &WebView, r: Region, proxy: &EventLoopProxy<UserEvent>) -> bool {
+fn cdp(
+    core: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2,
+    method: &str,
+    params: String,
+    then: impl FnOnce(Option<String>) + 'static,
+) -> bool {
     use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
-    use windows::core::{w, HSTRING};
+    use windows::core::HSTRING;
 
-    let params = json!({
+    let mut then = Some(then);
+    let handler =
+        CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, reply| {
+            if let Some(then) = then.take() {
+                then(result.ok().map(|_| reply));
+            }
+            Ok(())
+        }));
+    let started = unsafe {
+        core.CallDevToolsProtocolMethod(&HSTRING::from(method), &HSTRING::from(params), &handler)
+    };
+    if let Err(error) = &started {
+        log::warn!("DevTools call {method} failed: {error}");
+    }
+    started.is_ok()
+}
+
+#[cfg(windows)]
+fn decode_shot(reply: Option<String>) -> Option<Vec<u8>> {
+    let value: Value = serde_json::from_str(&reply?).ok()?;
+    base64::engine::general_purpose::STANDARD
+        .decode(value["data"].as_str()?)
+        .ok()
+}
+
+/// Takes the picture. With a `preset` the page is first laid out at that screen size and put
+/// back afterwards, so a phone or browser frame looks the same in any window.
+#[cfg(windows)]
+fn capture_region(
+    wv: &WebView,
+    r: Region,
+    preset: Option<(f64, f64)>,
+    proxy: &EventLoopProxy<UserEvent>,
+) -> bool {
+    let Ok(core) = (unsafe { wv.controller().CoreWebView2() }) else {
+        return false;
+    };
+    let shot = json!({
         "format": "png",
         "captureBeyondViewport": true,
         "fromSurface": true,
         "clip": { "x": r.x, "y": r.y, "width": r.w, "height": r.h, "scale": r.dpr },
     })
     .to_string();
-    unsafe {
-        let Ok(core) = wv.controller().CoreWebView2() else {
-            return false;
-        };
-        let proxy = proxy.clone();
-        let handler =
-            CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, reply| {
-                let png = result.ok().and_then(|_| {
-                    let value: Value = serde_json::from_str(&reply).ok()?;
-                    let data = value["data"].as_str()?;
-                    base64::engine::general_purpose::STANDARD.decode(data).ok()
-                });
-                let _ = proxy.send_event(UserEvent::CaptureDone(png));
-                Ok(())
-            }));
-        match core.CallDevToolsProtocolMethod(
-            w!("Page.captureScreenshot"),
-            &HSTRING::from(params),
-            &handler,
-        ) {
-            Ok(()) => true,
-            Err(error) => {
-                log::warn!("capturing the page failed: {error}");
-                false
+    let proxy = proxy.clone();
+    let Some((w, h)) = preset else {
+        return cdp(&core, "Page.captureScreenshot", shot, move |reply| {
+            let _ = proxy.send_event(UserEvent::CaptureDone(decode_shot(reply)));
+        });
+    };
+    let size = json!({
+        "width": w, "height": h, "deviceScaleFactor": r.dpr, "mobile": false,
+    })
+    .to_string();
+    let next = core.clone();
+    cdp(
+        &core,
+        "Emulation.setDeviceMetricsOverride",
+        size,
+        move |ok| {
+            if ok.is_none() {
+                let _ = proxy.send_event(UserEvent::CaptureDone(None));
+                return;
             }
-        }
-    }
+            let restore = next.clone();
+            let done = proxy.clone();
+            let sent = cdp(&next, "Page.captureScreenshot", shot, move |reply| {
+                let png = decode_shot(reply);
+                let finish = done.clone();
+                let cleared = cdp(
+                    &restore,
+                    "Emulation.clearDeviceMetricsOverride",
+                    "{}".into(),
+                    move |_| {
+                        let _ = finish.send_event(UserEvent::CaptureDone(png));
+                    },
+                );
+                if !cleared {
+                    let _ = done.send_event(UserEvent::CaptureDone(None));
+                }
+            });
+            if !sent {
+                let _ = proxy.send_event(UserEvent::CaptureDone(None));
+            }
+        },
+    )
 }
 
 #[cfg(not(windows))]
-fn capture_region(_wv: &WebView, _r: Region, _proxy: &EventLoopProxy<UserEvent>) -> bool {
+fn capture_region(
+    _wv: &WebView,
+    _r: Region,
+    _preset: Option<(f64, f64)>,
+    _proxy: &EventLoopProxy<UserEvent>,
+) -> bool {
     false
 }
 

@@ -28,6 +28,15 @@ pub(super) struct Layout {
     pub(super) handle: Option<[f64; 4]>,
     pub(super) other: Option<Rect>,
     pub(super) split_handle: Option<[f64; 4]>,
+    /// Device mode: the area the emulated page may use and the page frame inside it.
+    pub(super) device: Option<DeviceChrome>,
+}
+
+/// [x, y, w, h] boxes of device mode, in window coordinates.
+#[derive(Clone, Copy)]
+pub(super) struct DeviceChrome {
+    pub(super) area: [f64; 4],
+    pub(super) frame: [f64; 4],
 }
 
 /// Scroll position and form values of a page, restored when its tab wakes.

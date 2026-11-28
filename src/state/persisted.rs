@@ -153,6 +153,12 @@ pub struct Persisted {
     /// tips show from the 3rd to the 49th, so they neither greet a brand-new user nor linger.
     #[serde(default)]
     pub tabs_opened: u32,
+    /// Device-mode page size [width, height] per site (host without `www.`), in CSS pixels.
+    #[serde(default)]
+    pub device_sizes: HashMap<String, [u32; 2]>,
+    /// Device-mode size used last; the start size for sites without their own.
+    #[serde(default)]
+    pub device_last: Option<[u32; 2]>,
 }
 
 impl Default for Persisted {
@@ -199,6 +205,8 @@ impl Default for Persisted {
             used_favorites: false,
             used_pinned: false,
             tabs_opened: 0,
+            device_sizes: HashMap::new(),
+            device_last: None,
         }
     }
 }

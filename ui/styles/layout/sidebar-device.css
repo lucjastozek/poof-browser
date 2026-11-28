@@ -1,0 +1,103 @@
+/* device mode: toolbar above the emulated page and its drag handles (js/device-chrome.js) */
+.dev-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  font: 12px/1 var(--f-text);
+}
+.dev-bar {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  pointer-events: auto;
+  color: var(--ink-2);
+}
+.dev-presets {
+  display: flex;
+  gap: 2px;
+}
+.dev-chip {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+}
+.dev-chip:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.dev-chip:active {
+  background: var(--pressed);
+}
+.dev-chip.on {
+  background: color-mix(in srgb, var(--space) 22%, transparent);
+  color: var(--ink);
+}
+.dev-close {
+  padding: 0 8px;
+}
+.dev-size {
+  min-width: 82px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.dev-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--line-2);
+}
+.dev-handle {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+.dev-handle i {
+  border-radius: 3px;
+  background: var(--ink-2);
+  opacity: 0.35;
+  transition:
+    opacity var(--t-fast),
+    background var(--t-fast);
+}
+.dev-right i {
+  width: 4px;
+  height: 40px;
+  max-height: 60%;
+}
+.dev-bottom i {
+  height: 4px;
+  width: 40px;
+  max-width: 60%;
+}
+.dev-corner i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.dev-handle:hover i,
+.dev-handle.on i,
+.dev-handle:focus-visible i {
+  opacity: 1;
+  background: var(--space);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dev-chip,
+  .dev-handle i {
+    transition: none;
+  }
+}

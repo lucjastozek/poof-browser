@@ -205,6 +205,11 @@ $("pageToolbar").append(
   ib("camera", "Capture (Ctrl+Shift+S)", () => send({ cmd: "capture" })),
 );
 $("pageToolbar").append(
+  ib("cellphone", "Device mode (Ctrl+Shift+M)", () =>
+    send({ cmd: "device_toggle" }),
+  ),
+);
+$("pageToolbar").append(
   ib("code", "Developer tools (F12)", () => send({ cmd: "devtools_toggle" })),
 );
 $("winMin").onclick = () => send({ cmd: "window_minimize" });

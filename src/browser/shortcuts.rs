@@ -94,6 +94,27 @@ const ACTIONS: &[Action] = &[
         "F12",
     ),
     action(
+        "device_mode",
+        "device_mode",
+        "Device mode",
+        VIEWS,
+        "Ctrl+Shift+M",
+    ),
+    action(
+        "dev_layout_tools",
+        "dev_layout_tools",
+        "Page + DevTools layout",
+        VIEWS,
+        "Ctrl+Shift+D",
+    ),
+    action(
+        "dev_layout_widths",
+        "dev_layout_widths",
+        "Page at two widths",
+        VIEWS,
+        "Ctrl+Shift+U",
+    ),
+    action(
         "toggle_scrollbar",
         "toggle_scrollbar",
         "Toggle scrollbar",

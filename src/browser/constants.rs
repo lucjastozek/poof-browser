@@ -15,6 +15,17 @@ pub(super) const PANEL_GAP: f64 = INSET;
 pub(super) const PAGE_MIN: f64 = 160.0;
 /// Strip above the DevTools frontend holding the title and the close button.
 pub(super) const HEADER_H: f64 = 28.0;
+/// Strip above the emulated page in device mode: size readout, presets and layouts.
+pub(super) const DEVICE_BAR_H: f64 = 40.0;
+/// Space around the emulated page that holds its drag handles (right, bottom and corner).
+pub(super) const DEVICE_GUTTER: f64 = 16.0;
+/// Smallest and largest emulated page side, in CSS pixels.
+pub(super) const DEVICE_MIN: f64 = 200.0;
+pub(super) const DEVICE_MAX: f64 = 4000.0;
+/// First size of device mode on a site that has none saved yet (a current phone).
+pub(super) const DEVICE_DEFAULT: [f64; 2] = [390.0, 844.0];
+/// Sites whose device size is remembered; the oldest entries go first when over.
+pub(super) const DEVICE_SITES_MAX: usize = 200;
 /// Largest favicon (URL or data: URI) kept in memory, pushed to the UI and persisted.
 pub(super) const FAVICON_MAX: usize = 48_000;
 /// Favicons larger than this are kept in memory but not written to state.json.
