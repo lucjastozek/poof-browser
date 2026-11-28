@@ -47,15 +47,16 @@ impl Browser {
                 items,
                 x,
                 y,
+                u,
             } => {
                 if tab.is_empty() {
-                    self.on_context_menu_open(&menu_tab, &items, x, y);
+                    self.on_context_menu_open(&menu_tab, &items, x, y, &u);
                 }
                 return;
             }
-            PageMsg::CtxPick { n, id } => {
+            PageMsg::CtxPick { n, id, c, l } => {
                 if !tab.is_empty() {
-                    self.on_context_menu_pick(tab, &n, id);
+                    self.on_context_menu_pick(tab, &n, id, &c, &l);
                 }
                 return;
             }
@@ -82,6 +83,7 @@ impl Browser {
                 self.on_page_capture(tab, &n, region, capture::Options::from_page(&f, &dst, pad));
                 return;
             }
+            PageMsg::Problems { c } => self.on_page_problems(tab, c),
             PageMsg::Meta { u } => self.on_page_meta(tab, u),
             PageMsg::Favicon { f } => self.on_page_favicon(tab, f),
             PageMsg::Fullscreen { active } => self.handle_fullscreen(tab, active),
@@ -167,12 +169,24 @@ impl Browser {
         self.push_state();
     }
 
+    /// The page's problem count (console errors, failed requests); 0 on a fresh load.
+    pub(super) fn on_page_problems(&mut self, tab: &str, count: u32) {
+        if tab.is_empty() || !self.tabs.iter().any(|t| t.id == tab) {
+            return;
+        }
+        match count.min(999) {
+            0 => self.tab_errors.remove(tab),
+            n => self.tab_errors.insert(tab.to_string(), n),
+        };
+    }
+
     /// The page (or WebView2) reported its address: tracks the host, site stats and history.
     pub(super) fn on_page_meta(&mut self, tab: &str, u: Option<String>) {
         let mut persist = false;
         let mut sites_dirty = false;
         let mut visit: Option<(String, String)> = None;
         let mut host_changed = false;
+        let mut left_page = false;
         let restore = self.p.restore_tabs;
         if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
             let mut url_changed = false;
@@ -182,6 +196,10 @@ impl Browser {
                 }
                 if t.url != u {
                     url_changed = true;
+                    // Problems belong to the page; a new address (not just #fragment) is a new page.
+                    if u.split('#').next() != t.url.split('#').next() {
+                        left_page = true;
+                    }
                 }
                 if let Ok(parsed) = url::Url::parse(&u) {
                     if let Some(h) = parsed.host_str() {
@@ -210,6 +228,9 @@ impl Browser {
             persist = url_changed && (t.kind != Kind::Normal || restore);
         }
         self.p.prune_sites();
+        if left_page {
+            self.tab_errors.remove(tab);
+        }
         if host_changed && self.visible.as_deref() == Some(tab) && self.device.is_some() {
             self.apply_site_device_size();
             self.relayout();

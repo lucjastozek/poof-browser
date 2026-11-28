@@ -48,7 +48,8 @@ impl Browser {
             json!({
                 "id": t.id, "title": t.title, "url": t.url,
                 "favicon": t.favicon, "loaded": t.webview.is_some(), "folder_id": t.folder_id,
-                "dev": is_dev_url(&t.url)
+                "dev": is_dev_url(&t.url),
+                "errors": self.tab_errors.get(&t.id).copied().unwrap_or(0)
             })
         };
         let in_space = |k: Kind| -> Vec<_> {

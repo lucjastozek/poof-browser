@@ -199,6 +199,8 @@ pub struct Browser {
     saved_splits: Vec<Split>,
     /// Tabs where the user started a video (only those are worth waking for auto-PIP).
     vid_tabs: HashSet<String>,
+    /// Problems counted per tab by `js/problems.js` (red dot on the tab row).
+    tab_errors: HashMap<String, u32>,
     /// The link-peek overlay, when one is open.
     link_peek: Option<mini::Peek>,
     /// Media a page reported, by tab: (playing, title, artist). Shown as the mini player.
@@ -330,6 +332,7 @@ impl Browser {
             tab_drag: false,
             saved_splits: Vec::new(),
             vid_tabs: HashSet::new(),
+            tab_errors: HashMap::new(),
             link_peek: None,
             media: HashMap::new(),
             popups: HashMap::new(),

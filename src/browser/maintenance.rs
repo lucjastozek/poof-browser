@@ -23,6 +23,7 @@ impl Browser {
             .map(|t| t.id.as_str())
             .collect();
         self.vid_tabs.retain(|id| loaded.contains(id.as_str()));
+        self.tab_errors.retain(|id, _| loaded.contains(id.as_str()));
         self.pip_tabs.retain(|id| loaded.contains(id.as_str()));
         self.media.retain(|id, _| loaded.contains(id.as_str()));
         self.live_tabs.retain(|id| loaded.contains(id.as_str()));

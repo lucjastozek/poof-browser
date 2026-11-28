@@ -38,6 +38,10 @@ pub(super) fn is_dev_url(url: &str) -> bool {
 pub(super) const BOOST_JS: &str = include_str!("js/boost.js");
 pub(super) const MEDIA_JS: &str = include_str!("js/media.js");
 pub(super) const PEEK_JS: &str = include_str!("js/peek.js");
+/// Counts console errors and failed requests for the tab row's red dot.
+pub(super) const PROBLEMS_JS: &str = include_str!("js/problems.js");
+/// "Copy as" entries of the page right-click menu (cURL, selectors, Playwright, ...).
+pub(super) const LOCATORS_JS: &str = include_str!("js/locators.js");
 pub(super) const INIT_JS: &str = include_str!("js/init.js");
 /// The page right-click menu, filled in by `context_menu.rs`.
 pub(super) const CONTEXT_MENU_JS: &str = include_str!("js/context-menu.js");

@@ -15,6 +15,10 @@ pub(super) const OPEN_LINK: i32 = -1;
 pub(super) const OPEN_IMAGE: i32 = -2;
 pub(super) const COPY_LINK: i32 = -3;
 pub(super) const SEARCH: i32 = -4;
+/// A "Copy as" entry: the page sends the text to copy (selector, locator, cURL, ...).
+pub(super) const COPY_AS: i32 = -5;
+/// Longest text accepted for "Copy as".
+const COPY_AS_MAX: usize = 4000;
 
 /// What the pick asks native code to do beyond WebView2's own commands.
 pub(super) struct Picked {
@@ -262,8 +266,11 @@ mod imp {
         let mut at = POINT::default();
         let _ = args.Location(&mut at);
         let deferral = args.GetDeferral()?;
-        let body = json!({ "t": "ctx_open", "tab": tab, "items": entries, "x": at.x, "y": at.y })
-            .to_string();
+        let target = if !link.is_empty() { &link } else { &image };
+        let body = json!({
+            "t": "ctx_open", "tab": tab, "items": entries, "x": at.x, "y": at.y, "u": target,
+        })
+        .to_string();
         let open = Open {
             args: args.clone(),
             deferral,
@@ -310,7 +317,14 @@ pub(super) fn finish(_: &str, _: &str, _: i32) -> Option<Picked> {
 
 impl Browser {
     /// Native code listed a menu for `tab`: show it in that page (internal message, empty tab id).
-    pub(super) fn on_context_menu_open(&mut self, tab: &str, items: &Value, x: f64, y: f64) {
+    pub(super) fn on_context_menu_open(
+        &mut self,
+        tab: &str,
+        items: &Value,
+        x: f64,
+        y: f64,
+        target: &str,
+    ) {
         let token = uuid::Uuid::new_v4().simple().to_string();
         let Some(wv) = self
             .tabs
@@ -335,7 +349,17 @@ impl Browser {
             "dark" => "dark",
             _ => "system",
         };
+        let target = if ok_url(target, URL_MAX, false) {
+            target
+        } else {
+            ""
+        };
         let script = CONTEXT_MENU_JS
+            .replace("__LOCATORS__", LOCATORS_JS.trim_end().trim_end_matches(';'))
+            .replace(
+                "__TARGET__",
+                &json!(target).to_string().replace('<', "\\u003c"),
+            )
             .replace("__NONCE__", &token)
             .replace("__ACCENT__", &accent)
             .replace("__THEME__", theme)
@@ -350,7 +374,14 @@ impl Browser {
     }
 
     /// The page answered. UNTRUSTED: `finish` checks tab and token.
-    pub(super) fn on_context_menu_pick(&mut self, tab: &str, token: &str, id: i32) {
+    pub(super) fn on_context_menu_pick(
+        &mut self,
+        tab: &str,
+        token: &str,
+        id: i32,
+        copy: &str,
+        label: &str,
+    ) {
         let Some(pick) = context_menu::finish(tab, token, id) else {
             return;
         };
@@ -379,6 +410,24 @@ impl Browser {
                         "window.__copyLink&&window.__copyLink({},{},{})",
                         json!(link),
                         json!(message),
+                        json!(tab)
+                    ),
+                );
+            }
+            context_menu::COPY_AS if !copy.is_empty() => {
+                let text: String = copy
+                    .chars()
+                    .filter(|c| !c.is_control() || *c == '\n')
+                    .take(COPY_AS_MAX)
+                    .collect();
+                let label: String = label.chars().filter(|c| !c.is_control()).take(40).collect();
+                let _ = self.sidebar.focus();
+                crate::gesture::eval_with_gesture(
+                    &self.sidebar,
+                    &format!(
+                        "window.__copyLink&&window.__copyLink({},{},{})",
+                        json!(text),
+                        json!(format!("{label} copied")),
                         json!(tab)
                     ),
                 );

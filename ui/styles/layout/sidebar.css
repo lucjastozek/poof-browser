@@ -305,6 +305,18 @@ body.collapsed:not(.peek) #side #toast {
   color: var(--ink-2);
   box-shadow: 0 0 0 1px var(--line);
 }
+.row .err-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 24%, transparent);
+}
+.row:hover .err-dot,
+.row:focus-within .err-dot {
+  display: none;
+}
 .row:hover .dev-badge,
 .row:focus-within .dev-badge {
   display: none;

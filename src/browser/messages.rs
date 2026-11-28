@@ -491,6 +491,11 @@ pub(super) enum PageMsg {
     Live {
         on: bool,
     },
+    /// Problem count of the page (see `js/problems.js`). UNTRUSTED: clamped.
+    Problems {
+        #[serde(default)]
+        c: u32,
+    },
     /// Sleep guard report (see `js/sleep-guard.js`). UNTRUSTED: sizes are clipped.
     Snap {
         hold: bool,
@@ -513,6 +518,9 @@ pub(super) enum PageMsg {
         items: Value,
         x: f64,
         y: f64,
+        /// The link or image under the pointer, for the "Copy as" entries.
+        #[serde(default)]
+        u: String,
     },
     /// The right-click menu's choice (`id` 0 = dismissed). UNTRUSTED: only counts with the menu's
     /// one-time token `n`, and only from the tab it belongs to.
@@ -520,6 +528,11 @@ pub(super) enum PageMsg {
     CtxPick {
         n: String,
         id: i32,
+        /// "Copy as" entries (`id` -5): the text to copy and its name for the toast.
+        #[serde(default)]
+        c: String,
+        #[serde(default)]
+        l: String,
     },
     /// Internal (empty tab id only): re-run the layout once the window has settled.
     #[serde(rename = "relayout")]

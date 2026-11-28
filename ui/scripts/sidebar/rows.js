@@ -14,6 +14,16 @@ function row(t, kind) {
   );
   r.dataset.id = t.id;
   r.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab"));
+  if (t.errors) {
+    const e = el("span", "err-dot");
+    e.title =
+      t.errors === 1
+        ? "1 problem on this page (console error or failed request)"
+        : `${t.errors} problems on this page (console errors or failed requests)`;
+    e.setAttribute("role", "img");
+    e.setAttribute("aria-label", e.title);
+    r.append(e);
+  }
   if (t.dev) {
     const d = el("span", "dev-badge", "dev");
     d.title = "Local dev server: never auto-slept";

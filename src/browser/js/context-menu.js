@@ -8,6 +8,8 @@
   const ACCENT = "__ACCENT__";
   const THEME = "__THEME__";
   const ITEMS = __ITEMS__;
+  const TARGET = __TARGET__; // link or image address under the pointer, or ""
+  const LOCATORS = __LOCATORS__; // (element, url) => "Copy as" entries (js/locators.js)
   const PX = __X__ / (devicePixelRatio || 1);
   const PY = __Y__ / (devicePixelRatio || 1);
   const dark =
@@ -73,9 +75,11 @@
 
   let done = false;
   const menus = [];
-  const post = (id) => {
+  const post = (id, extra) => {
     try {
-      window.ipc.postMessage(JSON.stringify({ t: "ctx_pick", n: NONCE, id }));
+      window.ipc.postMessage(
+        JSON.stringify({ t: "ctx_pick", n: NONCE, id, ...extra }),
+      );
     } catch (e) {}
   };
   const close = (silent) => {
@@ -95,6 +99,12 @@
     if (done) return;
     close(true);
     post(id);
+  };
+  // "Copy as" entry: native code puts the text on the clipboard and shows the toast.
+  const copyAs = (it) => {
+    if (done) return;
+    close(true);
+    post(-5, { c: it.t, l: it.l });
   };
   const onOutside = (e) => {
     if (!e.composedPath().includes(host)) close();
@@ -170,7 +180,8 @@
           closeSubs(m);
           b.focus({ preventScroll: true });
         };
-        b.onclick = () => it.e !== false && pick(it.i);
+        b.onclick = () =>
+          it.e !== false && (it.t !== undefined ? copyAs(it) : pick(it.i));
       }
       m.append(b);
     });
@@ -261,6 +272,18 @@
     }
   };
 
+  try {
+    let el = document.elementFromPoint(PX, PY);
+    while (el && el.shadowRoot) {
+      const inner = el.shadowRoot.elementFromPoint(PX, PY);
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+    const extra =
+      el && el !== document.documentElement ? LOCATORS(el, TARGET) : [];
+    if (extra.length)
+      ITEMS.push({ k: "s" }, { k: "x", l: "Copy as", e: true, c: extra });
+  } catch (e) {}
   const m = build(ITEMS, PX, PY, false, null);
   document.documentElement.append(host);
   // Place again now that it is attached and measurable.

@@ -43,6 +43,7 @@ impl Browser {
             .with_initialization_script_for_main_only(pdf_theme_script(&accent), false)
             .with_initialization_script_for_main_only(pip::TRACK_JS, false)
             .with_initialization_script_for_main_only(LIVE_JS, false)
+            .with_initialization_script_for_main_only(PROBLEMS_JS, false)
             .with_initialization_script_for_main_only(guard_js, false)
             .with_initialization_script_for_main_only(SWIPE_NAV_JS, false)
             .with_initialization_script_for_main_only(FULLSCREEN_JS, false)
