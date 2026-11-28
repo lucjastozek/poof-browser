@@ -10,6 +10,7 @@ function row(t, kind) {
     "row" +
       (S.active === t.id ? " on" : "") +
       (t.loaded ? "" : " idle") +
+      (t.dev ? " dev" : "") +
       (S.split && (S.split.a === t.id || S.split.b === t.id) ? " split" : ""),
   );
   r.dataset.id = t.id;
@@ -24,11 +25,7 @@ function row(t, kind) {
     e.setAttribute("aria-label", e.title);
     r.append(e);
   }
-  if (t.dev) {
-    const d = el("span", "dev-badge", "dev");
-    d.title = "Local dev server: never auto-slept";
-    r.append(d);
-  }
+  if (t.dev) r.title = "Local dev server: never auto-slept";
   const a = el("span", "acts");
   a.append(
     ib("star", "Add to favorites", () => send({ cmd: "fav_tab", id: t.id })),

@@ -2622,7 +2622,7 @@ dependencies = [
 
 [[package]]
 name = "poof"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "aes-gcm",
  "anyhow",

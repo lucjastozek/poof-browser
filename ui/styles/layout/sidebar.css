@@ -294,33 +294,35 @@ body.collapsed:not(.peek) #side #toast {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.row .dev-badge {
-  flex: none;
-  padding: 0 5px;
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 15px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--ink-2);
-  box-shadow: 0 0 0 1px var(--line);
+
+.row.dev {
+  --hazard: var(--yellow-logo, rgb(234, 144, 16));
 }
-.row .err-dot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--danger);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 24%, transparent);
+
+.row.dev::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--hazard) 0 6px,
+    transparent 6px 12px
+  );
+  mask-image: linear-gradient(to bottom, transparent 90%, black 90%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 90%, black 90%);
 }
-.row:hover .err-dot,
-.row:focus-within .err-dot {
-  display: none;
+
+.row.dev.on::after,
+.row.dev:hover::after {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--hazard) 0 6px,
+    transparent 6px 12px
+  );
 }
-.row:hover .dev-badge,
-.row:focus-within .dev-badge {
-  display: none;
-}
+
 .row.lift {
   opacity: 0.35;
 }
