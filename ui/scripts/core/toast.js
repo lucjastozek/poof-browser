@@ -27,3 +27,21 @@ window.__undoToast = (m) => {
   window.__quietUntil = Date.now() + 700;
   window.__announce && window.__announce(m + ". Press Control Z to undo.");
 };
+/* A toast that says why something moved, with a "change" button that opens the settings tab
+   (links or general) where the cause can be edited. */
+window.__changeToast = (m, tab) => {
+  const t = $("toast");
+  t.classList.add("undo", "show");
+  t.setAttribute("aria-live", "polite");
+  const btn = el("button", "toast-undo", "Change");
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Change this setting");
+  btn.onclick = () => {
+    t.classList.remove("show");
+    settingsTab = tab;
+    openView("settings");
+  };
+  t.replaceChildren(el("span", "toast-msg", m), btn);
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 7000);
+};

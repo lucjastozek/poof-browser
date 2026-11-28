@@ -1,0 +1,51 @@
+#resume:empty {
+  display: none;
+}
+#resume {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px 6px;
+}
+.resume-card {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.resume-go {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px 7px 10px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.resume-go:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: var(--r-sm);
+}
+.resume-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c, var(--ink-2));
+}
+.resume-txt {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body.compact #resume {
+  display: none;
+}

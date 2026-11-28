@@ -7,17 +7,36 @@ impl Browser {
     /// Executes one command from the (trusted) sidebar UI.
     pub(super) fn run(&mut self, cmd: Cmd) -> Result<()> {
         match cmd {
-            Cmd::Ready => {
+            Cmd::Ready { local_min } => {
                 // The sidebar just (re)loaded and has no state yet: force a full push.
                 self.last_state_hash.set(0);
                 self.tab_drag = false;
                 self.sidebar_ready = true;
+                // First load of this run: a schedule rule beats the remembered space.
+                let first = !std::mem::replace(&mut self.launched, true);
+                let scheduled = if first {
+                    self.apply_schedule(local_min)
+                } else {
+                    None
+                };
+                if first {
+                    self.build_resume_cards();
+                }
                 self.restore_space_tab()?;
+                if let Some(name) = scheduled {
+                    self.toast_change(
+                        &format!("Opened {name} because of your schedule"),
+                        "general",
+                    );
+                }
                 self.push_downloads();
                 self.push_update_offer();
                 self.open_startup_urls();
                 self.refresh_due_live_folders();
             }
+            Cmd::SetSchedules { rules } => self.set_schedules(rules),
+            Cmd::ResumeSpace { id } => self.resume_space(&id)?,
+            Cmd::ResumeDismiss { id } => self.dismiss_resume(id.as_deref()),
             Cmd::SidebarCollapsed { collapsed } => {
                 self.p.sidebar_collapsed = collapsed;
                 self.peek = false;

@@ -110,11 +110,20 @@ pub fn first_match<'a>(
     spaces: &[Space],
     profiles: &[Profile],
 ) -> Option<&'a RuleTarget> {
+    first_rule(rules, url, spaces, profiles).map(|rule| &rule.target)
+}
+
+/// The first rule that covers `url` and points somewhere that still exists.
+pub fn first_rule<'a>(
+    rules: &'a [LinkRule],
+    url: &str,
+    spaces: &[Space],
+    profiles: &[Profile],
+) -> Option<&'a LinkRule> {
     rules
         .iter()
         .filter(|rule| target_exists(&rule.target, spaces, profiles))
         .find(|rule| rule.applies_to(url))
-        .map(|rule| &rule.target)
 }
 
 pub fn target_exists(target: &RuleTarget, spaces: &[Space], profiles: &[Profile]) -> bool {

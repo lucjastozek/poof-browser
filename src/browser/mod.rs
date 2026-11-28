@@ -17,7 +17,8 @@ use crate::{
         boosts_for, file_name, load_downloads, load_history, new_id, ok_selector, save_downloads,
         save_history, unique_path, valid_icon, Boost, DownloadEntry, DownloadStatus, HistoryEntry,
         Kind, LiveFolder, LiveItem, LiveSource, Persisted, Profile, RuleMatch, RuleTarget, Saved,
-        Space, TabFolder, BOOSTS_MAX, BOOST_ZAP_MAX, LIVE_INTERVAL_MAX, LIVE_INTERVAL_MIN,
+        Space, SpaceSchedule, TabFolder, BOOSTS_MAX, BOOST_ZAP_MAX, LIVE_INTERVAL_MAX,
+        LIVE_INTERVAL_MIN,
     },
     updater, UserEvent,
 };
@@ -67,6 +68,7 @@ mod folders;
 mod fullscreen;
 mod geometry;
 mod history;
+mod launch;
 mod layout;
 mod link_routing;
 mod live_folders;
@@ -237,6 +239,10 @@ pub struct Browser {
     lingering: Vec<Lingering>,
     /// The sidebar has loaded and asked for its first state.
     sidebar_ready: bool,
+    /// The sidebar has reported ready once during this run (schedule and cards apply once).
+    launched: bool,
+    /// Spaces that show a "Continue" card.
+    resume_cards: Vec<String>,
     /// Links handed over before the sidebar was ready; opened as soon as it is.
     startup_urls: Vec<String>,
 }
@@ -340,6 +346,8 @@ impl Browser {
             downloads,
             lingering: Vec::new(),
             sidebar_ready: false,
+            launched: false,
+            resume_cards: Vec::new(),
             startup_urls: Vec::new(),
         };
         b.apply_theme();

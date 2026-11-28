@@ -165,8 +165,88 @@ function generalPanel() {
         },
       ),
     ),
+    scheduleField(),
     defaultBrowserSettingsField(),
   ];
+}
+
+/* "At [time range], open [space]": checked once, when poof opens. */
+function scheduleField() {
+  const rules = (S.schedules || []).map((r) => ({ ...r }));
+  const list = el("div", "sched-list");
+  const commit = () => {
+    S.schedules = rules.map((r) => ({ ...r }));
+    send({ cmd: "set_schedules", rules });
+  };
+  const time = (value, label, set) => {
+    const i = el("input", "inp sched-time");
+    i.type = "time";
+    i.value = value;
+    i.setAttribute("aria-label", label);
+    i.onchange = () => {
+      if (i.value) set(i.value);
+      else i.value = value;
+    };
+    return i;
+  };
+  const paint = () => {
+    list.replaceChildren(
+      ...rules.map((r, i) => {
+        const row = el("div", "sched-row");
+        const sel = el("select", "engine-select");
+        sel.setAttribute("aria-label", "Space to open");
+        (S.spaces || []).forEach((sp) => {
+          const o = el("option", null, sp.name);
+          o.value = sp.id;
+          sel.append(o);
+        });
+        sel.value = r.space;
+        sel.onchange = () => {
+          r.space = sel.value;
+          commit();
+        };
+        row.append(
+          el("span", null, "At"),
+          time(r.start, "Start time", (v) => {
+            r.start = v;
+            commit();
+          }),
+          el("span", null, "to"),
+          time(r.end, "End time", (v) => {
+            r.end = v;
+            commit();
+          }),
+          el("span", null, "open"),
+          sel,
+          ib("close", "Remove schedule", () => {
+            rules.splice(i, 1);
+            commit();
+            paint();
+          }),
+        );
+        return row;
+      }),
+    );
+  };
+  const add = el("button", "btn", "Add a schedule");
+  add.type = "button";
+  add.onclick = () => {
+    if (rules.length >= 20 || !(S.spaces || []).length) return;
+    rules.push({ start: "09:00", end: "17:00", space: S.current });
+    commit();
+    paint();
+  };
+  paint();
+  return field(
+    "Space schedule",
+    el(
+      "p",
+      "note",
+      "When you open poof during a time range, it opens that space instead of the last one. The first matching rule wins.",
+    ),
+    list,
+    add,
+  );
 }
 
 function appearancePanel() {

@@ -2,22 +2,28 @@
 
 use super::*;
 use crate::state::{
-    clean_pattern, first_match, resolve_space, target_exists, LinkRule, LINK_RULES_MAX,
+    clean_pattern, first_rule, resolve_space, target_exists, LinkRule, LINK_RULES_MAX,
 };
 
 impl Browser {
     /// The space a link from another app should open in, or `None` to keep the current one.
     /// Only web links are routed; a local file always opens where you are.
-    fn space_for_link(&self, url: &str) -> Option<&Space> {
+    fn space_for_link(&self, url: &str) -> Option<(&Space, String)> {
         let web = url
             .get(..4)
             .is_some_and(|head| head.eq_ignore_ascii_case("http"));
         if !web {
             return None;
         }
-        let target = first_match(&self.p.link_rules, url, &self.p.spaces, &self.p.profiles)
-            .or(self.p.link_fallback.as_ref())?;
-        resolve_space(target, &self.p.spaces, &self.p.current_space)
+        let (target, why) =
+            match first_rule(&self.p.link_rules, url, &self.p.spaces, &self.p.profiles) {
+                Some(rule) => (&rule.target, format!("rule {}", rule.pattern)),
+                None => (
+                    self.p.link_fallback.as_ref()?,
+                    "your setting for other links".to_string(),
+                ),
+            };
+        resolve_space(target, &self.p.spaces, &self.p.current_space).map(|s| (s, why))
     }
 
     /// Opens a link from outside in a new tab of the space the rules choose. Switching space
@@ -26,13 +32,13 @@ impl Browser {
     pub(super) fn open_routed(&mut self, url: &str) -> Result<()> {
         let destination = self
             .space_for_link(url)
-            .filter(|space| space.id != self.p.current_space)
-            .map(|space| (space.id.clone(), space.name.clone()));
-        if let Some((id, name)) = destination {
+            .filter(|(space, _)| space.id != self.p.current_space)
+            .map(|(space, why)| (space.id.clone(), space.name.clone(), why));
+        if let Some((id, name, why)) = destination {
             self.hide_visible();
             self.p.current_space = id;
             self.new_tab(url)?;
-            self.toast(&format!("Opened in {name}"));
+            self.toast_change(&format!("Opened in {name} because of {why}"), "links");
             return Ok(());
         }
         self.new_tab(url)

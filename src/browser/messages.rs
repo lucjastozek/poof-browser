@@ -48,7 +48,23 @@ pub(super) struct CleanupHours {
 #[derive(Deserialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
 pub(super) enum Cmd {
-    Ready,
+    Ready {
+        /// Local time of day in minutes since midnight (the sidebar knows the time zone).
+        #[serde(default)]
+        local_min: Option<u16>,
+    },
+    /// Replaces the space schedule (validated natively).
+    SetSchedules {
+        rules: Vec<SpaceSchedule>,
+    },
+    /// "Continue" card: open that space and wake only the tabs it was last used with.
+    ResumeSpace {
+        id: String,
+    },
+    /// Hide one "Continue" card, or all of them.
+    ResumeDismiss {
+        id: Option<String>,
+    },
     SidebarCollapsed {
         collapsed: bool,
     },

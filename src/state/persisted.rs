@@ -35,8 +35,43 @@ fn default_tab_sleep_minutes() -> u64 {
     10
 }
 
+/// Most schedule rules a user can keep.
+pub const SCHEDULES_MAX: usize = 20;
+
+/// "At [start] to [end], open [space]". Times are local "HH:MM"; a range may cross midnight.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+pub struct SpaceSchedule {
+    pub start: String,
+    pub end: String,
+    pub space: String,
+}
+
+fn minutes_of(hhmm: &str) -> Option<u16> {
+    let (h, m) = hhmm.split_once(':')?;
+    let (h, m) = (h.parse::<u16>().ok()?, m.parse::<u16>().ok()?);
+    (h < 24 && m < 60).then_some(h * 60 + m)
+}
+
+impl SpaceSchedule {
+    /// True when `minute` (minutes since local midnight) falls inside the range.
+    pub fn covers(&self, minute: u16) -> bool {
+        match (minutes_of(&self.start), minutes_of(&self.end)) {
+            (Some(s), Some(e)) if s < e => (s..e).contains(&minute),
+            (Some(s), Some(e)) if s > e => minute >= s || minute < e,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Persisted {
+    /// Space schedule: opening the browser inside a range opens that space.
+    #[serde(default)]
+    pub schedules: Vec<SpaceSchedule>,
+    /// Tabs each space was last used with (space id -> tab ids, oldest first), for the
+    /// "Continue" cards shown on launch.
+    #[serde(default)]
+    pub resume: HashMap<String, Vec<String>>,
     pub profiles: Vec<Profile>,
     pub spaces: Vec<Space>,
     pub saved: Vec<Saved>,
@@ -131,6 +166,8 @@ impl Default for Persisted {
                 icon: "house".into(),
                 color: "#6dc5e2".into(),
             }],
+            schedules: vec![],
+            resume: HashMap::new(),
             saved: vec![],
             folders: vec![],
             folder_layout_version: 1,
@@ -252,6 +289,14 @@ impl Persisted {
             .take(BOOSTS_MAX)
             .collect();
         p.tab_sleep_minutes = p.tab_sleep_minutes.min(10_080);
+        let spaces: Vec<String> = p.spaces.iter().map(|s| s.id.clone()).collect();
+        p.schedules.retain(|r| {
+            spaces.contains(&r.space)
+                && minutes_of(&r.start).is_some()
+                && minutes_of(&r.end).is_some()
+        });
+        p.schedules.truncate(SCHEDULES_MAX);
+        p.resume.retain(|id, _| spaces.contains(id));
         if !matches!(p.theme.as_str(), "system" | "light" | "dark") {
             p.theme = system();
         }

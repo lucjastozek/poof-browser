@@ -81,6 +81,7 @@ impl Browser {
                 favicon: t.favicon.clone().filter(|f| f.len() <= FAVICON_PERSIST_MAX),
             })
             .collect();
+        self.update_resume();
         self.p.active_tabs = if restore {
             self.active.clone()
         } else {

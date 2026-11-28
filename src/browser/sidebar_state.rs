@@ -156,6 +156,8 @@ impl Browser {
                 "pinned": (3..50).contains(&self.p.tabs_opened)
                     && !(self.p.used_pinned || self.tabs.iter().any(|t| t.kind == Kind::Pinned)),
             },
+            "schedules": self.p.schedules,
+            "resume": self.resume_cards_json(),
             "devtools_open": self.devtools_open,
             "devtools_position": self.p.devtools_position,
             "devtools_size": self.p.devtools_size,
@@ -197,6 +199,15 @@ impl Browser {
         {
             self.last_state_hash.set(digest);
         }
+    }
+
+    /// A toast with a "change" button that opens the settings tab where the cause can be edited.
+    pub(super) fn toast_change(&self, msg: &str, tab: &str) {
+        let m = serde_json::to_string(msg).unwrap_or_default();
+        let t = serde_json::to_string(tab).unwrap_or_default();
+        let _ = self.sidebar.evaluate_script(&format!(
+            "window.__changeToast&&window.__changeToast({m},{t})"
+        ));
     }
 
     pub(super) fn toast(&self, msg: &str) {
