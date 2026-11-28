@@ -23,7 +23,7 @@ function row(t, kind) {
     a.append(unloadBtn(() => send({ cmd: "unload_tab", id: t.id })));
   a.append(
     ib("close", kind === "tab" ? "Close" : "Reset to pinned page", () =>
-      send({ cmd: "close_tab", id: t.id }),
+      window.__closeTab(t.id),
     ),
   );
   r.append(a);
@@ -32,7 +32,7 @@ function row(t, kind) {
     go({ cmd: "select_tab", id: t.id });
   };
   r.onauxclick = (e) => {
-    if (e.button === 1) send({ cmd: "close_tab", id: t.id });
+    if (e.button === 1) window.__closeTab(t.id);
   };
   r.oncontextmenu = (e) => showRowMenu(e, t);
   r.onpointerdown = (e) => watchDrag(e, r, t, kind);

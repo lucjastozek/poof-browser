@@ -152,11 +152,13 @@ impl Browser {
                 }
             }
             Cmd::SelectTab { id } => self.activate(&id)?,
-            Cmd::CloseTab { id } => self.close_tab(&id)?,
+            Cmd::CloseTab { id } => self.close_tab_undoable(&id)?,
             Cmd::UnloadTab { id } => self.unload_tab(&id)?,
-            Cmd::ClearTabs => self.clear_tabs()?,
+            Cmd::ClearTabs => self.clear_tabs_undoable()?,
+            Cmd::Undo => self.undo_last()?,
+            Cmd::ResetHints => self.reset_hints(),
             Cmd::PinTab { id } => self.set_kind(&id, Kind::Pinned),
-            Cmd::UnpinTab { id } | Cmd::UnfavTab { id } => self.set_kind(&id, Kind::Normal),
+            Cmd::UnpinTab { id } | Cmd::UnfavTab { id } => self.unset_kind_undoable(&id),
             Cmd::FavTab { id } => self.set_kind(&id, Kind::Favorite),
             Cmd::SwitchSpace { id, keep_focus } => {
                 self.switch_space_with(&id, keep_focus)?;
@@ -174,7 +176,7 @@ impl Browser {
                 icon,
                 color,
             } => self.edit_space(&id, &name, &icon, color),
-            Cmd::DeleteSpace { id } => self.delete_space(&id)?,
+            Cmd::DeleteSpace { id } => self.delete_space_undoable(&id)?,
             Cmd::SaveLinkRule {
                 id,
                 matches,
@@ -221,7 +223,7 @@ impl Browser {
             } => self.edit_live_folder(&id, &name, source, interval_minutes),
             Cmd::RefreshLiveFolder { id } => self.refresh_live_folder(&id),
             Cmd::RenameFolder { id, name } => self.rename_folder(&id, &name),
-            Cmd::DeleteFolder { id } => self.delete_folder(&id),
+            Cmd::DeleteFolder { id } => self.delete_folder_undoable(&id),
             Cmd::ToggleFolderCollapsed { id } => self.toggle_folder_collapsed(&id),
             Cmd::MoveFolder { id, to, index } => self.move_folder(&id, &to, index),
             Cmd::MoveTabToFolder {

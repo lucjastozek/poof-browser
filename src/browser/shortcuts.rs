@@ -371,6 +371,23 @@ pub(super) fn register_browser_shortcuts(
                 is_down(0x10), // VK_SHIFT
             );
 
+            // Ctrl+Z from a page: right after something undoable, offer it as undo. The key is
+            // not consumed, so a text field still gets its own undo (native code checks for one).
+            if command.is_none()
+                && virtual_key == 0x5A // Z
+                && is_down(0x11)
+                && !is_down(0x12)
+                && !is_down(0x10)
+                && !tab.is_empty()
+                && key_event_lparam & (1 << 30) == 0
+                && super::undo::undo_window_open()
+            {
+                let _ = proxy.send_event(UserEvent::Page {
+                    tab: String::new(),
+                    body: json!({ "t": "key", "k": "undo_soft" }).to_string(),
+                });
+            }
+
             if let Some(command) = command {
                 args.SetHandled(true)?;
                 // Ignore auto-repeat after suppressing WebView2's default action.

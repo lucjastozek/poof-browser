@@ -67,7 +67,11 @@
       c.scrollIntoView({ inline: "center", block: "nearest" });
       window.__announce &&
         window.__announce(
-          c.querySelector(".tabsw-ttl").textContent + ", " + (i + 1) + " of " + strip.children.length,
+          c.querySelector(".tabsw-ttl").textContent +
+            ", " +
+            (i + 1) +
+            " of " +
+            strip.children.length,
         );
     }
   };

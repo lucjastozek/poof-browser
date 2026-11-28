@@ -244,3 +244,229 @@ body.compact #toast {
   opacity: 1;
   transform: none;
 }
+/* Undo toast: text on the left, the button on the right, clickable. */
+#toast.undo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+}
+#toast.undo.show {
+  pointer-events: auto;
+}
+.toast-msg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toast-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    transform var(--t-fast) var(--ease);
+}
+.toast-undo:hover {
+  background: color-mix(in srgb, var(--bg) 30%, transparent);
+}
+.toast-undo:active {
+  transform: scale(0.95);
+}
+.toast-undo kbd {
+  font: 10px/1 var(--f-ui, inherit);
+  opacity: 0.6;
+}
+body.compact #toast.undo {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px;
+}
+body.compact .toast-msg {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+body.compact .toast-undo kbd {
+  display: none;
+}
+
+/* Poof: a ghost of the closed row and a few specks. */
+.poof-ghost {
+  position: absolute !important;
+  margin: 0 !important;
+  pointer-events: none;
+  z-index: 50;
+  transform-origin: left center;
+  will-change: transform, opacity;
+}
+.poof-ghost .acts {
+  display: none;
+}
+.poof-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--space);
+  pointer-events: none;
+  z-index: 51;
+}
+
+/* Empty states: a small Poof ghost with a hint, for favorites and pinned tabs. */
+#favs.empty.hint {
+  display: flex;
+}
+.ghost-hint {
+  flex: none;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 14px 8px 10px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-lg);
+  color: var(--ink-3);
+  animation: rise var(--t-slow) var(--ease-out);
+  transition:
+    border-color var(--t-base),
+    background var(--t-base);
+}
+.gh-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.gh-text b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.gh-drag {
+  display: none;
+}
+.ghost {
+  flex: none;
+  overflow: visible;
+}
+.ghost .g-all {
+  animation: ghost-float 3.2s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+.ghost .g-body {
+  fill: color-mix(in srgb, var(--ink) 9%, transparent);
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.ghost .g-eyes {
+  fill: var(--ink-2);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ghost-blink 4.6s infinite;
+}
+.ghost .g-blush circle {
+  fill: var(--space);
+  opacity: 0.35;
+}
+.ghost .g-smile {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+.ghost .g-mouth {
+  fill: var(--ink-2);
+  opacity: 0;
+}
+.ghost .g-badge {
+  fill: var(--space);
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ghost-badge 3.2s ease-in-out infinite;
+}
+.ghost .g-pin-stem {
+  stroke: var(--space);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+/* While a tab is being dragged the ghost perks up: wide eyes, open mouth, a hop. */
+.dragging .ghost-hint {
+  border-color: var(--space);
+  background: color-mix(in srgb, var(--space) 12%, transparent);
+}
+.dragging .gh-idle {
+  display: none;
+}
+.dragging .gh-drag {
+  display: block;
+}
+.dragging .ghost .g-all {
+  animation: ghost-hop 0.7s var(--ease-out) infinite;
+}
+.dragging .ghost .g-smile {
+  opacity: 0;
+}
+.dragging .ghost .g-mouth {
+  opacity: 1;
+}
+.dragging .ghost .g-eyes {
+  animation: none;
+  transform: scale(1.18);
+}
+@keyframes ghost-float {
+  0%,
+  100% {
+    transform: translateY(1px);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+@keyframes ghost-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1.04, 0.96);
+  }
+  40% {
+    transform: translateY(-6px) scale(0.97, 1.05);
+  }
+}
+@keyframes ghost-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes ghost-badge {
+  0%,
+  100% {
+    transform: rotate(-8deg) scale(1);
+  }
+  50% {
+    transform: rotate(8deg) scale(1.1);
+  }
+}
+body.compact .ghost-hint {
+  display: none;
+}

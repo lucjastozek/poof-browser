@@ -101,18 +101,27 @@
         const fav = n.classList.contains("tile");
         n.setAttribute(
           "aria-label",
-          title + (fav ? ", favorite" : "") + (t.loaded === false ? ", asleep" : ""),
+          title +
+            (fav ? ", favorite" : "") +
+            (t.loaded === false ? ", asleep" : ""),
         );
         n.setAttribute("aria-selected", String(S.active === n.dataset.id));
         n.setAttribute("aria-level", n.closest(".folder-contents") ? "2" : "1");
       } else if (n.classList.contains("folder-head")) {
         const name = n.querySelector(".folder-name,.folder-rename");
-        n.setAttribute("aria-label", (name && (name.value || name.textContent)) || "Folder");
+        n.setAttribute(
+          "aria-label",
+          (name && (name.value || name.textContent)) || "Folder",
+        );
         n.setAttribute("aria-level", "1");
       } else n.setAttribute("aria-level", "2");
     }
-    document.querySelectorAll(".folder-contents").forEach((c) => c.setAttribute("role", "group"));
-    document.querySelectorAll(".tab-folder, .split-pair").forEach((c) => c.setAttribute("role", "none"));
+    document
+      .querySelectorAll(".folder-contents")
+      .forEach((c) => c.setAttribute("role", "group"));
+    document
+      .querySelectorAll(".tab-folder, .split-pair")
+      .forEach((c) => c.setAttribute("role", "none"));
     const keep =
       items.find((n) => keyOf(n) === roving) ||
       items.find((n) => n.classList.contains("on")) ||
@@ -148,11 +157,17 @@
           movedNote = false;
           const group = items.filter(
             (n) =>
-              n.closest("#favs,#pinned,#tabs") === it.closest("#favs,#pinned,#tabs") &&
-              !!n.closest(".folder-contents") === !!it.closest(".folder-contents"),
+              n.closest("#favs,#pinned,#tabs") ===
+                it.closest("#favs,#pinned,#tabs") &&
+              !!n.closest(".folder-contents") ===
+                !!it.closest(".folder-contents"),
           );
           window.__announce(
-            nameOf(it) + ", position " + (group.indexOf(it) + 1) + " of " + group.length,
+            nameOf(it) +
+              ", position " +
+              (group.indexOf(it) + 1) +
+              " of " +
+              group.length,
           );
         }
       }
@@ -166,13 +181,19 @@
     st.tabs.forEach((t) => m.set(t.id, ["tab", t]));
     return m;
   };
-  const folderName = (st, id) => (st.folders || []).find((f) => f.id === id)?.name || "folder";
+  const folderName = (st, id) =>
+    (st.folders || []).find((f) => f.id === id)?.name || "folder";
   function announceChanges(a, b) {
+    if (Date.now() < (window.__quietUntil || 0)) return; // an undo toast already said it
     if (a.current !== b.current) {
       const sp = b.spaces.find((x) => x.id === b.current);
       const n = b.pinned.length + b.tabs.length;
       return window.__announce(
-        "Space " + (sp ? sp.name : "") + ", " + n + (n === 1 ? " tab" : " tabs"),
+        "Space " +
+          (sp ? sp.name : "") +
+          ", " +
+          n +
+          (n === 1 ? " tab" : " tabs"),
       );
     }
     const before = flat(a),
@@ -181,18 +202,23 @@
     const gone = [...before.keys()].filter((id) => !after.has(id));
     const born = [...after.keys()].filter((id) => !before.has(id));
     const titleOf = (t) => t.title || pretty(t.url) || "New tab";
-    if (gone.length === 1) said.push("Closed " + titleOf(before.get(gone[0])[1]));
+    if (gone.length === 1)
+      said.push("Closed " + titleOf(before.get(gone[0])[1]));
     else if (gone.length > 1) said.push("Closed " + gone.length + " tabs");
-    if (born.length === 1 && !gone.length) said.push("Opened " + titleOf(after.get(born[0])[1]));
+    if (born.length === 1 && !gone.length)
+      said.push("Opened " + titleOf(after.get(born[0])[1]));
     for (const [id, [kind, t]] of after) {
       const old = before.get(id);
       if (!old) continue;
       if (old[0] !== kind) {
         said.push(
-          kind === "pin" ? "Pinned " + titleOf(t)
-            : kind === "fav" ? titleOf(t) + " added to favorites"
-            : old[0] === "pin" ? "Unpinned " + titleOf(t)
-            : titleOf(t) + " removed from favorites",
+          kind === "pin"
+            ? "Pinned " + titleOf(t)
+            : kind === "fav"
+              ? titleOf(t) + " added to favorites"
+              : old[0] === "pin"
+                ? "Unpinned " + titleOf(t)
+                : titleOf(t) + " removed from favorites",
         );
       } else if ((old[1].folder_id || null) !== (t.folder_id || null)) {
         said.push(
@@ -200,7 +226,8 @@
             ? "Moved " + titleOf(t) + " to " + folderName(b, t.folder_id)
             : "Moved " + titleOf(t) + " out of folder",
         );
-      } else if (old[1].loaded && t.loaded === false) said.push(titleOf(t) + " is asleep");
+      } else if (old[1].loaded && t.loaded === false)
+        said.push(titleOf(t) + " is asleep");
     }
     if (said.length) window.__announce(said.slice(0, 2).join(". "));
   }
@@ -226,7 +253,7 @@
       const ids = S.favorites.map((t) => t.id);
       const q = ids.indexOf(it.dataset.id) + dir;
       if (q < 0 || q >= ids.length) return edge();
-            return mv({ cmd: "move_tab", id: it.dataset.id, to: "fav", index: q });
+      return mv({ cmd: "move_tab", id: it.dataset.id, to: "fav", index: q });
     }
     if (horizontal) return;
     if (it.classList.contains("live-item")) return;
@@ -238,15 +265,30 @@
       const units = unitsOf(listEl);
       const p = units.indexOf(group),
         q = p + dir;
-            if (q < 0)
+      if (q < 0)
         return inPinned
           ? edge()
-          : mv({ cmd: "move_folder", id: it.dataset.folderId, to: "pinned", index: unitsOf($("pinned")).length });
+          : mv({
+              cmd: "move_folder",
+              id: it.dataset.folderId,
+              to: "pinned",
+              index: unitsOf($("pinned")).length,
+            });
       if (q >= units.length)
         return inPinned
-          ? mv({ cmd: "move_folder", id: it.dataset.folderId, to: "tab", index: 0 })
+          ? mv({
+              cmd: "move_folder",
+              id: it.dataset.folderId,
+              to: "tab",
+              index: 0,
+            })
           : edge();
-      return mv({ cmd: "move_folder", id: it.dataset.folderId, to: inPinned ? "pinned" : "tab", index: q });
+      return mv({
+        cmd: "move_folder",
+        id: it.dataset.folderId,
+        to: inPinned ? "pinned" : "tab",
+        index: q,
+      });
     }
     const inside = it.closest(".folder-contents");
     if (inside) {
@@ -254,12 +296,17 @@
       const rows = [...inside.querySelectorAll(":scope > .row")];
       const q = rows.indexOf(it) + dir;
       if (q < 0 || q >= rows.length) return edge();
-            return mv({ cmd: "move_tab_to_folder", id: it.dataset.id, folder_id: group.dataset.folderId, index: q });
+      return mv({
+        cmd: "move_tab_to_folder",
+        id: it.dataset.id,
+        folder_id: group.dataset.folderId,
+        index: q,
+      });
     }
     const units = unitsOf(listEl);
     const p = units.indexOf(it),
       q = p + dir;
-        if (q < 0)
+    if (q < 0)
       return inPinned
         ? edge()
         : mv({ cmd: "move_tab", id: it.dataset.id, to: "pinned", index: 9999 });
@@ -270,13 +317,23 @@
     const next = units[q];
     if (next.classList.contains("tab-folder")) {
       // The folder steps over the tab instead: its order is a position in the mixed list.
-      return mv({ cmd: "move_folder", id: next.dataset.folderId, to: inPinned ? "pinned" : "tab", index: p });
+      return mv({
+        cmd: "move_folder",
+        id: next.dataset.folderId,
+        to: inPinned ? "pinned" : "tab",
+        index: p,
+      });
     }
     const peers = (inPinned ? S.pinned.filter((t) => !t.folder_id) : S.tabs)
       .map((t) => t.id)
       .filter((id) => id !== it.dataset.id);
     const at = peers.indexOf(next.dataset.id);
-    mv({ cmd: "move_tab", id: it.dataset.id, to: inPinned ? "pinned" : "tab", index: dir > 0 ? at + 1 : at });
+    mv({
+      cmd: "move_tab",
+      id: it.dataset.id,
+      to: inPinned ? "pinned" : "tab",
+      index: dir > 0 ? at + 1 : at,
+    });
   }
 
   /* ----- menus from the keyboard ----- */
@@ -288,7 +345,11 @@
     folderContextMenu.remove();
     folderMenu.remove();
     const item = (label, fn, danger) => {
-      const b = el("button", "folder-context-item" + (danger ? " danger" : ""), label);
+      const b = el(
+        "button",
+        "folder-context-item" + (danger ? " danger" : ""),
+        label,
+      );
       b.type = "button";
       b.onclick = () => {
         folderMenu.remove();
@@ -298,15 +359,23 @@
     };
     const items = [];
     const name = head.querySelector(".folder-name");
-    if (!folder.live && name) items.push(item("Rename", () => renameFolderInline(name, folder)));
+    if (!folder.live && name)
+      items.push(item("Rename", () => renameFolderInline(name, folder)));
     items.push(
-      item(folder.collapsed ? "Expand" : "Collapse", () => send({ cmd: "toggle_folder_collapsed", id: folder.id })),
+      item(folder.collapsed ? "Expand" : "Collapse", () =>
+        send({ cmd: "toggle_folder_collapsed", id: folder.id }),
+      ),
       el("div", "folder-context-sep"),
-      item("Delete folder", () => send({ cmd: "delete_folder", id: folder.id }), true),
+      item(
+        "Delete folder",
+        () => send({ cmd: "delete_folder", id: folder.id }),
+        true,
+      ),
     );
     placeMenu(folderMenu, items, e);
   }
-  const folderOf = (head) => (S.folders || []).find((f) => f.id === head.dataset.folderId);
+  const folderOf = (head) =>
+    (S.folders || []).find((f) => f.id === head.dataset.folderId);
   function menuFor(it, at) {
     const r = it.getBoundingClientRect();
     const e = {
@@ -358,7 +427,11 @@
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^Arrow/.test(k)) {
       e.preventDefault();
       const horizontal = k === "ArrowLeft" || k === "ArrowRight";
-      return reorder(it, k === "ArrowUp" || k === "ArrowLeft" ? -1 : 1, horizontal);
+      return reorder(
+        it,
+        k === "ArrowUp" || k === "ArrowLeft" ? -1 : 1,
+        horizontal,
+      );
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if ((k === "F10" && e.shiftKey) || k === "ContextMenu") {
@@ -379,9 +452,15 @@
         if (cand.length) {
           const tops = cand.map((n) => n.getBoundingClientRect().top);
           const want = d > 0 ? Math.min(...tops) : Math.max(...tops);
-          const rowOf = cand.filter((n) => Math.abs(n.getBoundingClientRect().top - want) < 4);
+          const rowOf = cand.filter(
+            (n) => Math.abs(n.getBoundingClientRect().top - want) < 4,
+          );
           const cx = (n) => n.getBoundingClientRect().left + n.offsetWidth / 2;
-          return focus(rowOf.reduce((a, b) => (Math.abs(cx(b) - cx(it)) < Math.abs(cx(a) - cx(it)) ? b : a)));
+          return focus(
+            rowOf.reduce((a, b) =>
+              Math.abs(cx(b) - cx(it)) < Math.abs(cx(a) - cx(it)) ? b : a,
+            ),
+          );
         }
         if (d < 0) return e.preventDefault();
         return focus(items.find((n) => !n.classList.contains("tile")));
@@ -392,20 +471,42 @@
     if (k === "End") return focus(items[items.length - 1]);
     if (k === "ArrowRight" || k === "ArrowLeft") {
       const d = k === "ArrowRight" ? 1 : -1;
-      if (tile) return focus(items[i + d] && items[i + d].classList.contains("tile") ? items[i + d] : null);
+      if (tile)
+        return focus(
+          items[i + d] && items[i + d].classList.contains("tile")
+            ? items[i + d]
+            : null,
+        );
       if (head) {
         const f = folderOf(it);
         if (!f) return;
         if (d > 0) {
           if (f.collapsed) {
             e.preventDefault();
-            return toggleFolderNow(it.closest(".tab-folder"), it, it.querySelector(".folder-chevron"), it.querySelector(".folder-glyph"), f);
+            return toggleFolderNow(
+              it.closest(".tab-folder"),
+              it,
+              it.querySelector(".folder-chevron"),
+              it.querySelector(".folder-glyph"),
+              f,
+            );
           }
-          return focus(items[i + 1] && items[i + 1].closest(".tab-folder") === it.closest(".tab-folder") ? items[i + 1] : null);
+          return focus(
+            items[i + 1] &&
+              items[i + 1].closest(".tab-folder") === it.closest(".tab-folder")
+              ? items[i + 1]
+              : null,
+          );
         }
         if (!f.collapsed) {
           e.preventDefault();
-          return toggleFolderNow(it.closest(".tab-folder"), it, it.querySelector(".folder-chevron"), it.querySelector(".folder-glyph"), f);
+          return toggleFolderNow(
+            it.closest(".tab-folder"),
+            it,
+            it.querySelector(".folder-chevron"),
+            it.querySelector(".folder-glyph"),
+            f,
+          );
         }
         return;
       }
@@ -421,7 +522,7 @@
     if (k === "Delete") {
       e.preventDefault();
       if (tile) send({ cmd: "unfav_tab", id: it.dataset.id });
-      else if (it.dataset.id) send({ cmd: "close_tab", id: it.dataset.id });
+      else if (it.dataset.id) window.__closeTab(it.dataset.id);
       return;
     }
     if (k === "F2" && head) {
@@ -442,10 +543,32 @@
       typed += k.toLowerCase();
       clearTimeout(typedTimer);
       typedTimer = setTimeout(() => (typed = ""), 700);
-      const order = [...items.slice(i + (typed.length > 1 ? 0 : 1)), ...items.slice(0, i + 1)];
+      const order = [
+        ...items.slice(i + (typed.length > 1 ? 0 : 1)),
+        ...items.slice(0, i + 1),
+      ];
       const hit = order.find((n) => nameOf(n).toLowerCase().startsWith(typed));
       if (hit) focus(hit);
     }
+  });
+
+  /* Ctrl+Z undoes the last close, delete or removal (not while typing in a field). */
+  document.addEventListener("keydown", (e) => {
+    if (
+      e.key.toLowerCase() !== "z" ||
+      !(e.ctrlKey || e.metaKey) ||
+      e.shiftKey ||
+      e.altKey
+    )
+      return;
+    const t = e.target;
+    if (
+      t &&
+      (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+    )
+      return;
+    e.preventDefault();
+    send({ cmd: "undo" });
   });
 
   /* F6 moves between the address bar, the tab list and the page. */
@@ -457,13 +580,22 @@
       e.preventDefault();
       const inUrl = document.activeElement === $("url");
       const inList = !!itemOf(document.activeElement);
-      const list = () => (navItems().find((n) => n.tabIndex === 0) || navItems()[0] || $("hdr")).focus();
+      const list = () =>
+        (
+          navItems().find((n) => n.tabIndex === 0) ||
+          navItems()[0] ||
+          $("hdr")
+        ).focus();
       if (e.shiftKey) {
-        if (inUrl) S && S.active ? send({ cmd: "focus_tab", id: S.active }) : list();
+        if (inUrl)
+          S && S.active ? send({ cmd: "focus_tab", id: S.active }) : list();
         else if (inList) $("url").focus();
         else list();
       } else if (inUrl) list();
-      else if (inList) S && S.active ? send({ cmd: "focus_tab", id: S.active }) : $("url").focus();
+      else if (inList)
+        S && S.active
+          ? send({ cmd: "focus_tab", id: S.active })
+          : $("url").focus();
       else $("url").focus();
     },
     true,
@@ -479,7 +611,8 @@
         const active = document.activeElement;
         if (active && active !== document.body && !n.contains(active)) continue;
         const key = from.dataset ? window.__navKeyOf(from) : null;
-        if (!(key && window.__focusNavKey(key)) && from.isConnected) from.focus({ preventScroll: true });
+        if (!(key && window.__focusNavKey(key)) && from.isConnected)
+          from.focus({ preventScroll: true });
       }
   }).observe(side, { childList: true });
 
@@ -487,7 +620,9 @@
   const FOCUSABLE =
     'button:not([disabled]),a[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
   const focusables = (root) =>
-    [...root.querySelectorAll(FOCUSABLE)].filter((n) => n.getClientRects().length && !n.closest("[hidden]"));
+    [...root.querySelectorAll(FOCUSABLE)].filter(
+      (n) => n.getClientRects().length && !n.closest("[hidden]"),
+    );
   const stage = $("stage");
   new MutationObserver(() => {
     const m = stage.querySelector(".dlg, .settings-modal");
@@ -496,10 +631,15 @@
     m.setAttribute("role", "dialog");
     m.setAttribute("aria-modal", "true");
     if (!m.getAttribute("aria-label"))
-      m.setAttribute("aria-label", (m.querySelector("h2,h1") || {}).textContent || "Dialog");
+      m.setAttribute(
+        "aria-label",
+        (m.querySelector("h2,h1") || {}).textContent || "Dialog",
+      );
     requestAnimationFrame(() => {
       if (m.contains(document.activeElement)) return;
-      const first = m.querySelector("[autofocus],input.inp,input,textarea") || focusables(m)[0];
+      const first =
+        m.querySelector("[autofocus],input.inp,input,textarea") ||
+        focusables(m)[0];
       first && first.focus({ preventScroll: true });
     });
   }).observe(stage, { childList: true, subtree: true });
@@ -533,14 +673,23 @@
 
   /* ----- popover panels (downloads, history, passwords): name, focus in, focus back ----- */
   const PANELS = ["downloads-panel", "history-panel", "passwords-panel"];
-  const PANEL_NAME = { "downloads-panel": "Downloads", "history-panel": "History", "passwords-panel": "Saved passwords" };
+  const PANEL_NAME = {
+    "downloads-panel": "Downloads",
+    "history-panel": "History",
+    "passwords-panel": "Saved passwords",
+  };
   const watched = new WeakSet();
   const returns = new Map();
   function panelState(p) {
     const open = p.isConnected && !p.hidden;
     if (open && !returns.has(p)) {
       const a = document.activeElement;
-      returns.set(p, a && a !== document.body && !p.contains(a) ? { el: a, key: window.__navKeyOf(a) } : { el: null });
+      returns.set(
+        p,
+        a && a !== document.body && !p.contains(a)
+          ? { el: a, key: window.__navKeyOf(a) }
+          : { el: null },
+      );
       p.setAttribute("role", "dialog");
       p.setAttribute("aria-label", PANEL_NAME[p.id] || "Panel");
       requestAnimationFrame(() => {
@@ -557,7 +706,9 @@
       else if (S && S.active) send({ cmd: "focus_tab", id: S.active });
     }
   }
-  const panelObs = new MutationObserver((rs) => rs.forEach((r) => panelState(r.target)));
+  const panelObs = new MutationObserver((rs) =>
+    rs.forEach((r) => panelState(r.target)),
+  );
   new MutationObserver(() => {
     for (const id of PANELS) {
       const p = document.getElementById(id);
@@ -574,9 +725,11 @@
   function nameIt(n) {
     if (n.matches("button,[role=button]") && iconOnly(n)) {
       const t = (n.getAttribute("title") || "").split("\n")[0];
-      if (t && n.getAttribute("aria-label") !== t) n.setAttribute("aria-label", t);
+      if (t && n.getAttribute("aria-label") !== t)
+        n.setAttribute("aria-label", t);
     }
-    if (n.matches("input:not([aria-label])") && n.placeholder) n.setAttribute("aria-label", n.placeholder);
+    if (n.matches("input:not([aria-label])") && n.placeholder)
+      n.setAttribute("aria-label", n.placeholder);
   }
   const sweep = (root) => {
     if (root.nodeType !== 1) return;
@@ -598,7 +751,12 @@
       queue = [];
       q.forEach((n) => n.isConnected && sweep(n));
     });
-  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["title"] });
+  }).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["title"],
+  });
   sweep(document.body);
   decorate();
 })();

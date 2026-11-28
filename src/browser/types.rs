@@ -47,6 +47,24 @@ pub(super) struct Split {
 }
 
 impl Tab {
+    /// A copy without a WebView (for undo).
+    pub(super) fn snapshot(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            profile_id: self.profile_id.clone(),
+            space_id: self.space_id.clone(),
+            folder_id: self.folder_id.clone(),
+            kind: self.kind,
+            home: self.home.clone(),
+            url: self.url.clone(),
+            host: self.host.clone(),
+            title: self.title.clone(),
+            favicon: self.favicon.clone(),
+            webview: None,
+            last_active: self.last_active,
+        }
+    }
+
     /// A saved tab, restored without a WebView (it is created when the tab is first shown).
     pub(super) fn from_saved(saved: &Saved) -> Self {
         Self {

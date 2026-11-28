@@ -105,6 +105,16 @@ pub struct Persisted {
     /// Where links that match no rule open; `None` keeps the space that is showing.
     #[serde(default)]
     pub link_fallback: Option<RuleTarget>,
+    /// Set once any favorite has existed; the empty-favorites hint never comes back after that.
+    #[serde(default)]
+    pub used_favorites: bool,
+    /// Same for pinned tabs, in any space.
+    #[serde(default)]
+    pub used_pinned: bool,
+    /// Tabs opened over the browser's whole life (not how many are open now). The empty-list
+    /// tips show from the 3rd to the 49th, so they neither greet a brand-new user nor linger.
+    #[serde(default)]
+    pub tabs_opened: u32,
 }
 
 impl Default for Persisted {
@@ -145,6 +155,9 @@ impl Default for Persisted {
             mini_window: false,
             peek_links: false,
             link_fallback: None,
+            used_favorites: false,
+            used_pinned: false,
+            tabs_opened: 0,
         }
     }
 }

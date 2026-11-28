@@ -90,6 +90,13 @@ impl Browser {
                 self.on_page_password_submit(tab, u, p);
                 return;
             }
+            PageMsg::Key { k } if k == "undo" || k == "undo_soft" => {
+                // Only native code sends these (empty tab id); a page cannot.
+                if tab.is_empty() {
+                    self.on_undo_key(&k);
+                }
+                return;
+            }
             PageMsg::Key { k } if k == "history" => {
                 self.toggle_history_view(tab);
                 return;
@@ -272,8 +279,8 @@ impl Browser {
                     .evaluate_script("window.__focusUrl && window.__focusUrl()");
                 Ok(())
             }
-            "close" => self.close_tab(tab),
-            "reopen" => self.reopen_closed_tab(),
+            "close" => self.close_tab_undoable(tab),
+            "reopen" => self.reopen_or_undo(),
             "back" => {
                 self.eval_visible("history.back()");
                 Ok(())

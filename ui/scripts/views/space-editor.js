@@ -357,19 +357,8 @@ function buildSpace(v, mode) {
   const foot = [];
   if (!add && S.spaces.length > 1) {
     const d = btn("ghost danger", "Delete space");
-    let sure = false;
-    d.onclick = () => {
-      if (!sure) {
-        sure = true;
-        d.textContent = "Click again to confirm";
-        d.classList.add("sure");
-        setTimeout(() => {
-          sure = false;
-          d.textContent = "Delete space";
-          d.classList.remove("sure");
-        }, 3000);
-      } else go({ cmd: "delete_space", id: S.current });
-    };
+    // No confirmation: the delete can be undone from the toast (or with Ctrl+Z).
+    d.onclick = () => go({ cmd: "delete_space", id: S.current });
     foot.push(d);
   }
   foot.push(

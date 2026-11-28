@@ -7,6 +7,12 @@ impl Browser {
     /// (navigation, favicons, drags) are coalesced and flushed by `flush_save` from the event
     /// loop timer, so the UI thread is not blocked by disk I/O on every event.
     pub fn save(&mut self) {
+        if !self.p.used_favorites && self.tabs.iter().any(|t| t.kind == Kind::Favorite) {
+            self.p.used_favorites = true;
+        }
+        if !self.p.used_pinned && self.tabs.iter().any(|t| t.kind == Kind::Pinned) {
+            self.p.used_pinned = true;
+        }
         self.save_dirty = true;
         if self.last_save.elapsed() >= SAVE_MIN_INTERVAL {
             self.flush_save();

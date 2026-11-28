@@ -147,6 +147,14 @@ impl Browser {
             "sidebar_collapsed": self.p.sidebar_collapsed,
             "sidebar_width": self.p.sidebar_width,
             "sidebar_compact": self.p.sidebar_compact,
+            // Empty-list tips: only from the 3rd to the 49th tab ever opened, and never again
+            // once favorites or pins have been used in any space.
+            "hints": {
+                "favorites": (3..50).contains(&self.p.tabs_opened)
+                    && !(self.p.used_favorites || self.tabs.iter().any(|t| t.kind == Kind::Favorite)),
+                "pinned": (3..50).contains(&self.p.tabs_opened)
+                    && !(self.p.used_pinned || self.tabs.iter().any(|t| t.kind == Kind::Pinned)),
+            },
             "devtools_open": self.devtools_open,
             "devtools_position": self.p.devtools_position,
             "devtools_size": self.p.devtools_size,

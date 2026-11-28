@@ -9,7 +9,7 @@ clearTabsBtn.title = "Close all unpinned tabs";
 clearTabsBtn.onpointerdown = (e) => e.stopPropagation();
 clearTabsBtn.onclick = (e) => {
   e.stopPropagation();
-  send({ cmd: "clear_tabs" });
+  window.__clearTabs();
 };
 {
   const line = $("line");

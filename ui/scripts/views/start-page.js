@@ -101,16 +101,36 @@ function buildNewTab(v) {
       ["Reload page", "refresh-1", act({ cmd: "reload" }), "refresh"],
       ["Take a screenshot", "camera", act({ cmd: "capture" }), "capture"],
       ["Developer tools", "code", act({ cmd: "devtools_toggle" }), "inspect"],
-      ["Zap an element on this page", "magic-2", act({ cmd: "start_zap" }), "boost hide"],
+      [
+        "Zap an element on this page",
+        "magic-2",
+        act({ cmd: "start_zap" }),
+        "boost hide",
+      ],
       [
         S.sidebar_collapsed ? "Show sidebar" : "Hide sidebar",
         "sidebar-left-close",
         act({ cmd: "sidebar_collapsed", collapsed: !S.sidebar_collapsed }),
         "collapse",
       ],
-      ["Theme: light", "sun", act({ cmd: "set_theme", theme: "light" }), "appearance"],
-      ["Theme: dark", "sun", act({ cmd: "set_theme", theme: "dark" }), "appearance"],
-      ["Theme: system", "sun", act({ cmd: "set_theme", theme: "system" }), "appearance"],
+      [
+        "Theme: light",
+        "sun",
+        act({ cmd: "set_theme", theme: "light" }),
+        "appearance",
+      ],
+      [
+        "Theme: dark",
+        "sun",
+        act({ cmd: "set_theme", theme: "dark" }),
+        "appearance",
+      ],
+      [
+        "Theme: system",
+        "sun",
+        act({ cmd: "set_theme", theme: "system" }),
+        "appearance",
+      ],
     ];
     SETTINGS_TABS.forEach(([id, icon, label]) =>
       list.push([
@@ -133,11 +153,33 @@ function buildNewTab(v) {
         ]);
     });
     if (S.mini_window)
-      list.push(["Quick search window", "search", act({ cmd: "open_mini" }), "mini little arc"]);
+      list.push([
+        "Quick search window",
+        "search",
+        act({ cmd: "open_mini" }),
+        "mini little arc",
+      ]);
+    list.push([
+      "Undo last close or delete",
+      "undo",
+      act({ cmd: "undo" }),
+      "restore reopen",
+    ]);
+    list.push([
+      "Show empty-list tips again",
+      "star",
+      act({ cmd: "reset_hints" }),
+      "hints favorites pinned reset",
+    ]);
     if (S.active) {
       list.push(
         ["Close tab", "close", act({ cmd: "close_tab", id: S.active }), ""],
-        ["Add tab to favorites", "star", act({ cmd: "fav_tab", id: S.active }), "bookmark"],
+        [
+          "Add tab to favorites",
+          "star",
+          act({ cmd: "fav_tab", id: S.active }),
+          "bookmark",
+        ],
       );
     }
     return list.map(([t, i, run, kw]) => ({
@@ -193,7 +235,9 @@ function buildNewTab(v) {
         run: () => go({ cmd: "select_tab", id: t.id }),
       });
       const text = (t) => (t.title || "") + " " + t.url;
-      pick(S.tabs, text, words, 4).forEach((t) => items.push(tabItem(t, "Tab")));
+      pick(S.tabs, text, words, 4).forEach((t) =>
+        items.push(tabItem(t, "Tab")),
+      );
       pick([...S.favorites, ...S.pinned], text, words, 4).forEach((t) =>
         items.push(tabItem(t, "Bookmark")),
       );
@@ -203,7 +247,9 @@ function buildNewTab(v) {
     );
     if (!only) {
       const seen = new Set(items.map((i) => i.fav && i.fav.url));
-      const rows = historyRows.filter((h) => !seen.has(h.url) && seen.add(h.url));
+      const rows = historyRows.filter(
+        (h) => !seen.has(h.url) && seen.add(h.url),
+      );
       pick(rows, (h) => (h.title || "") + " " + h.url, words, 5).forEach((h) =>
         items.push({
           fav: h,
@@ -221,7 +267,13 @@ function buildNewTab(v) {
         }),
       );
     }
-    sel = keepSel && prev ? Math.max(0, items.findIndex((i) => i.t === prev.t)) : 0;
+    sel =
+      keepSel && prev
+        ? Math.max(
+            0,
+            items.findIndex((i) => i.t === prev.t),
+          )
+        : 0;
     paint();
   }
   function paint() {

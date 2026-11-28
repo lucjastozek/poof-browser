@@ -116,6 +116,10 @@ pub(super) enum Cmd {
         id: String,
     },
     ClearTabs,
+    /// Restore the latest closed tab, deleted folder or space, or removed favorite or pin.
+    Undo,
+    /// Bring back the empty-list tips for favorites and pinned tabs.
+    ResetHints,
     PinTab {
         id: String,
     },

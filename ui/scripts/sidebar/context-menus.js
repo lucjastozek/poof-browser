@@ -63,11 +63,21 @@ function showRowMenu(e, t) {
   const inTabs = S.tabs.some((x) => x.id === t.id),
     inPinned = S.pinned.some((x) => x.id === t.id);
   if (inTabs)
-    items.push(item("Pin tab", { cmd: "move_tab", id: t.id, to: "pinned", index: 9999 }));
+    items.push(
+      item("Pin tab", { cmd: "move_tab", id: t.id, to: "pinned", index: 9999 }),
+    );
   if (inPinned)
-    items.push(item("Unpin tab", { cmd: "move_tab", id: t.id, to: "tab", index: 0 }));
+    items.push(
+      item("Unpin tab", { cmd: "move_tab", id: t.id, to: "tab", index: 0 }),
+    );
   if (t.folder_id)
-    items.push(item("Remove from folder", { cmd: "move_tab_to_folder", id: t.id, folder_id: null }));
+    items.push(
+      item("Remove from folder", {
+        cmd: "move_tab_to_folder",
+        id: t.id,
+        folder_id: null,
+      }),
+    );
   if (t.url && /^https?:/i.test(t.url))
     tail.push(
       Object.assign(item("Copy link", { cmd: "noop" }), {
@@ -79,8 +89,13 @@ function showRowMenu(e, t) {
     );
   if (t.kind !== "favorite" && !S.favorites.some((f) => f.id === t.id))
     tail.push(item("Add to favorites", { cmd: "fav_tab", id: t.id }));
-  if (t.loaded) tail.push(item("Put to sleep", { cmd: "unload_tab", id: t.id }));
-  const close = item("Close tab", { cmd: "close_tab", id: t.id });
+  if (t.loaded)
+    tail.push(item("Put to sleep", { cmd: "unload_tab", id: t.id }));
+  const close = item("Close tab", { cmd: "noop" });
+  close.onclick = () => {
+    rowMenu.remove();
+    window.__closeTab(t.id);
+  };
   close.classList.add("danger");
   tail.push(close);
   if (items.length) items.push(el("div", "folder-context-sep"));
@@ -90,7 +105,9 @@ function showRowMenu(e, t) {
 // Measures the menu after it is in the DOM so it never spills past the sidebar or window.
 function placeMenu(menu, items, e) {
   menu.setAttribute("role", "menu");
-  items.forEach((i) => i.matches?.("button") && i.setAttribute("role", "menuitem"));
+  items.forEach(
+    (i) => i.matches?.("button") && i.setAttribute("role", "menuitem"),
+  );
   menu.replaceChildren(...items);
   menu.style.visibility = "hidden";
   $("side").append(menu);

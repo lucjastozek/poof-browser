@@ -77,6 +77,7 @@ impl Browser {
     pub(super) fn new_tab(&mut self, url: &str) -> Result<()> {
         let sp = self.cur_space().clone();
         let id = new_id();
+        self.p.tabs_opened = self.p.tabs_opened.saturating_add(1);
         self.tabs.push(Tab {
             id: id.clone(),
             profile_id: sp.profile_id,
@@ -309,11 +310,23 @@ impl Browser {
             self.logged_urls.remove(id);
             self.closed_tabs.insert(0, self.tabs[idx].url.clone());
             self.closed_tabs.truncate(25);
-            let removed = self.tabs.remove(idx);
-            self.retire_webview(&removed.id, &removed.profile_id, removed.webview);
+            let mut removed = self.tabs.remove(idx);
+            let webview = removed.webview.take();
+            self.retire_webview(&removed.id, &removed.profile_id, webview);
+            // A blank new tab is not worth an undo toast.
+            if removed.url != "about:blank" {
+                if let Some(rec) = self.undo_rec.as_mut() {
+                    rec.closed_tab(idx, removed, was_visible);
+                }
+            }
         } else {
             // Pinned / favorite: unload and reset to its home URL, keep the entry.
             let t = &mut self.tabs[idx];
+            if t.url != t.home {
+                if let Some(rec) = self.undo_rec.as_mut() {
+                    rec.reset(id, &t.url, was_visible);
+                }
+            }
             let webview = t.webview.take();
             t.url = t.home.clone();
             let profile_id = t.profile_id.clone();
@@ -442,6 +455,7 @@ impl Browser {
             }
             None => self.tabs.len(),
         };
+        self.p.tabs_opened = self.p.tabs_opened.saturating_add(1);
         self.tabs.insert(pos, tab);
         self.bg_tabs.insert(id.clone());
         // Start loading right away (hidden); the tab is not activated.

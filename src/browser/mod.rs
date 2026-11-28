@@ -93,6 +93,7 @@ mod split;
 mod switcher;
 mod tabs;
 mod types;
+mod undo;
 mod update;
 mod view_backdrop;
 mod webview;
@@ -135,6 +136,10 @@ pub struct Browser {
     downloads_hole: Option<[f64; 4]>,
     fullscreen: bool,
     closed_tabs: Vec<String>,
+    /// Destructive sidebar actions that can still be undone (newest last).
+    undo_stack: Vec<(String, undo::Undo)>,
+    /// Collects tabs closed by the command that is running, for one undo entry.
+    undo_rec: Option<undo::UndoRec>,
     devtools_open: bool,
     devtools: Option<WebView>,
     devtools_tab: Option<String>,
@@ -272,6 +277,8 @@ impl Browser {
             downloads_hole: None,
             fullscreen: false,
             closed_tabs: Vec::new(),
+            undo_stack: Vec::new(),
+            undo_rec: None,
             devtools_open: false,
             devtools: None,
             devtools_tab: None,
