@@ -34,8 +34,12 @@
 
   const layer = el("div", "tabsw");
   layer.hidden = true;
+  layer.setAttribute("role", "dialog");
+  layer.setAttribute("aria-label", "Switch tab");
   const panel = el("div", "tabsw-panel");
   const strip = el("div", "tabsw-strip");
+  strip.setAttribute("role", "listbox");
+  strip.setAttribute("aria-label", "Open tabs");
   const hint = el(
     "div",
     "tabsw-hint",
@@ -54,14 +58,24 @@
     }
   };
   const paint = (i) => {
-    [...strip.children].forEach((c, n) => c.classList.toggle("on", n === i));
+    [...strip.children].forEach((c, n) => {
+      c.classList.toggle("on", n === i);
+      c.setAttribute("aria-selected", String(n === i));
+    });
     const c = strip.children[i];
-    if (c) c.scrollIntoView({ inline: "center", block: "nearest" });
+    if (c) {
+      c.scrollIntoView({ inline: "center", block: "nearest" });
+      window.__announce &&
+        window.__announce(
+          c.querySelector(".tabsw-ttl").textContent + ", " + (i + 1) + " of " + strip.children.length,
+        );
+    }
   };
   window.__switcher = (p) => {
     strip.replaceChildren(
       ...p.cards.map((t) => {
         const c = el("div", "tabsw-card" + (t.loaded ? "" : " idle"));
+        c.setAttribute("role", "option");
         const art = el("div", "tabsw-art");
         if (t.favicon) {
           const img = el("img");

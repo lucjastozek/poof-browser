@@ -1,6 +1,23 @@
+/* Where focus was before a full-area view opened, so closing it puts focus back. */
+let viewReturn = null;
+function saveViewFocus() {
+  const a = document.activeElement;
+  viewReturn =
+    a && a !== document.body && !$("stage").contains(a)
+      ? { el: a, key: window.__navKeyOf ? window.__navKeyOf(a) : null }
+      : null;
+}
+function restoreViewFocus() {
+  const r = viewReturn;
+  viewReturn = null;
+  if (r && r.key && window.__focusNavKey && window.__focusNavKey(r.key)) return;
+  if (r && r.el && r.el.isConnected) r.el.focus({ preventScroll: true });
+  else if (S && S.active) send({ cmd: "focus_tab", id: S.active });
+}
 /* A command that changes what is shown: close any full-area view first. */
 function go(cmd) {
   if (ov) {
+    viewReturn = null; // the page takes focus now
     ov = null;
     leaveView();
     $("stage").hidden = true;
@@ -20,6 +37,7 @@ function openView(name) {
   if (window.__closeDownloads) window.__closeDownloads();
   // Settings float over a picture of the page that was showing; other views replace it.
   const snapshot = name === "settings" && !ov;
+  if (!ov) saveViewFocus();
   leaveView();
   ov = name;
   $("stage").hidden = false;
@@ -55,6 +73,7 @@ function closeView() {
   $("stage").hidden = true;
   applyColor(curSpace().color);
   send({ cmd: "overlay", open: false });
+  restoreViewFocus();
 }
 function build(name) {
   const v = $("stage");

@@ -132,6 +132,12 @@
   margin-top: 0;
   margin-bottom: 0;
   pointer-events: none;
+  visibility: hidden; /* not reachable by keyboard or screen reader while folded */
+  transition:
+    max-height var(--t-slow) var(--ease-out),
+    opacity var(--t-base),
+    margin var(--t-slow) var(--ease-out),
+    visibility 0s linear var(--t-slow);
 }
 .folder-head:active {
   background: var(--raised);
