@@ -59,6 +59,7 @@ function beginDrag(row, t, kind, ox) {
   g.append(icon(t), el("span", "ttl", t.title || pretty(t.url) || "New tab"));
   document.body.append(g);
   drag = { id: t.id, kind, row, ghost: g, ox, zone: null, idx: 0 };
+  dragLift(drag);
   row.classList.add("lift");
   document.body.classList.add("dragging");
 }
@@ -78,6 +79,7 @@ function watchFolderDrag(e, head, folder) {
       zone: null,
       idx: 0,
     };
+    dragLift(drag);
     head.classList.add("lift");
     document.body.classList.add("dragging");
   });

@@ -272,6 +272,10 @@ pub(super) enum Cmd {
     SetPeekLinks {
         on: bool,
     },
+    /// The quiet drop tick on or off.
+    SetFeedback {
+        sound: bool,
+    },
     /// Opens the small quick-search window.
     OpenMini,
     /// Play or pause the media of a tab (the mini player).

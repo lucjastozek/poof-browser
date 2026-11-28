@@ -216,6 +216,10 @@ impl Browser {
                 self.save();
             }
             Cmd::SetPeekLinks { on } => self.set_peek_links(on),
+            Cmd::SetFeedback { sound } => {
+                self.p.feedback_sound = sound;
+                self.save();
+            }
             Cmd::OpenMini => {
                 if self.p.mini_window {
                     let _ = self

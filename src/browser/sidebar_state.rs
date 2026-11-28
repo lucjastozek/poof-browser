@@ -142,6 +142,7 @@ impl Browser {
             "boosts": self.p.boosts,
             "mini_window": self.p.mini_window,
             "peek_links": self.p.peek_links,
+            "feedback_sound": self.p.feedback_sound,
             "media": self.media_rows(),
             "link_fallback": self.p.link_fallback,
             "save_passwords": self.p.save_passwords,

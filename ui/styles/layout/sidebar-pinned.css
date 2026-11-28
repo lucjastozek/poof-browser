@@ -96,12 +96,14 @@
   pointer-events: none;
   background: var(--raised);
   border-radius: var(--r-md);
+  /* The shadow deepens with the drag speed (--lift, 0 to 1, set by drag-physics.js). */
   box-shadow:
-    var(--shadow-lg),
+    0 calc(6px + 20px * var(--lift, 0)) calc(16px + 30px * var(--lift, 0))
+      rgb(0 0 0 / calc(0.14 + 0.2 * var(--lift, 0))),
     0 0 0 1px var(--line-2);
   opacity: 0.97;
   transform: scale(1.025);
-  will-change: left, top;
+  will-change: transform;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -340,10 +342,12 @@ body.compact .toast-undo kbd {
   border: 1px dashed var(--line-2);
   border-radius: var(--r-lg);
   color: var(--ink-3);
-  animation: rise var(--t-slow) var(--ease-out);
   transition:
     border-color var(--t-base),
     background var(--t-base);
+}
+.ghost-hint.enter {
+  animation: rise var(--t-slow) var(--ease-out);
 }
 .gh-text {
   display: flex;

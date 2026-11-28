@@ -77,8 +77,7 @@ function updateDrag(ev) {
   const d = drag,
     x = ev.clientX,
     y = ev.clientY;
-  d.ghost.style.left = x - d.ox + "px";
-  d.ghost.style.top = y - 17 + "px";
+  dragFollow(d, x - d.ox, y - 17);
   const pane = $("pane"),
     pr = pane.getBoundingClientRect();
   if (y < pr.top + 28) pane.scrollTop -= 8;
@@ -258,8 +257,9 @@ function updateDrag(ev) {
 function endDrag(drop) {
   const d = drag;
   drag = null;
-  d.ghost.remove();
-  d.row.classList.remove("lift");
+  const landed = !!(drop && d.zone);
+  dragSettle(d, landed);
+  if (landed && d.zone === "pinned" && d.kind !== "pin") window.__feedback();
   document.body.classList.remove("dragging");
   $("ind").hidden = true;
   $("line").classList.remove("hot");

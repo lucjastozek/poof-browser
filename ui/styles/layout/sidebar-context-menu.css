@@ -60,6 +60,7 @@ body.collapsed.peek #side {
   transition: none;
   animation: none;
 }
+/* In the peek overlay the edge handle pulls the sidebar open (flick or drag right). */
 body.collapsed.peek #side #side-resize {
-  display: none;
+  display: block;
 }

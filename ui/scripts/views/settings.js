@@ -165,6 +165,19 @@ function generalPanel() {
         },
       ),
     ),
+    field(
+      "Feedback",
+      switchRow(
+        "Sound",
+        "A very quiet tick when you drop a tab onto Pinned",
+        S.feedback_sound,
+        (on) => {
+          S.feedback_sound = on;
+          send({ cmd: "set_feedback", sound: on });
+          if (on) window.__feedback();
+        },
+      ),
+    ),
     scheduleField(),
     defaultBrowserSettingsField(),
   ];

@@ -88,6 +88,11 @@ body.resizing-sidebar #side,
 body.resizing-sidebar .toolbar-sidebar {
   transition: none;
 }
+/* The rubber band stretches the sidebar a little past its limits while it is being pulled. */
+body.resizing-sidebar #side {
+  min-width: 0;
+  max-width: none;
+}
 body.collapsed:not(.peek) #side > * {
   display: none !important;
 }

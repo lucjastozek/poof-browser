@@ -6,6 +6,7 @@
 (() => {
   function hint(kind, idle, drag) {
     const box = el("div", "ghost-hint");
+    if (!shown[kind]) box.classList.add("enter");
     box.setAttribute("aria-hidden", "true");
     const icon = ic(kind === "fav" ? "star" : "pin-2");
     box.append(icon, el("div", "gh-text", ""));
@@ -18,6 +19,8 @@
     return box;
   }
 
+  // A hint only animates in when it newly appears, not on every state push.
+  const shown = { fav: false, pin: false };
   const base = window.__setState;
   window.__setState = (s) => {
     base(s);
@@ -45,5 +48,7 @@
           "Pin it here!",
         ),
       );
+    shown.fav = showFav;
+    shown.pin = showPin;
   };
 })();

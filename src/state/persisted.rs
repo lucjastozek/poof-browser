@@ -134,6 +134,9 @@ pub struct Persisted {
     /// Peek: Alt+click on a link previews it in an overlay. Off by default.
     #[serde(default)]
     pub peek_links: bool,
+    /// A very quiet tick when a tab is dropped onto Pinned. Off by default.
+    #[serde(default)]
+    pub feedback_sound: bool,
     /// Boosts: per-site CSS, JS and zapped elements.
     #[serde(default)]
     pub boosts: Vec<Boost>,
@@ -191,6 +194,7 @@ impl Default for Persisted {
             boosts: vec![],
             mini_window: false,
             peek_links: false,
+            feedback_sound: false,
             link_fallback: None,
             used_favorites: false,
             used_pinned: false,
